@@ -3,12 +3,12 @@
 ## 1) use xml2 to get negative binomial fit and dispersion from
 ## breseq output summary.html. This is H0 null distribution of 1x coverage.
 
-## 2) Find intervals longer than 500bp that reject H0 coverage in genome.
+## 2) Find intervals longer than max.read.len that reject H0 coverage in genome.
 ##    at an uncorrected alpha = 0.05. This is to have generous predicted boundaries for amplifications.
 
-## 3) Do a more rigorous test for each region. take positions in the region separated by more than 500bp,
+## 3) Do a more rigorous test for each region. take positions in the region separated by more than max.read.len,
 ## and determine the probability that all are independently significant under the null, compared to
-## a corrected bonferroni. The 500bp ensures positions cannot be spanned by a single Illumina read.
+## a corrected bonferroni. The max.read.len ensures positions cannot be spanned by a single Illumina read.
 
 ## 4) Estimate copy number by dividing mean coverage in each region by the mean
 ##   of the H0 1x coverage distribution.
@@ -29,8 +29,6 @@ library(IRanges)
 library(GenomicRanges)
 library(genbankr)
 
-library(data.table)  # faster fread()
-library(dplyr)       # consistent data.frame operations
 library(purrr)       # consistent & safe list/vector munging
 library(tidyr)       # consistent data.frame cleaning
 library(ggplot2)     # base plots are for Coursera professors
@@ -39,7 +37,10 @@ library(gridExtra)   # a helper for arranging individual ggplot objects
 library(ggthemes)    # has a clean theme for ggplot2
 library(viridis)     # best. color. palette. evar.
 library(DT)          # prettier data.frame output
+library(data.table)  # faster fread()
+library(dplyr)       # consistent data.frame operations.
 library(dtplyr)      # dplyr works with data.table now.
+
 
 
 #' parse the summary.html breseq output file, and return the mean and dispersion
@@ -64,11 +65,11 @@ coverage.nbinom.from.html <- function (breseq.output.dir) {
 }
 
 
-#' Find intervals longer than 500bp that reject H0 coverage in genome.
+#' Find intervals longer than max.read.len that reject H0 coverage in genome.
 #' at an uncorrected alpha = 0.05. This is to have generous predicted boundaries for amplifications.
-#' Then do a more rigorous test for each region. take positions in the region separated by more than 500bp,
+#' Then do a more rigorous test for each region. take positions in the region separated by more than max.read.len,
 #' and determine the probability that all are independently significant under the null, compared to
-#' a corrected bonferroni. The 500bp ensures positions cannot be spanned by a single Illumina read.
+#' a corrected bonferroni. max.read.len ensures positions cannot be spanned by a single Illumina read.
 #' Estimate copy number by dividing mean coverage in each region by the mean of the H0 1x coverage distribution.
 #' return mean copy number, and boundaries for each region that passes the amplification test.
 #' @export
@@ -78,7 +79,7 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
     ## breseq output summary.html. This is H0 null distribution of 1x coverage.
     nbinom.fit <- coverage.nbinom.from.html(breseq.output.dir)
 
-    max.read.len <- 500
+    max.read.len <- 150 + 50
     genome.length <- 4629812
     alpha <- 0.05
     uncorrected.threshold <- qnbinom(p=alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
@@ -111,8 +112,8 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
     }
 
     amplified.segments <- data.frame(left.boundary=left.boundaries$position,right.boundary=right.boundaries$position) %>%
-        ## filter out intervals less than 500 bp.
-        mutate(len=right.boundary-left.boundary) %>% filter(len>max.read.len) %>% mutate(amplication.index=row_number()) %>%
+        ## filter out intervals less than max.read.len*2 (400bp).
+        mutate(len=right.boundary-left.boundary) %>% filter(len>(2*max.read.len)) %>% mutate(amplication.index=row_number()) %>%
         ## find min, max, and mean coverage of each amplified segment.
         group_by(left.boundary,right.boundary) %>%
         summarise(coverage.min=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,min),
@@ -128,7 +129,7 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
     corrected.threshold <- qnbinom(p=bonferroni.alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
 
     ## This is my test: take the probability of the minimum coverage under H0 to the power of the number of
-    ## uncorrelated sites in the amplification (sites more than 500 bp apart). Then see if this is smaller than the
+    ## uncorrelated sites in the amplification (sites more than max.read.len apart). Then see if this is smaller than the
     ## bonferroni corrected p-value for significance..
     significant.amplifications <- amplified.segments %>%
         mutate(pval=(pnbinom(q=coverage.min,
@@ -186,34 +187,24 @@ annotate.amplifications <- function(amplifications,REL606.gbk) {
 plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
 
     labeled.annotated.amps <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
-        select(-query.index,-subject.index,-is.significant,-Sample.Type) %>%
+        select(-query.index,-subject.index,-is.significant,-Sample.Type, -Population) %>%
         ## replace 'sfcA' with 'maeA' in the plot.
-        mutate(gene = replace(gene, gene == 'sfcA', 'maeA'))
-        ## reverse the order genes by start to get axes correct on heatmap.
-    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, rev(start)))
+        mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
+        transform(Population = Population.Label) %>% filter(!is.na(Population))
+        ## order the genes by start to get axes correct on heatmap.
+    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
 
-    heatmap <- ggplot(labeled.annotated.amps,aes(x=Genome,y=gene,fill=left.boundary,frame=Environment)) +
+    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Population,fill=left.boundary,frame=Environment)) +
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
-        geom_hline(linetype='dashed',yintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
-        scale_x_discrete(expand=c(0,0)) +
-        scale_y_discrete(expand=c(0,0)) +
+        geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
+        xlab("Amplified Genes") +
+        labs(fill = "Genomic Position") +
         scale_fill_viridis(name="") +
-        coord_equal() +
-        facet_wrap(~Environment,ncol=2, scales = "free_x") +
+        facet_wrap(~Environment,nrow=2, scales = "free_y") +
         theme_tufte(base_family='Helvetica') +
         theme(axis.ticks=element_blank()) +
-        theme(axis.text.x=element_text(size=5,angle=45,hjust=1)) +
-        theme(axis.text.y=element_text(size=5,
-                                       ## bold the text for citT, dctA, and maeA
-                                       face=ifelse(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'),"bold.italic","italic"))) +
-        theme(panel.border=element_blank()) +
-        theme(plot.title=element_text(hjust=0)) +
-        theme(strip.text=element_text(hjust=0,size=12)) +
-        theme(panel.spacing.x=unit(1, "cm")) +
-        theme(panel.spacing.y=unit(0.5, "cm")) +
-        theme(legend.title=element_text(size=6)) +
-        theme(legend.title.align=1) +
+        theme(axis.text.x=element_blank()) +
         theme(legend.text=element_text(size=6)) +
         theme(legend.position="bottom") +
         theme(legend.key.size=unit(0.2, "cm")) +
@@ -226,11 +217,13 @@ plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
 plot.Fig4B.stackedbar <- function(amps,clone.labels) {
 
 amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
-    left_join(clone.labels, by=c("Genome" = "Name"))
+    left_join(clone.labels, by=c("Genome" = "Name")) %>% select(-Population) %>%
+    transform(Population=Population.Label) %>% filter(!is.na(Population))
+
 
 genome.length <- 4629812
 
-stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=left.boundary)) +
+stacked <- ggplot(amps2,aes(x=Population,y=total.amp.length,fill=left.boundary)) +
     geom_bar(stat="identity") +
     geom_hline(yintercept=genome.length/5,linetype="dashed") +
     scale_fill_viridis(name="") +
@@ -259,7 +252,7 @@ projdir <- "/Users/Rohandinho/Dropbox (HMS)/DM0-evolution"
 outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
 REL606.gb <- file.path(projdir,"genomes/REL606.7.gbk")
-all.genomes <- list.files(breseq.output.dir,pattern='^ZDBp')
+all.genomes <- list.files(breseq.output.dir,pattern='^ZDBp|^CZB')
 all.genome.paths <- sapply(all.genomes, function(x) file.path(breseq.output.dir,x))
 genome.input.df <- data.frame(Genome=all.genomes,path=all.genome.paths)
 
@@ -284,12 +277,12 @@ amp.parallelism <- annotated.amps %>% group_by(gene,locus_tag) %>% summarise(cou
 ## (I can do this easily by hand).
 
 copy.number.table <- annotated.amps %>%
-    filter(gene %in% c('citT','sfcA','dctA')) %>%
+    filter(gene %in% c('sfcA','dctA')) %>%
     ## change sfcA to maeA
     mutate(Gene=replace(gene,gene=='sfcA','maeA')) %>%
     transform(amplified.segment.length=len) %>%
     arrange(Gene,Genome) %>%
-    select(Gene,Genome,copy.number.mean,copy.number.min,copy.number.max, bonferroni.corrected.pval)
+    select(Gene,Genome,amplified.segment.length,copy.number.mean,copy.number.min,copy.number.max, bonferroni.corrected.pval)
 
 write.csv(x=copy.number.table,file=file.path(outdir,"copy_number_table.csv"))
 
@@ -305,7 +298,7 @@ clone.labels <- read.csv(label.filename)
 ## color the matrix based on gene location.
 
 heatmap2 <- plot.Fig4A.heatmap(annotated.amps,clone.labels)
-ggsave(heatmap2,filename=file.path(outdir,"figures/Fig4A.pdf"),height=11,width=3)
+ggsave(heatmap2,filename=file.path(outdir,"figures/Fig4A.pdf"),height=5,width=7)
 
 ## Make a stacked bar plot, with facet grid on DM0 versus DM25.
 ## color the stacked bars based on the left boundary

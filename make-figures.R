@@ -8,8 +8,84 @@ library(scales)
 library(gridExtra)
 library(lubridate)
 library(assertthat)
+library(tidyr)
 
 pop.clone.labels <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/populations-and-clones.csv")
+
+## Figure 1A is a diagram of the DM0 and DM25 experiments made in Illustrator.
+
+## Figure 1B: make a stacked bar plot of the different kinds of mutations in each clone.
+
+mutation.types <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/genome-analysis/mutation_types.csv")
+
+fig1B.stacked <- ggplot(mutation.types,aes(x=Clone,fill=Mutation)) +
+    geom_bar() +
+    ##scale_fill_viridis(option="magma",discrete=TRUE) +
+    coord_equal() +
+    facet_wrap(~Environment,ncol=2,scales="free_x") +
+    theme_tufte(base_family='Helvetica') +
+    theme(axis.ticks=element_blank()) +
+    theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
+    theme(axis.text.y=element_text(size=12)) +
+    theme(panel.border=element_blank()) +
+    theme(plot.title=element_text(hjust=0)) +
+    theme(strip.text=element_text(hjust=0,size=12)) +
+    theme(panel.spacing.x=unit(1, "cm")) +
+    theme(panel.spacing.y=unit(0.5, "cm")) +
+    theme(legend.title=element_text(size=8)) +
+    theme(legend.title.align=1) +
+    theme(legend.text=element_text(size=8))
+
+fig1B.output <- "../results/figures/Fig1B.pdf"
+ggsave(fig1B.stacked, file=fig1B.output,width=7,height=7)
+
+## Figure 1C: make a matrix plot of genes with mutations in two or more clones.
+fig1C.raw.matrix <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/genome-analysis/Dice-similarity-analysis/environment-comparison-mutation-matrix.csv")
+fig1C.data <- gather(fig1C.raw.matrix,"Name","mutation.count",2:25) %>%
+    left_join(pop.clone.labels) %>%
+    select(Gene,Name,mutation.count,Environment,Population.Label) %>%
+    group_by(Gene) %>% filter(sum(mutation.count)>1)
+
+fig1C.counts <- summarize(fig1C.data,total.count=sum(mutation.count)) %>% arrange(desc(total.count))
+
+## Now: add LTEE mutation matrix as well.
+## filter on genes mutated in the DM0 and DM25 matrix data.
+fig1C.ltee.matrix <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/LTEE-comparison-mutation-matrix.csv")
+LTEE.50K.labels <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/LTEE-50K-clones.csv")
+
+fig1C.ltee.data <- gather(fig1C.ltee.matrix,"Name","mutation.count",2:13) %>%
+    left_join(LTEE.50K.labels) %>%
+    group_by(Gene) %>% filter(Gene %in% levels(fig1C.data$Gene)) %>%
+    filter(!is.na(Gene))
+
+## Now join LTEE data to the DM0 and DM25 Cit+ data.
+fig1C.data <- fig1C.data %>% bind_rows(fig1C.ltee.data) %>%
+    replace_na(replace=list(Hypermutator=0))
+
+## Possible TODO: label hypermutators in red.
+
+## order the genes by number of mutations to get axes correct on heatmap.
+fig1C.data$Gene <- factor(fig1C.data$Gene,levels=fig1C.counts$Gene)
+fig1C.data$mutation.count <- factor(fig1C.data$mutation.count)
+fig1C <-  ggplot(fig1C.data,aes(x=Population.Label,y=Gene,fill=mutation.count,
+                                frame=Environment)) +
+    geom_tile(color="black",size=0.1) +
+    ylab("Gene") +
+    facet_wrap(~Environment,ncol=3, scales = "free_x") +
+    theme_tufte(base_family='Helvetica') +
+    theme(axis.ticks=element_blank()) +
+    theme(axis.text.x=element_text(size=10,angle=45,hjust=1)) +
+    theme(axis.text.y=element_text(size=10,hjust=1,face="italic")) +
+    theme(legend.text=element_text(size=6)) +
+    theme(legend.position="bottom") +
+    theme(legend.key.size=unit(0.2, "cm")) +
+    theme(legend.key.width=unit(1, "cm")) +
+    scale_fill_manual(values = c("white", "#ffffb3", "#bebada",
+                                 "#fb8072", "#80b1d3", "#fdb462"))
+
+fig1C.output <- "../results/figures/Fig1C.pdf"
+ggsave(fig1C, file=fig1C.output,width=7,height=7)
+
 
 ############################################################################
 ## Figure 2: Fitness of evolved clones in DM0 and DM25.
