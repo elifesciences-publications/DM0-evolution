@@ -16,14 +16,14 @@ from os.path import exists, join, basename, isdir
 from os import makedirs, listdir, chdir, getcwd
 
 def main():
-    projdir = "/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/"
+    projdir = "/Users/Rohandinho/BoxSync/DM0-evolution/"
     genomedir = join(projdir,"genomes/polymorphism/")
 
     evidence_codes = {'RA','MC', 'JC', 'UN'}
     ## rnk included for its promoter.
     relevant_genes = {'rnk','citT','sfcA','dctA'}
 
-    for g in [x for x in listdir(genomedir) if x.startswith('ZDB')]:
+    for g in [x for x in listdir(genomedir) if x.startswith('ZDB') or x.startswith('CZB')]:
         gdfile = join(genomedir,g,"output/evidence/annotated.gd")
         gd_h = open(gdfile)
         for l in gd_h:

@@ -7,16 +7,8 @@ TEE.py to run on the Cit+ evolution experiment data.
 
 2) Run TEE.py on the data two ways: DM0 versus DM25, and CZB151 versus CZB152 and CZB154.
 
-It is necessary to have run contamination-check.py before running this program.
-In particular, ancestral mutations need to be subtracted from the evolved clones,
-and strong parallelism/cross-contamination needs to be removed to have a more
-conservative analysis.
+It is necessary to have run deal-with-diffs.py before running this program.
 
-'''
-
-
-
-'''
 Command line used in the TEE analysis:
 python TEE.py -n 1000000 -p 150 -dt -s annotated_gd/ -g ../REL606.gbk -e annotated_gd/REL1207.gd -ct 37c
 
@@ -34,25 +26,23 @@ parser.add_argument("-pw", "--pairwise", help="perform pairwise dice comparisons
 args = parser.parse_args()
 '''
 
-from os.path import join ##, basename, exists
-##from os import listdir, getcwd, makedirs
+from pathlib import Path
+from os import makedirs
+from os.path import join, expanduser, dirname
 from subprocess import run
+import pandas as pd
 
 class CallTEE:
-    def __init__(self,gd_dir,control_treatment=''):
+    def __init__(self,gd_dir,genbank_ref,mutmatrixfile,control_treatment=''):
         ##self.number = 1000000
         self.number = 10 ## for debugging
         self.promoter_length = 150
-        self.genbank_ref = '../genomes/REL606.7.gbk'
+        self.genbank_ref = genbank_ref
         self.control_treatment = control_treatment
         self.samples = gd_dir
-        self.exclude = join(gd_dir,'cross_contamination_union.gd')
-        ## To get TEE.py working for now, include an excluded file.
-        ## do all pairwise comparisons among treatments.
-        ## remove control treatment flag for now.
-
+        self.mutmatrixfile = mutmatrixfile
         self.args = ['python', './external/Deatherage-analysis/DiceSimilarity/citrate_dice.py', '-pw', '-n', str(self.number),
-                     '-p', str(self.promoter_length), '-dt', '-s', self.samples, '-g', self.genbank_ref, '-e', self.exclude , '-ct', self.control_treatment]
+                     '-p', str(self.promoter_length), '-dt', '-s', self.samples, '-g', self.genbank_ref, '-ct', self.control_treatment, '--matrixfile', self.mutmatrixfile]
 
     def call(self):
         return run(self.args)
@@ -60,49 +50,55 @@ class CallTEE:
     def __str__(self):
         return ' '.join(self.args)
 
-def setup_dir_structure():
-    '''
-    TODO: automatically copy annotated and subtracted
-          evolved clone gds into the proper folders to
-          run the Dice Similarity analysis. For expediency,
-          do by hand at the moment.
-'''
-    pass
+def organize_diffs(analysisdir):
+    ''' automatically organize files for the dice analysis.'''
 
-def parse_TEE_output():
-    '''
-    TODO: parse TEE.py output to make matrix plot. OR turn TEE.py into a module
-    '''
-    pass
+    CZB151_paths = list(Path(join(analysisdir,'CZB151')).rglob("*.gd"))
+    CZB152_paths = list(Path(join(analysisdir,'CZB152')).rglob("*.gd"))
+    CZB154_paths = list(Path(join(analysisdir,'CZB154')).rglob("*.gd"))
 
-def make_matrix_csv():
-    '''
-    TODO:
-    '''
+    DM0_paths = [x for x in CZB151_paths+CZB152_paths+CZB154_paths if "DM0" in x.parts]
+    DM25_paths = [x for x in CZB151_paths+CZB152_paths+CZB154_paths if "DM25" in x.parts]
 
+    def cp_files(comparisontype,treatment,paths):
+        for x in paths:
+            y = join(analysisdir, comparisontype, treatment, x.name)
+            my_args = ['cp',str(x),y]
+            my_cmd = ' '.join(my_args)
+            makedirs(dirname(y), exist_ok=True)
+            run(my_cmd ,executable='/bin/bash',shell=True)
+
+    cp_files("genotype-comparison","CZB151",CZB151_paths)
+    cp_files("genotype-comparison","CZB152",CZB152_paths)
+    cp_files("genotype-comparison","CZB154",CZB154_paths)
+    cp_files("environment-comparison","DM0",DM0_paths)
+    cp_files("environment-comparison","DM25",DM25_paths)    
+    
 def main():
-    projdir = "/Users/Rohandinho/Dropbox (HMS)/DM0-evolution"
-    analysis_dir = join(projdir,"results/genome-analysis/Dice-similarity-analysis")
+    homedir = expanduser("~")
+    projdir = join(homedir,"BoxSync/DM0-evolution")
+    analysis_dir = join(projdir,"results/genome-analysis")
 
+    organize_diffs(analysis_dir)
+    
     do_environment = True
     if do_environment:
         gddir = join(analysis_dir,"environment-comparison")
         ctl_treat = 'DM25'
-    else:
+    else: ## No significant difference in targets of selection across parental genotypes.
         gddir = join(analysis_dir,"genotype-comparison")
         ctl_treat = 'CZB151'
 
-    ##DiceRun = CallTEE(gddir,ctl_treat)
-    ##print(DiceRun)
-    ##DiceRun.call()
+    DiceRun = CallTEE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/DM0-DM25-comparison-mut-matrix.csv', ctl_treat)
+    print(DiceRun)
+    DiceRun.call()
 
     ## For comparison, run TEE.py on the LTEE to make a matrix for Fig. 1C.
-    ## TODO: get rid of FAKE cross_contamination_union.gd for getting TEE.py running.
     ## I do some unnecessary formatting to get TEE.py running at the moment.
-    ## NOTE: There's also a bug in the rpy2 calls, but I ignore for now since I only want the matrix.
     ## I should probably refactor citrate_dice.py so that the mutation matrix code runs separately from the statistics.
+
     ltee_gddir = join(projdir,"genomes/annotated-LTEE-50K-diffs")
-    LTEE_DiceRun = CallTEE(ltee_gddir,'Ara+')
+    LTEE_DiceRun = CallTEE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
     print(LTEE_DiceRun)
     LTEE_DiceRun.call()
 

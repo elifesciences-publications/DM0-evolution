@@ -42,7 +42,6 @@ library(dplyr)       # consistent data.frame operations.
 library(dtplyr)      # dplyr works with data.table now.
 
 
-
 #' parse the summary.html breseq output file, and return the mean and dispersion
 #' of the negative binomial fit to the read coverage distribution, returned as a
 #' data.frame with columns {mean, dispersion}.
@@ -64,6 +63,22 @@ coverage.nbinom.from.html <- function (breseq.output.dir) {
     return(data.frame('mean'=avg,'dispersion'=dispersion,'variance'=avg*dispersion))
 }
 
+#' get the maximum length of a sequencing read from the summary.html breseq
+#' output file.
+#' @export
+max.readlen.from.html <- function (breseq.output.dir) {
+    summary.html.f <- file.path(breseq.output.dir,"output/summary.html")
+    tree <- read_html(summary.html.f)
+    ## print text in the table 'Read File Information.
+    query <- '//table[./tr/th[contains(text(),"longest")]]'
+    table <- xml_find_first(tree,query)
+    table.data <- xml_find_all(table,'./tr/td')
+    readlen.index <- length(table.data) - 1
+    max.readlen <- xml_integer(xml_find_all(table.data[readlen.index],".//b//text()"))
+    print(paste('max read length is:',max.readlen))
+    return(max.readlen)
+}
+
 
 #' Find intervals longer than max.read.len that reject H0 coverage in genome.
 #' at an uncorrected alpha = 0.05. This is to have generous predicted boundaries for amplifications.
@@ -75,11 +90,14 @@ coverage.nbinom.from.html <- function (breseq.output.dir) {
 #' @export
 find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a misspelling.
 
+    gnome <- as.character(gnome)
+    print(gnome)
     ## Use xml2 to get negative binomial fit and dispersion from
     ## breseq output summary.html. This is H0 null distribution of 1x coverage.
     nbinom.fit <- coverage.nbinom.from.html(breseq.output.dir)
 
-    max.read.len <- 150 + 50
+    ## Use xml2 to get max read length from summary.html.
+    max.read.len <- max.readlen.from.html(breseq.output.dir)
     genome.length <- 4629812
     alpha <- 0.05
     uncorrected.threshold <- qnbinom(p=alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
@@ -137,7 +155,7 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
                              size=nbinom.fit$dispersion,
                              lower.tail=FALSE))^(len%/%max.read.len)) %>%
         mutate(is.significant=ifelse(pval<bonferroni.alpha,TRUE,FALSE)) %>%
-        filter(is.significant==TRUE) %>% mutate(Genome=gnome) %>%
+        filter(is.significant==TRUE) %>% mutate(Genome=as.character(gnome)) %>%
         mutate(bonferroni.corrected.pval=pval*alpha/bonferroni.alpha)
 
     ##print(data.frame(significant.amplifications))
@@ -145,9 +163,9 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
     return(significant.amplifications)
 }
 
-## input: REL606.gbk: file.path of the reference genome,
+## input: LCA.gbk: file.path of the reference genome,
 ##    amplifications: data.frame returned by find.amplifications.
-annotate.amplifications <- function(amplifications,REL606.gbk) {
+annotate.amplifications <- function(amplifications,LCA.gbk) {
 
     ## create the IRanges object.
     amp.ranges <- IRanges(amplifications$left.boundary,amplifications$right.boundary)
@@ -158,13 +176,13 @@ annotate.amplifications <- function(amplifications,REL606.gbk) {
 
     ## find the genes within the amplifications.
     ## The parsing is sloooooow.
-    pREL606 <- parseGenBank(REL606.gbk)
-    gb <- make_gbrecord(pREL606)
-    REL606.genes <- genes(gb)
+    pLCA <- parseGenBank(LCA.gbk)
+    gb <- make_gbrecord(pLCA)
+    LCA.genes <- genes(gb)
     ##print(REL606.genes)
     ## find overlaps between annotated genes and amplifications.
-    hits <- findOverlaps(REL606.genes,g.amp.ranges,ignore.strand=FALSE)
-    ## take the hits, the REL606 annotation, and the amplifications,
+    hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
+    ## take the hits, the LCA annotation, and the amplifications,
     ## and produce a table of genes found in each amplication.
 
     hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
@@ -186,20 +204,25 @@ annotate.amplifications <- function(amplifications,REL606.gbk) {
 ## see the excellent plots on https://rud.is/projects/facetedheatmaps.html
 plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
 
+    ## for annotated.amps and clone.labels to play nicely with each other.
+    clone.labels$Name <- as.character(clone.labels$Name)
+
     labeled.annotated.amps <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
-        select(-query.index,-subject.index,-is.significant,-Sample.Type, -Population) %>%
+        select(-query.index,-subject.index,-is.significant,-SampleType, -Population) %>%
         ## replace 'sfcA' with 'maeA' in the plot.
         mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
-        transform(Population = Population.Label) %>% filter(!is.na(Population))
+        mutate(log.pval=log(bonferroni.corrected.pval)) %>%
+        transform(Population = PopulationLabel) %>% filter(!is.na(Population))
         ## order the genes by start to get axes correct on heatmap.
     labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
 
-    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Population,fill=left.boundary,frame=Environment)) +
+
+    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=log.pval,frame=Environment)) +
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
         geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
         xlab("Amplified Genes") +
-        labs(fill = "Genomic Position") +
+        labs(fill = "log(Bonferroni-corrected p-value)") +
         scale_fill_viridis(name="") +
         facet_wrap(~Environment,nrow=2, scales = "free_y") +
         theme_tufte(base_family='Helvetica') +
@@ -218,40 +241,39 @@ plot.Fig4B.stackedbar <- function(amps,clone.labels) {
 
 amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
     left_join(clone.labels, by=c("Genome" = "Name")) %>% select(-Population) %>%
-    transform(Population=Population.Label) %>% filter(!is.na(Population))
+    transform(Population=PopulationLabel) %>% filter(!is.na(Population))
 
 
 genome.length <- 4629812
 
-stacked <- ggplot(amps2,aes(x=Population,y=total.amp.length,fill=left.boundary)) +
+stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=left.boundary)) +
     geom_bar(stat="identity") +
-    geom_hline(yintercept=genome.length/5,linetype="dashed") +
     scale_fill_viridis(name="") +
-    coord_equal() +
-    facet_wrap(~Environment,ncol=2, scales = "free_x") +
+    facet_grid(~Environment, scales = "free") +
     theme_tufte(base_family='Helvetica') +
-    theme(axis.ticks=element_blank()) +
-        theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
-        theme(axis.text.y=element_text(size=12)) +
-        theme(panel.border=element_blank()) +
-        theme(plot.title=element_text(hjust=0)) +
-        theme(strip.text=element_text(hjust=0,size=12)) +
-        theme(panel.spacing.x=unit(1, "cm")) +
-        theme(panel.spacing.y=unit(0.5, "cm")) +
-        theme(legend.title=element_text(size=6)) +
-        theme(legend.title.align=1) +
-        theme(legend.text=element_text(size=6)) +
-        theme(legend.position="bottom") +
-        theme(legend.key.size=unit(0.2, "cm")) +
-        theme(legend.key.width=unit(1, "cm"))
+    theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
+    theme(axis.text.y=element_text(size=12)) +
+    theme(panel.border=element_blank()) +
+    theme(plot.title=element_text(hjust=0)) +
+    theme(strip.text=element_text(hjust=0,size=12)) +
+    theme(panel.spacing.x=unit(1, "cm")) +
+    theme(panel.spacing.y=unit(0.5, "cm")) +
+    theme(legend.title=element_text(size=6)) +
+    theme(legend.title.align=1) +
+    theme(legend.text=element_text(size=6)) +
+    theme(legend.position="bottom") +
+    theme(legend.key.size=unit(0.2, "cm")) +
+    theme(legend.key.width=unit(1, "cm")) +
+    ylim(0,550000) +
+    ylab("Total amplification length")
 
     return(stacked)
 }
 
-projdir <- "/Users/Rohandinho/Dropbox (HMS)/DM0-evolution"
+projdir <- "/Users/Rohandinho/BoxSync/DM0-evolution"
 outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
-REL606.gb <- file.path(projdir,"genomes/REL606.7.gbk")
+LCA.gb <- file.path(projdir,"genomes/curated-diffs/LCA.gbk")
 all.genomes <- list.files(breseq.output.dir,pattern='^ZDBp|^CZB')
 all.genome.paths <- sapply(all.genomes, function(x) file.path(breseq.output.dir,x))
 genome.input.df <- data.frame(Genome=all.genomes,path=all.genome.paths)
@@ -262,7 +284,7 @@ amps <- map2_df(genome.input.df$path,
 
 write.csv(x=amps,file=file.path(outdir,"amplifications.csv"))
 
-annotated.amps <- amps %>% annotate.amplifications(REL606.gb)
+annotated.amps <- amps %>% annotate.amplifications(LCA.gb)
 write.csv(x=annotated.amps,file=file.path(outdir,"amplified_genes.csv"))
 
 ## check ZDBp895.
@@ -292,7 +314,8 @@ write.csv(x=copy.number.table,file=file.path(outdir,"copy_number_table.csv"))
 ## Make figures.
 
 label.filename <- file.path(projdir,"data/rohan-formatted/populations-and-clones.csv")
-clone.labels <- read.csv(label.filename)
+clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
+
 
 ## Make a heatmap plot with facet grid on DM0 versus DM25.
 ## color the matrix based on gene location.

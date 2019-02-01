@@ -9,20 +9,23 @@ library(gridExtra)
 library(lubridate)
 library(assertthat)
 library(tidyr)
+library(stringr)
+library(purrr)
+library(tidytext)
 
-pop.clone.labels <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/populations-and-clones.csv")
+home.dir = path.expand("~")
+pop.clone.labels <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/data/rohan-formatted/populations-and-clones.csv"))
 
-## Figure 1A is a diagram of the DM0 and DM25 experiments made in Illustrator.
+## Figure 1A is diagram of the DM0 and DM25 experiments made in Illustrator.
 
 ## Figure 1B: make a stacked bar plot of the different kinds of mutations in each clone.
 
-mutation.types <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/genome-analysis/mutation_types.csv")
+mutation.types <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/results/genome-analysis/mutation_types.csv"))
 
 fig1B.stacked <- ggplot(mutation.types,aes(x=Clone,fill=Mutation)) +
     geom_bar() +
-    ##scale_fill_viridis(option="magma",discrete=TRUE) +
-    coord_equal() +
-    facet_wrap(~Environment,ncol=2,scales="free_x") +
+    scale_fill_viridis(option="magma",discrete=TRUE) +
+    facet_grid(~Environment,scales="free") +
     theme_tufte(base_family='Helvetica') +
     theme(axis.ticks=element_blank()) +
     theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
@@ -40,34 +43,41 @@ fig1B.output <- "../results/figures/Fig1B.pdf"
 ggsave(fig1B.stacked, file=fig1B.output,width=7,height=7)
 
 ## Figure 1C: make a matrix plot of genes with mutations in two or more clones.
-fig1C.raw.matrix <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/genome-analysis/Dice-similarity-analysis/environment-comparison-mutation-matrix.csv")
-fig1C.data <- gather(fig1C.raw.matrix,"Name","mutation.count",2:25) %>%
+fig1C.raw.matrix <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/results/DM0-DM25-comparison-mut-matrix.csv"))
+## fix the names of the samples.
+names(fig1C.raw.matrix) <- map_chr(names(fig1C.raw.matrix),function (x) str_trunc(x,width=7,side="right",ellipsis=''))
+
+fig1C.DM0.DM25.data <- gather(fig1C.raw.matrix,"Name","mutation.count",2:26) %>%
     left_join(pop.clone.labels) %>%
-    select(Gene,Name,mutation.count,Environment,Population.Label) %>%
+    select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
     group_by(Gene) %>% filter(sum(mutation.count)>1)
 
-fig1C.counts <- summarize(fig1C.data,total.count=sum(mutation.count)) %>% arrange(desc(total.count))
+fig1C.counts <- summarize(fig1C.DM0.DM25.data,total.count=sum(mutation.count)) %>% arrange(desc(total.count))
 
 ## Now: add LTEE mutation matrix as well.
 ## filter on genes mutated in the DM0 and DM25 matrix data.
-fig1C.ltee.matrix <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/LTEE-comparison-mutation-matrix.csv")
-LTEE.50K.labels <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/LTEE-50K-clones.csv")
+fig1C.ltee.matrix <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/results/LTEE-mut_matrix.csv"))
+## fix the names of the samples.
+names(fig1C.ltee.matrix) <- map_chr(names(fig1C.ltee.matrix),function (x) str_trunc(x,width=8,side="left",ellipsis=''))
 
+LTEE.50K.labels <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/data/rohan-formatted/LTEE-50K-clones.csv"))
+
+## Filter out hypermutators for now.
 fig1C.ltee.data <- gather(fig1C.ltee.matrix,"Name","mutation.count",2:13) %>%
     left_join(LTEE.50K.labels) %>%
+    filter(Hypermutator == 0) %>%
+    select(-Hypermutator) %>%
     group_by(Gene) %>% filter(Gene %in% levels(fig1C.data$Gene)) %>%
     filter(!is.na(Gene))
 
 ## Now join LTEE data to the DM0 and DM25 Cit+ data.
-fig1C.data <- fig1C.data %>% bind_rows(fig1C.ltee.data) %>%
-    replace_na(replace=list(Hypermutator=0))
-
-## Possible TODO: label hypermutators in red.
+fig1C.data <- fig1C.DM0.DM25.data %>% bind_rows(fig1C.ltee.data)
 
 ## order the genes by number of mutations to get axes correct on heatmap.
 fig1C.data$Gene <- factor(fig1C.data$Gene,levels=fig1C.counts$Gene)
 fig1C.data$mutation.count <- factor(fig1C.data$mutation.count)
-fig1C <-  ggplot(fig1C.data,aes(x=Population.Label,y=Gene,fill=mutation.count,
+
+fig1C <-  ggplot(fig1C.data,aes(x=Name,y=Gene,fill=mutation.count,
                                 frame=Environment)) +
     geom_tile(color="black",size=0.1) +
     ylab("Gene") +
@@ -80,24 +90,38 @@ fig1C <-  ggplot(fig1C.data,aes(x=Population.Label,y=Gene,fill=mutation.count,
     theme(legend.position="bottom") +
     theme(legend.key.size=unit(0.2, "cm")) +
     theme(legend.key.width=unit(1, "cm")) +
-    scale_fill_manual(values = c("white", "#ffffb3", "#bebada",
+    scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
                                  "#fb8072", "#80b1d3", "#fdb462"))
 
 fig1C.output <- "../results/figures/Fig1C.pdf"
-ggsave(fig1C, file=fig1C.output,width=7,height=7)
+ggsave(fig1C, file=fig1C.output,width=7,height=15)
+
+## let's play with the vectors in fig1C.data.
+## turn these data into a matrix.
+mat.data <- fig1C.data %>% select(-PopulationLabel,-Environment) %>% mutate(mutation.count=as.numeric(mutation.count))
+mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
+
+## TODO: do hierarchical clustering, PCA, and contrastive PCA on the mutation matrices.
+## also plot co-occurrence/covariance structure between mutations as in Tenaillon paper.
+
+## Maybe even go ahead and fit an undirected graphical model to these data!
+## QUIC: Regularized sparse inverse covariance matrix estimation
+## qpgraph, ggm R packages.
+
+## I should also plot DM0 vs. DM25 growth to look for tradeoffs (although doesn't look like it).
 
 
 ############################################################################
 ## Figure 2: Fitness of evolved clones in DM0 and DM25.
 ## NOTE: This figure still needs work, probably will use clone data instead anyway.
 
-DM0.labels <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/labels-for-DM0-evolved-DM0-fitness.csv")
-DM0.data <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/DM0-evolved-DM0-fitness.csv")
+DM0.labels <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/data/rohan-formatted/labels-for-DM0-evolved-DM0-fitness.csv"))
+DM0.data <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/data/rohan-formatted/DM0-evolved-DM0-fitness.csv"))
 DM0.data2 <- left_join(DM0.data,DM0.labels) %>% mutate(Environment='DM0') %>%
     select(-Set,-Type)
 
-DM25.labels <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/labels-for-DM0-evolved-DM25-fitness.csv")
-DM25.data <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/data/rohan-formatted/DM0-evolved-DM25-fitness.csv")
+DM25.labels <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/data/rohan-formatted/labels-for-DM0-evolved-DM25-fitness.csv"))
+DM25.data <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/data/rohan-formatted/DM0-evolved-DM25-fitness.csv"))
 DM25.data2 <- left_join(DM25.data,DM25.labels) %>% mutate(Environment='DM25')
 
 founder.labels <- select(pop.clone.labels,Name,Founder) %>% rename(C1=Name)
@@ -179,12 +203,12 @@ plot.Figure2 <- function (results, output.file) {
     ggsave(the.plot, file=output.file)
 }
 
-plot.Figure2(Fig2.results,"/Users/Rohandinho/Desktop/test.pdf")
+plot.Figure2(Fig2.results,file.path(home.dir,"/Desktop/test.pdf"))
 
 
 ## print out calculations to compare to Zack's calculations.
-## write.csv(Fig2.competition.data2,"/Users/Rohandinho/Desktop/Fig2_fitness.csv")
-## write.csv(Fig2.results,"/Users/Rohandinho/Desktop/Fig2_fitness_results.csv")
+## write.csv(Fig2.competition.data2,file.path(home.dir,"/Desktop/Fig2_fitness.csv")_
+## write.csv(Fig2.results,file.path(home.dir,"/Desktop/Fig2_fitness_results.csv"))
 
 ################################################################################
 ## Figure 3: Growth curves of evolved populations in DM0 and in DM25.
@@ -217,10 +241,10 @@ plot.Fig3 <- function(fig3df2) {
 
     fig3 <- ggplot(fig3df2, aes(x=Hours,y=log2.OD420,color=Name)) + geom_point(size=0.5) +
         facet_grid(Experiment ~ Founder) + theme_classic() #+ ylim(-4,-0.5)
-    ggsave("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/figures/Fig3.pdf",fig3)
+    ggsave(file.path(home.dir,"BoxSync/DM0-evolution/results/figures/Fig3.pdf",fig3))
 }
 
-growth.data <- read.csv("/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/results/growth-data-for-fig3.csv")
+growth.data <- read.csv(file.path(home.dir,"BoxSync/DM0-evolution/results/growth-data-for-fig3.csv"))
 labeled.growth.data <- left_join(growth.data,pop.clone.labels,by="Name")
 
 final.fig3.data <- Fig3.analysis(labeled.growth.data)
