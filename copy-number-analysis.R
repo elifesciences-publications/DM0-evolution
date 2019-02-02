@@ -1,3 +1,4 @@
+
 ##copy-number-analysis.R by Rohan Maddamsetti.
 
 ## 1) use xml2 to get negative binomial fit and dispersion from
@@ -27,6 +28,7 @@ library(roxygen2)
 library(assertthat)
 library(IRanges)
 library(GenomicRanges)
+library(rtracklayer)
 library(genbankr)
 
 library(purrr)       # consistent & safe list/vector munging
@@ -176,20 +178,34 @@ annotate.amplifications <- function(amplifications,LCA.gbk) {
 
     ## find the genes within the amplifications.
     ## The parsing is sloooooow.
-    pLCA <- parseGenBank(LCA.gbk)
-    gb <- make_gbrecord(pLCA)
-    LCA.genes <- genes(gb)
-    ##print(REL606.genes)
+
+    ##pLCA <- parseGenBank(LCA.gbk,verbose=TRUE,ret.seq=FALSE)
+    ##gb <- make_gbrecord(pLCA,verbose=TRUE)
+    ##test <- readGenBank(LCA.gbk,verbose=TRUE,ret.seq=FALSE)
+    pLCA2 <- import.gff("../genomes/curated-diffs/LCA.gff3")
+    LCAGranges <- as(pLCA2, "GRanges")
+
+    LCA.genes <- LCAGranges[LCAGranges$type == 'gene']
+    ##LCA.genes <- genes(gb)
+    ##print(LCA.genes)
     ## find overlaps between annotated genes and amplifications.
-    hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
+    ##hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
+
+    hits <- findOverlaps(LCAGranges,g.amp.ranges,ignore.strand=FALSE)
+
     ## take the hits, the LCA annotation, and the amplifications,
     ## and produce a table of genes found in each amplication.
 
     hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
 
-    query.df <- data.frame(query.index=1:length(REL606.genes),
-                           gene=REL606.genes$gene,locus_tag=REL606.genes$locus_tag,
-                           start=start(ranges(REL606.genes)),end=end(ranges(REL606.genes)))
+#    query.df <- data.frame(query.index=1:length(LCA.genes),
+#                           gene=LCA.genes$gene,locus_tag=LCA.genes$locus_tag,
+#                           start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
+
+    query.df <- data.frame(query.index=1:length(LCA.genes),
+                           gene=LCA.genes$Name,locus_tag=LCA.genes$ID,
+                           start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
+
 
     subject.df <- bind_cols(data.frame(subject.index=1:length(g.amp.ranges)),data.frame(mcols(g.amp.ranges)))
 
@@ -270,7 +286,7 @@ stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=left.boundary)) +
     return(stacked)
 }
 
-projdir <- "/Users/Rohandinho/BoxSync/DM0-evolution"
+projdir <- file.path(Sys.getenv("HOME"),"BoxSync/DM0-evolution")
 outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
 LCA.gb <- file.path(projdir,"genomes/curated-diffs/LCA.gbk")
