@@ -29,7 +29,6 @@ library(assertthat)
 library(IRanges)
 library(GenomicRanges)
 library(rtracklayer)
-library(genbankr)
 
 library(purrr)       # consistent & safe list/vector munging
 library(tidyr)       # consistent data.frame cleaning
@@ -167,7 +166,7 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
 
 ## input: LCA.gbk: file.path of the reference genome,
 ##    amplifications: data.frame returned by find.amplifications.
-annotate.amplifications <- function(amplifications,LCA.gbk) {
+annotate.amplifications <- function(amplifications,LCA.gff) {
 
     ## create the IRanges object.
     amp.ranges <- IRanges(amplifications$left.boundary,amplifications$right.boundary)
@@ -177,35 +176,21 @@ annotate.amplifications <- function(amplifications,LCA.gbk) {
     mcols(g.amp.ranges) <- amplifications
 
     ## find the genes within the amplifications.
-    ## The parsing is sloooooow.
+    pLCA <- import.gff(LCA.gff)
+    LCA.Granges <- as(pLCA, "GRanges")
 
-    ##pLCA <- parseGenBank(LCA.gbk,verbose=TRUE,ret.seq=FALSE)
-    ##gb <- make_gbrecord(pLCA,verbose=TRUE)
-    ##test <- readGenBank(LCA.gbk,verbose=TRUE,ret.seq=FALSE)
-    pLCA2 <- import.gff("../genomes/curated-diffs/LCA.gff3")
-    LCAGranges <- as(pLCA2, "GRanges")
-
-    LCA.genes <- LCAGranges[LCAGranges$type == 'gene']
-    ##LCA.genes <- genes(gb)
-    ##print(LCA.genes)
+    LCA.genes <- LCA.Granges[LCA.Granges$type == 'gene']
     ## find overlaps between annotated genes and amplifications.
-    ##hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
-
-    hits <- findOverlaps(LCAGranges,g.amp.ranges,ignore.strand=FALSE)
+    hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
 
     ## take the hits, the LCA annotation, and the amplifications,
     ## and produce a table of genes found in each amplication.
 
     hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
 
-#    query.df <- data.frame(query.index=1:length(LCA.genes),
-#                           gene=LCA.genes$gene,locus_tag=LCA.genes$locus_tag,
-#                           start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
-
     query.df <- data.frame(query.index=1:length(LCA.genes),
                            gene=LCA.genes$Name,locus_tag=LCA.genes$ID,
                            start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
-
 
     subject.df <- bind_cols(data.frame(subject.index=1:length(g.amp.ranges)),data.frame(mcols(g.amp.ranges)))
 
@@ -215,7 +200,6 @@ annotate.amplifications <- function(amplifications,LCA.gbk) {
 
     return(amplified.genes.df)
 }
-
 
 ## see the excellent plots on https://rud.is/projects/facetedheatmaps.html
 plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
@@ -233,12 +217,12 @@ plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
     labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
 
 
-    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=log.pval,frame=Environment)) +
+    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=copy.number.mean,frame=Environment)) +
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
         geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
         xlab("Amplified Genes") +
-        labs(fill = "log(Bonferroni-corrected p-value)") +
+        labs(fill = "mean copy number") +
         scale_fill_viridis(name="") +
         facet_wrap(~Environment,nrow=2, scales = "free_y") +
         theme_tufte(base_family='Helvetica') +
@@ -289,7 +273,7 @@ stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=left.boundary)) +
 projdir <- file.path(Sys.getenv("HOME"),"BoxSync/DM0-evolution")
 outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
-LCA.gb <- file.path(projdir,"genomes/curated-diffs/LCA.gbk")
+LCA.gff3 <- file.path(projdir,"genomes/curated-diffs/LCA.gff3")
 all.genomes <- list.files(breseq.output.dir,pattern='^ZDBp|^CZB')
 all.genome.paths <- sapply(all.genomes, function(x) file.path(breseq.output.dir,x))
 genome.input.df <- data.frame(Genome=all.genomes,path=all.genome.paths)
@@ -300,16 +284,10 @@ amps <- map2_df(genome.input.df$path,
 
 write.csv(x=amps,file=file.path(outdir,"amplifications.csv"))
 
-annotated.amps <- amps %>% annotate.amplifications(LCA.gb)
+annotated.amps <- amps %>% annotate.amplifications(LCA.gff3)
 write.csv(x=annotated.amps,file=file.path(outdir,"amplified_genes.csv"))
 
-## check ZDBp895.
-## test <- find.amplifications(file.path(breseq.output.dir,"ZDBp895"),"ZDBp895")
-## this just fails statistical significance, probably because less data for
-## ZDBp895 than the other genomes == less statistical power.
-
 amp.parallelism <- annotated.amps %>% group_by(gene,locus_tag) %>% summarise(count=n()) %>% arrange(desc(count),locus_tag)
-
 
 ## report copy number of maeA, citT, and dctA in a table.
 ## (I can do this easily by hand).
