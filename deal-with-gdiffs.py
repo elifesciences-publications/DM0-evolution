@@ -62,8 +62,8 @@ def contamination_check(pathdict, pop_clone_labels,resultsdir):
     ignore mutations in the known troublesome loci: 23S rRNA (rrlA), rhsA, rhsB,
     and insE-3 and insE-5. These will be filtered out anyway.
     '''
-    
-    ## make sure that all basenames of the paths are in pop_clone_labels.    
+
+    ## make sure that all basenames of the paths are in pop_clone_labels.
     assert set(pop_clone_labels.Name) == set([x for x in pathdict])
 
     for k in pathdict.keys():
@@ -95,7 +95,7 @@ def contamination_check(pathdict, pop_clone_labels,resultsdir):
             except AssertionError:
                 ## look at the missing mutation. In a missing region of coverage?
                 print(parent,"\n",mut,"\n",k,"\n")
-                
+
 def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdir):
     ''' First copy annotated genomediffs into a nice directory structure, filtering out
         mutations in the ancestral strains.'''
@@ -136,7 +136,7 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
             ## remove the temporary infile.
             run("rm "+tempf,shell=True,executable='/bin/bash')
             tempf = tempoutf
-        
+
 def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf):
 
     outfh = open(outf,"w")
@@ -144,8 +144,11 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf):
 
     for path, subdirs, files in walk(inputdir):
         for f in [x for x in files if x.endswith('.gd')]:
+            ## only go through the gd files in the CZB15x directories
+            ## to avoid double-counting.
+            ##if ('CZB151' not in path) and ('CZB152' not in path) and ('CZB154' not in path):
+            ##    continue
             full_f = join(path, f)
-    
             infh = open(full_f, 'r', encoding='utf-8')
             name = f.split('_')[0]
             my_row = evol_pop_clone_labels[evol_pop_clone_labels.Name == name].iloc[0]
@@ -160,6 +163,77 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf):
                 else:
                     muttype = rec.type
                 outfh.write(','.join([name,muttype,env,population])+"\n")
+
+def make_IS_insertion_tbl(evol_pop_clone_labels, inputdir, outf):
+
+    outfh = open(outf,"w")
+    outfh.write("Clone, IS_element, genome_start, genome_end, genes_promoter, genes_inactivated, Environment, Population\n")
+
+    for path, subdirs, files in walk(inputdir):
+        for f in [x for x in files if x.endswith('.gd')]:
+            ## only go through the gd files in the CZB15x directories
+            ## to avoid double-counting.
+            if ('/CZB151/' not in path) and ('/CZB152/' not in path) and ('/CZB154/' not in path):
+                continue
+            full_f = join(path, f)
+            infh = open(full_f, 'r', encoding='utf-8')
+            name = f.split('_')[0]
+            my_row = evol_pop_clone_labels[evol_pop_clone_labels.Name == name].iloc[0]
+            env = my_row['Environment']
+            population = my_row['PopulationLabel']
+            gd = genomediff.GenomeDiff.read(infh)
+            for rec in gd.mutations:
+                if rec.type != 'MOB':
+                    continue
+                try: ## get name of affected promoters.
+                    affected_promoter = rec.genes_promoter
+                except:
+                    affected_promoter = 'NA'
+                try: ## get the name of inactivated genes.
+                    inactivated = rec.genes_inactivated
+                except:
+                    inactivated = 'NA'
+                outfh.write(','.join([name,
+                                      rec.repeat_name,
+                                      str(rec.position_start),
+                                      str(rec.position_end),
+                                      affected_promoter,
+                                      inactivated,
+                                      env,
+                                      population])+"\n")
+
+
+def make_LCA_IS_insertion_csv(evol_pop_clone_labels, inputdir, outf, gff):
+    outfh = open(outf,"w")
+    outfh.write("IS_element, genome_start, genome_end\n")
+    ''' parse IS elements in LCA.gff3 annotation file.'''
+    for line in open(gff,'r'):
+        line = line.strip()
+        ldata = line.split('\t')
+        if len(ldata) < 3: ## skip DNA sequence
+            continue
+        if ldata[2] not in ['CDS','repeat_region']:
+            continue
+        if 'IS' not in line:
+            continue
+        start_coord = ldata[3]
+        end_coord = ldata[4]
+        annotation_string = ldata[-1]
+        annotations = annotation_string.split(';')
+        is_element = ''
+        ## two cases: repeat_region annotation produced by gdtools APPLY
+        ## and IS element proteins in the reference genome
+        if annotations[-1].endswith('repeat region'):
+            IS_element_name = annotations[0].split('=')[1]
+        elif annotations[-2].startswith('Note'):
+            note_text = annotations[-2].split('=')[1].split()
+            IS_element_name = [x for x in note_text if x.startswith('IS')].pop()
+        else:
+            continue
+        outfh.write(','.join([IS_element_name, start_coord, end_coord]) + "\n")
+
+def make_annotated_mutation_table(evol_pop_clone_labels, inputdir, outf):
+    pass
 
 def main():
 
@@ -178,23 +252,33 @@ def main():
     genome_path_dict = {x:y for x,y in zip(genomes, genome_paths)}
 
     ''' assert that all mutations in ancestral strains occur in evolved strains,
-    ignoring mutations in these known troublesome regions: 
+    ignoring mutations in these known troublesome regions:
     rrlA (23S ribosomal RNA)
     rhsA and rhsB (repeat-rich proteins)
     Q48Q mutation in insE-3 or insE-5 (uncertain genomic variation in insE transposon).
-    '''    
-    contamination_check(genome_path_dict, all_pop_clone_labels,resultsdir)
+    '''
+    ##contamination_check(genome_path_dict, all_pop_clone_labels,resultsdir)
 
     ''' Now subtract ancestral mutations from evolved strains, and remove mutations in
     rrlA, rhsA, rhsB, insE-3, insE-5 from the analysis.'''
-    subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
+    ##subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
 
-    ''' tabulate the kinds of mutations in the evolved mutations.'''
+    ''' tabulate the evolved mutations.'''
     evolved_genomes = [x for x in listdir(breseqoutput_dir) if x.startswith('ZDBp')]
     evol_pop_clone_labels = all_pop_clone_labels[all_pop_clone_labels['Name'].isin(evolved_genomes)]
+    genomesdir = join(resultsdir,"environment-comparison")
+    mut_table_outf = join(resultsdir,"evolved_mutations.csv")
+    write_evolved_mutations(evol_pop_clone_labels, genomesdir, mut_table_outf)
 
-    mut_table_outf = join(resultsdir,"mutation_types.csv")
-    write_evolved_mutations(evol_pop_clone_labels, resultsdir, mut_table_outf)
-        
-    
+    ''' make a table of IS-insertions, genome, and start and end locations.
+        in the evolved and subtracted clones.'''
+    IS_table_outf = join(resultsdir,"IS_insertions.csv")
+    ##make_IS_insertion_tbl(evol_pop_clone_labels, resultsdir, IS_table_outf)
+
+    ''' make a table of IS elements in LCA (including REL606).'''
+    LCA_table_outf = join(resultsdir,"LCA_IS_insertions.csv")
+    LCAgff = join(projdir,"genomes/curated-diffs/LCA.gff3")
+    ##make_LCA_IS_insertion_csv(evol_pop_clone_labels, resultsdir, LCA_table_outf, LCAgff)
+
+
 main()

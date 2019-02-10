@@ -212,17 +212,18 @@ plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
         ## replace 'sfcA' with 'maeA' in the plot.
         mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
         mutate(log.pval=log(bonferroni.corrected.pval)) %>%
+        mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
         transform(Population = PopulationLabel) %>% filter(!is.na(Population))
         ## order the genes by start to get axes correct on heatmap.
     labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
 
 
-    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=copy.number.mean,frame=Environment)) +
+    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=log2.copy.number.mean,frame=Environment)) +
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
         geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
-        xlab("Amplified Genes") +
-        labs(fill = "mean copy number") +
+        xlab("log2 copy number of amplified genes") +
+        labs(fill = "log2(mean copy number)") +
         scale_fill_viridis(name="") +
         facet_wrap(~Environment,nrow=2, scales = "free_y") +
         theme_tufte(base_family='Helvetica') +
@@ -287,14 +288,16 @@ write.csv(x=amps,file=file.path(outdir,"amplifications.csv"))
 annotated.amps <- amps %>% annotate.amplifications(LCA.gff3)
 write.csv(x=annotated.amps,file=file.path(outdir,"amplified_genes.csv"))
 
+write.csv(x=filter(annotated.amps,Genome=='ZDBp874'),file=file.path(outdir,"ZDBp874_amplified_genes.csv"))
+
 amp.parallelism <- annotated.amps %>% group_by(gene,locus_tag) %>% summarise(count=n()) %>% arrange(desc(count),locus_tag)
 
-## report copy number of maeA, citT, and dctA in a table.
-## (I can do this easily by hand).
+#' report copy number of maeA, citT, and dctA in a table.
+#' (I can do this easily by hand).
 
 copy.number.table <- annotated.amps %>%
     filter(gene %in% c('sfcA','dctA')) %>%
-    ## change sfcA to maeA
+    #' change sfcA to maeA
     mutate(Gene=replace(gene,gene=='sfcA','maeA')) %>%
     transform(amplified.segment.length=len) %>%
     arrange(Gene,Genome) %>%
@@ -302,24 +305,24 @@ copy.number.table <- annotated.amps %>%
 
 write.csv(x=copy.number.table,file=file.path(outdir,"copy_number_table.csv"))
 
-## dctA and maeA amplifications don't occur together. The probability
-## of this occurrence is (20/24)*(19/23)*...*(15/19) = 28.7% by chance.
+#' dctA and maeA amplifications don't occur together. The probability
+#' of this occurrence is (20/24)*(19/23)*...*(15/19) = 28.7% by chance.
 
-## Make figures.
+#' Make figures.
 
 label.filename <- file.path(projdir,"data/rohan-formatted/populations-and-clones.csv")
 clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 
 
-## Make a heatmap plot with facet grid on DM0 versus DM25.
-## color the matrix based on gene location.
+#' Make a heatmap plot with facet grid on DM0 versus DM25.
+#' color the matrix based on gene location.
 
 heatmap2 <- plot.Fig4A.heatmap(annotated.amps,clone.labels)
 ggsave(heatmap2,filename=file.path(outdir,"figures/Fig4A.pdf"),height=5,width=7)
 
-## Make a stacked bar plot, with facet grid on DM0 versus DM25.
-## color the stacked bars based on the left boundary
-## of the amplification.
+#' Make a stacked bar plot, with facet grid on DM0 versus DM25.
+#' color the stacked bars based on the left boundary
+#' of the amplification.
 
 stacked2 <- plot.Fig4B.stackedbar(amps,clone.labels)
 ggsave(stacked2,filename=file.path(outdir,"figures/Fig4B.pdf"))

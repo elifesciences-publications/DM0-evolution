@@ -35,7 +35,7 @@ import pandas as pd
 class CallTEE:
     def __init__(self,gd_dir,genbank_ref,mutmatrixfile,control_treatment=''):
         ##self.number = 1000000
-        self.number = 10 ## for debugging
+        self.number = 10000 ## for debugging
         self.promoter_length = 150
         self.genbank_ref = genbank_ref
         self.control_treatment = control_treatment
@@ -72,15 +72,15 @@ def organize_diffs(analysisdir):
     cp_files("genotype-comparison","CZB152",CZB152_paths)
     cp_files("genotype-comparison","CZB154",CZB154_paths)
     cp_files("environment-comparison","DM0",DM0_paths)
-    cp_files("environment-comparison","DM25",DM25_paths)    
-    
+    cp_files("environment-comparison","DM25",DM25_paths)
+
 def main():
     homedir = expanduser("~")
     projdir = join(homedir,"BoxSync/DM0-evolution")
     analysis_dir = join(projdir,"results/genome-analysis")
 
     organize_diffs(analysis_dir)
-    
+
     do_environment = True
     if do_environment:
         gddir = join(analysis_dir,"environment-comparison")
@@ -91,15 +91,20 @@ def main():
 
     DiceRun = CallTEE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/DM0-DM25-comparison-mut-matrix.csv', ctl_treat)
     print(DiceRun)
-    DiceRun.call()
+    ##DiceRun.call()
 
-    ## For comparison, run TEE.py on the LTEE to make a matrix for Fig. 1C.
-    ## I do some unnecessary formatting to get TEE.py running at the moment.
-    ## I should probably refactor citrate_dice.py so that the mutation matrix code runs separately from the statistics.
+    ## For comparison, run citrate_dice.py on the LTEE to make a matrix for Fig. 1C.
 
     ltee_gddir = join(projdir,"genomes/annotated-LTEE-50K-diffs")
     LTEE_DiceRun = CallTEE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
     print(LTEE_DiceRun)
-    LTEE_DiceRun.call()
+    ##LTEE_DiceRun.call()
+
+    ## run citrate_dice.py on just the 50K Ara-3 clone to get validate mutations for
+    ## the Recapitulation Index analysis.
+
+    ara_minus3_gddir = join(projdir,"genomes/curated-diffs")
+    ara_minus3_DiceRun = CallTEE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/ara3_mut_matrix.csv')
+    ara_minus3_DiceRun.call()
 
 main()
