@@ -137,17 +137,16 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
             run("rm "+tempf,shell=True,executable='/bin/bash')
             tempf = tempoutf
 
-def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf):
-
+def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf,polymorphism=False):
+    ''' if polymorphism is True, then write out a Frequency field as well.'''
     outfh = open(outf,"w")
-    outfh.write("Clone,Mutation,Environment,Population\n")
+    if polymorphism:
+        outfh.write("Clone,Mutation,Gene,Position,Frequency,Environment,Population\n")
+    else:
+        outfh.write("Clone,Mutation,Gene,Position,Environment,Population\n")
 
     for path, subdirs, files in walk(inputdir):
         for f in [x for x in files if x.endswith('.gd')]:
-            ## only go through the gd files in the CZB15x directories
-            ## to avoid double-counting.
-            ##if ('CZB151' not in path) and ('CZB152' not in path) and ('CZB154' not in path):
-            ##    continue
             full_f = join(path, f)
             infh = open(full_f, 'r', encoding='utf-8')
             name = f.split('_')[0]
@@ -158,11 +157,18 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf):
             muts = gd.mutations
             muttype = ''
             for rec in muts:
+                pos = str(rec.attributes['position'])
+                gene = rec.attributes['gene_name']
+                if polymorphism:
+                    freq = rec.attributes['frequency']
                 if rec.type == 'SNP':
                     muttype = rec.attributes['snp_type']
                 else:
                     muttype = rec.type
-                outfh.write(','.join([name,muttype,env,population])+"\n")
+                if polymorphism:
+                    outfh.write(','.join([name, muttype, gene, pos, freq, env, population])+"\n")
+                else:
+                    outfh.write(','.join([name, muttype, gene, pos, env, population])+"\n")
 
 def make_IS_insertion_tbl(evol_pop_clone_labels, inputdir, outf):
 
@@ -171,10 +177,6 @@ def make_IS_insertion_tbl(evol_pop_clone_labels, inputdir, outf):
 
     for path, subdirs, files in walk(inputdir):
         for f in [x for x in files if x.endswith('.gd')]:
-            ## only go through the gd files in the CZB15x directories
-            ## to avoid double-counting.
-            if ('/CZB151/' not in path) and ('/CZB152/' not in path) and ('/CZB154/' not in path):
-                continue
             full_f = join(path, f)
             infh = open(full_f, 'r', encoding='utf-8')
             name = f.split('_')[0]
@@ -232,15 +234,14 @@ def make_LCA_IS_insertion_csv(evol_pop_clone_labels, inputdir, outf, gff):
             continue
         outfh.write(','.join([IS_element_name, start_coord, end_coord]) + "\n")
 
-def make_annotated_mutation_table(evol_pop_clone_labels, inputdir, outf):
-    pass
-
 def main():
 
     homedir = expanduser("~")
     projdir = join(homedir,"BoxSync/DM0-evolution")
     resultsdir = join(projdir,"results/genome-analysis")
+    poly_resultsdir = join(projdir,"results/genome-analysis/polymorphism")
     breseqoutput_dir = join(projdir,"genomes/consensus")
+    poly_breseqoutput_dir = join(projdir,"genomes/polymorphism")
 
     pop_clone_label_f = join(projdir,"data/rohan-formatted","populations-and-clones.csv")
     all_pop_clone_labels = pd.read_csv(pop_clone_label_f)
@@ -250,6 +251,8 @@ def main():
     genomes = [x for x in listdir(breseqoutput_dir) if x.startswith('ZDB') or x.startswith('CZB')]
     genome_paths = [join(breseqoutput_dir,x) for x in genomes]
     genome_path_dict = {x:y for x,y in zip(genomes, genome_paths)}
+    poly_genome_paths = [join(poly_breseqoutput_dir,x) for x in genomes]
+    poly_genome_path_dict = {x:y for x,y in zip(genomes, poly_genome_paths)}
 
     ''' assert that all mutations in ancestral strains occur in evolved strains,
     ignoring mutations in these known troublesome regions:
@@ -262,18 +265,24 @@ def main():
     ''' Now subtract ancestral mutations from evolved strains, and remove mutations in
     rrlA, rhsA, rhsB, insE-3, insE-5 from the analysis.'''
     ##subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
+    ''' do the same thing,using the breseq --polymorphism mode results.'''
+    ##subtract_ancestors_and_filter_mutations(poly_genome_path_dict,all_pop_clone_labels,poly_resultsdir)
 
     ''' tabulate the evolved mutations.'''
     evolved_genomes = [x for x in listdir(breseqoutput_dir) if x.startswith('ZDBp')]
     evol_pop_clone_labels = all_pop_clone_labels[all_pop_clone_labels['Name'].isin(evolved_genomes)]
     genomesdir = join(resultsdir,"environment-comparison")
     mut_table_outf = join(resultsdir,"evolved_mutations.csv")
-    write_evolved_mutations(evol_pop_clone_labels, genomesdir, mut_table_outf)
+    ##write_evolved_mutations(evol_pop_clone_labels, genomesdir, mut_table_outf)
+
+    poly_genomesdir = join(poly_resultsdir,"environment-comparison")
+    poly_mut_table_outf = join(resultsdir,"poly_evolved_mutations.csv")
+    write_evolved_mutations(evol_pop_clone_labels, poly_genomesdir, poly_mut_table_outf,polymorphism=True)
 
     ''' make a table of IS-insertions, genome, and start and end locations.
         in the evolved and subtracted clones.'''
     IS_table_outf = join(resultsdir,"IS_insertions.csv")
-    ##make_IS_insertion_tbl(evol_pop_clone_labels, resultsdir, IS_table_outf)
+    ##make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
 
     ''' make a table of IS elements in LCA (including REL606).'''
     LCA_table_outf = join(resultsdir,"LCA_IS_insertions.csv")

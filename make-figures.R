@@ -32,13 +32,22 @@ pop.clone.labels <- read.csv(
 
 ## Figure 1A is diagram of the DM0 and DM25 experiments made in Illustrator.
 
-## Figure 1B: make a stacked bar plot of the different kinds of mutations in each clone.
-
-mutation.types <- read.csv(
+evolved.mutations <- read.csv(
     file.path(proj.dir,
-        "results/genome-analysis/mutation_types.csv"))
+        "results/genome-analysis/evolved_mutations.csv"))
 
-fig1B.stacked <- ggplot(mutation.types,aes(x=Clone,fill=Mutation)) +
+## examine base-pair level parallel evolution.
+
+bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
+    summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
+
+parallel.MOB <- filter(bp.parallel.mutations,Mutation=='MOB')
+parallel.DEL <- filter(bp.parallel.mutations,Mutation=='DEL')
+parallel.INS <- filter(bp.parallel.mutations,Mutation=='INS')
+parallel.dN <- filter(bp.parallel.mutations,Mutation=='nonsynonymous')
+
+## Figure 1B: make a stacked bar plot of the different kinds of mutations in each clone.
+fig1B.stacked <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +
     geom_bar() +
     scale_fill_viridis(option="magma",discrete=TRUE) +
     facet_grid(~Environment,scales="free") +
