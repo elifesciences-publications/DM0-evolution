@@ -36,7 +36,7 @@ evolved.mutations <- read.csv(
     file.path(proj.dir,
         "results/genome-analysis/evolved_mutations.csv"))
 
-## examine base-pair level parallel evolution.
+## examine basepair-level parallel evolution.
 
 bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
     summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
@@ -45,6 +45,22 @@ parallel.MOB <- filter(bp.parallel.mutations,Mutation=='MOB')
 parallel.DEL <- filter(bp.parallel.mutations,Mutation=='DEL')
 parallel.INS <- filter(bp.parallel.mutations,Mutation=='INS')
 parallel.dN <- filter(bp.parallel.mutations,Mutation=='nonsynonymous')
+
+## examine basepair-level parallel evolution in the polymorphism runs.
+
+poly.evolved.mutations <- read.csv(
+    file.path(proj.dir,
+        "results/genome-analysis/poly_evolved_mutations.csv"))
+
+poly.bp.parallel.mutations <- poly.evolved.mutations %>% filter(Frequency < 1) %>%
+    filter(Frequency > 0.1) %>% group_by(Position) %>% summarise(count = n()) %>%
+    filter(count>1) %>% inner_join(poly.evolved.mutations)
+
+poly.parallel.MOB <- filter(poly.bp.parallel.mutations,Mutation=='MOB')
+poly.parallel.DEL <- filter(poly.bp.parallel.mutations,Mutation=='DEL')
+poly.parallel.INS <- filter(poly.bp.parallel.mutations,Mutation=='INS')
+poly.parallel.dN <- filter(poly.bp.parallel.mutations,Mutation=='nonsynonymous')
+
 
 ## Figure 1B: make a stacked bar plot of the different kinds of mutations in each clone.
 fig1B.stacked <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +

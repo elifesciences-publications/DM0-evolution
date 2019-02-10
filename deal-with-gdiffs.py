@@ -8,9 +8,9 @@ with ancestral mutations subtracted out, and write out a table for make-figures.
 to plot the counts and types of mutations in each population.
 '''
 
-from os.path import join, basename, exists, isfile, expanduser
+from os.path import join, basename, exists, isfile, expanduser, dirname
 from os import listdir, getcwd, makedirs, walk
-import pathlib
+from pathlib import Path
 import pandas as pd
 from subprocess import run
 from itertools import product,combinations
@@ -160,7 +160,7 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf,polymorphism=F
                 pos = str(rec.attributes['position'])
                 gene = rec.attributes['gene_name']
                 if polymorphism:
-                    freq = rec.attributes['frequency']
+                    freq = str(rec.attributes['frequency'])
                 if rec.type == 'SNP':
                     muttype = rec.attributes['snp_type']
                 else:
@@ -234,6 +234,30 @@ def make_LCA_IS_insertion_csv(evol_pop_clone_labels, inputdir, outf, gff):
             continue
         outfh.write(','.join([IS_element_name, start_coord, end_coord]) + "\n")
 
+def organize_diffs(analysisdir):
+    ''' automatically organize files for the dice analysis.'''
+
+    CZB151_paths = list(Path(join(analysisdir,'CZB151')).rglob("*.gd"))
+    CZB152_paths = list(Path(join(analysisdir,'CZB152')).rglob("*.gd"))
+    CZB154_paths = list(Path(join(analysisdir,'CZB154')).rglob("*.gd"))
+
+    DM0_paths = [x for x in CZB151_paths+CZB152_paths+CZB154_paths if "DM0" in x.parts]
+    DM25_paths = [x for x in CZB151_paths+CZB152_paths+CZB154_paths if "DM25" in x.parts]
+
+    def cp_files(comparisontype,treatment,paths):
+        for x in paths:
+            y = join(analysisdir, comparisontype, treatment, x.name)
+            my_args = ['cp',str(x),y]
+            my_cmd = ' '.join(my_args)
+            makedirs(dirname(y), exist_ok=True)
+            run(my_cmd ,executable='/bin/bash',shell=True)
+
+    cp_files("genotype-comparison","CZB151",CZB151_paths)
+    cp_files("genotype-comparison","CZB152",CZB152_paths)
+    cp_files("genotype-comparison","CZB154",CZB154_paths)
+    cp_files("environment-comparison","DM0",DM0_paths)
+    cp_files("environment-comparison","DM25",DM25_paths)
+
 def main():
 
     homedir = expanduser("~")
@@ -263,10 +287,13 @@ def main():
     ##contamination_check(genome_path_dict, all_pop_clone_labels,resultsdir)
 
     ''' Now subtract ancestral mutations from evolved strains, and remove mutations in
-    rrlA, rhsA, rhsB, insE-3, insE-5 from the analysis.'''
+    rrlA, rhsA, rhsB, insE-3, insE-5 from the analysis. Then, organize diffs for the
+    Dice analysis. '''
     ##subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
+    organize_diffs(resultsdir)
     ''' do the same thing,using the breseq --polymorphism mode results.'''
     ##subtract_ancestors_and_filter_mutations(poly_genome_path_dict,all_pop_clone_labels,poly_resultsdir)
+    organize_diffs(poly_resultsdir)
 
     ''' tabulate the evolved mutations.'''
     evolved_genomes = [x for x in listdir(breseqoutput_dir) if x.startswith('ZDBp')]

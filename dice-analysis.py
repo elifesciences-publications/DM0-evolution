@@ -50,36 +50,10 @@ class CallTEE:
     def __str__(self):
         return ' '.join(self.args)
 
-def organize_diffs(analysisdir):
-    ''' automatically organize files for the dice analysis.'''
-
-    CZB151_paths = list(Path(join(analysisdir,'CZB151')).rglob("*.gd"))
-    CZB152_paths = list(Path(join(analysisdir,'CZB152')).rglob("*.gd"))
-    CZB154_paths = list(Path(join(analysisdir,'CZB154')).rglob("*.gd"))
-
-    DM0_paths = [x for x in CZB151_paths+CZB152_paths+CZB154_paths if "DM0" in x.parts]
-    DM25_paths = [x for x in CZB151_paths+CZB152_paths+CZB154_paths if "DM25" in x.parts]
-
-    def cp_files(comparisontype,treatment,paths):
-        for x in paths:
-            y = join(analysisdir, comparisontype, treatment, x.name)
-            my_args = ['cp',str(x),y]
-            my_cmd = ' '.join(my_args)
-            makedirs(dirname(y), exist_ok=True)
-            run(my_cmd ,executable='/bin/bash',shell=True)
-
-    cp_files("genotype-comparison","CZB151",CZB151_paths)
-    cp_files("genotype-comparison","CZB152",CZB152_paths)
-    cp_files("genotype-comparison","CZB154",CZB154_paths)
-    cp_files("environment-comparison","DM0",DM0_paths)
-    cp_files("environment-comparison","DM25",DM25_paths)
-
 def main():
     homedir = expanduser("~")
     projdir = join(homedir,"BoxSync/DM0-evolution")
     analysis_dir = join(projdir,"results/genome-analysis")
-
-    organize_diffs(analysis_dir)
 
     do_environment = True
     if do_environment:
