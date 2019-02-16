@@ -20,8 +20,6 @@ library(tidytext)
 library(Matrix)
 library(ggfortify)
 library(kernlab)
-##library(ade4)
-##library(factoextra)
 
 home.dir <- path.expand("~")
 proj.dir <- file.path(home.dir,"BoxSync/DM0-evolution")

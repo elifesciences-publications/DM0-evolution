@@ -30,8 +30,8 @@ def main():
             ## skip evidence lines.
             if any([y in l for y in evidence_codes]):
                 continue
-            if 'frequency=1\t' in l: ## skip non-polymorphic mutations
-                continue
+            ##if 'frequency=1\t' in l: ## skip non-polymorphic mutations
+            ##    continue
             if any([z in l for z in relevant_genes]):
                 data = l.split()
                 print(','.join(['genome='+g]+data))

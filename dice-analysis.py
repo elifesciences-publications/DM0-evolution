@@ -32,8 +32,8 @@ from os.path import join, expanduser, dirname
 from subprocess import run
 import pandas as pd
 
-class CallTEE:
-    def __init__(self,gd_dir,genbank_ref,mutmatrixfile,control_treatment=''):
+class CallDICE:
+    def __init__(self, gd_dir, genbank_ref, mutmatrixfile, control_treatment='', excluded=None):
         ##self.number = 1000000
         self.number = 10000 ## for debugging
         self.promoter_length = 150
@@ -41,8 +41,11 @@ class CallTEE:
         self.control_treatment = control_treatment
         self.samples = gd_dir
         self.mutmatrixfile = mutmatrixfile
-        self.args = ['python', './external/Deatherage-analysis/DiceSimilarity/citrate_dice.py', '-pw', '-n', str(self.number),
+        self.excluded = excluded
+        self.args = ['python', './citrate_dice.py', '-pw', '-n', str(self.number),
                      '-p', str(self.promoter_length), '-dt', '-s', self.samples, '-g', self.genbank_ref, '-ct', self.control_treatment, '--matrixfile', self.mutmatrixfile]
+        if self.excluded is not None:
+            self.args = self.args + ['-e', self.excluded]
 
     def call(self):
         return run(self.args)
@@ -55,6 +58,8 @@ def main():
     projdir = join(homedir,"BoxSync/DM0-evolution")
     analysis_dir = join(projdir,"results/genome-analysis")
 
+    exclude_ZDBp874_875_intersection = join(analysis_dir,"ZDBp-874-875-intersection.gd")
+
     do_environment = True
     if do_environment:
         gddir = join(analysis_dir,"environment-comparison")
@@ -63,22 +68,22 @@ def main():
         gddir = join(analysis_dir,"genotype-comparison")
         ctl_treat = 'CZB151'
 
-    DiceRun = CallTEE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/DM0-DM25-comparison-mut-matrix.csv', ctl_treat)
+    DiceRun = CallDICE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/DM0-DM25-comparison-mut-matrix.csv', ctl_treat, exclude_ZDBp874_875_intersection)
     print(DiceRun)
-    ##DiceRun.call()
+    DiceRun.call()
 
     ## For comparison, run citrate_dice.py on the LTEE to make a matrix for Fig. 1C.
 
     ltee_gddir = join(projdir,"genomes/annotated-LTEE-50K-diffs")
-    LTEE_DiceRun = CallTEE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
+    LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
     print(LTEE_DiceRun)
-    ##LTEE_DiceRun.call()
+    LTEE_DiceRun.call()
 
     ## run citrate_dice.py on just the 50K Ara-3 clone to get validate mutations for
     ## the Recapitulation Index analysis.
 
     ara_minus3_gddir = join(projdir,"genomes/curated-diffs")
-    ara_minus3_DiceRun = CallTEE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/ara3_mut_matrix.csv')
+    ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/ara3_mut_matrix.csv')
     ara_minus3_DiceRun.call()
 
 main()
