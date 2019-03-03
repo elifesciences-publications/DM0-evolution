@@ -4,6 +4,8 @@
 
 ## there's some problem with dplyr::rename due to some of these imports I think.
 
+library(cowplot)
+library(data.table)
 library(ggplot2)
 library(dplyr)
 library(ggrepel)
@@ -28,12 +30,12 @@ pop.clone.labels <- read.csv(
     file.path(proj.dir,
         "data/rohan-formatted/populations-and-clones.csv"))
 
-## Figure 1A is diagram of the DM0 and DM25 experiments made in Illustrator.
-
 evolved.mutations <- read.csv(
     file.path(proj.dir,
         "results/genome-analysis/evolved_mutations.csv"))
 
+#### TODO: move this code based on where the results are discussed
+####       in the manuscript.
 ## examine basepair-level parallel evolution.
 
 bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
@@ -59,9 +61,13 @@ poly.parallel.DEL <- filter(poly.bp.parallel.mutations,Mutation=='DEL')
 poly.parallel.INS <- filter(poly.bp.parallel.mutations,Mutation=='INS')
 poly.parallel.dN <- filter(poly.bp.parallel.mutations,Mutation=='nonsynonymous')
 
+###############################################
+## Figure 1.
 
-## Figure 1B: make a stacked bar plot of the different kinds of mutations in each clone.
-fig1B.stacked <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +
+## Figure 1A is a schematic of the experimental design, made in Illustrator.
+## Figure 1B is the phylogenetic tree constructed using the iTOL webserver.
+## Figure 1C: make a stacked bar plot of the different kinds of mutations in each clone.
+fig1C.stacked <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +
     geom_bar() +
     scale_fill_viridis(option="magma",discrete=TRUE) +
     facet_grid(~Environment,scales="free") +
@@ -78,512 +84,63 @@ fig1B.stacked <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +
     theme(legend.title.align=1) +
     theme(legend.text=element_text(size=8))
 
-fig1B.output <- "../results/figures/Fig1B.pdf"
-ggsave(fig1B.stacked, file=fig1B.output,width=7,height=7)
-
-## Figure 1C: make a matrix plot of genes with mutations in two or more clones.
-fig1C.raw.matrix <- read.csv(file.path(proj.dir,
-        "results/DM0-DM25-comparison-mut-matrix.csv"))
-
-## fix the names of the samples.
-names(fig1C.raw.matrix) <- map_chr(
-    names(fig1C.raw.matrix),
-    function (x) str_trunc(x,width=7,side="right",ellipsis=''))
-
-fig1C.DM0.DM25.data <- gather(fig1C.raw.matrix,"Name","mutation.count",2:26) %>%
-    left_join(pop.clone.labels) %>%
-    select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
-    group_by(Gene) %>% filter(sum(mutation.count)>1)
-
-fig1C.counts <- summarize(fig1C.DM0.DM25.data,total.count=sum(mutation.count)) %>%
-    arrange(desc(total.count))
-
-## Now: add LTEE mutation matrix as well.
-## filter on genes mutated in the DM0 and DM25 matrix data.
-ltee.matrix <- read.csv(
-    file.path(
-        proj.dir,
-        "results/LTEE-mut_matrix.csv"))
-## fix the names of the samples.
-names(ltee.matrix) <- map_chr(
-    names(ltee.matrix),
-    function (x) str_trunc(x,width=8,side="left",ellipsis=''))
-
-LTEE.50K.labels <- read.csv(
-    file.path(proj.dir,
-        "data/rohan-formatted/LTEE-50K-clones.csv"))
-
-ltee.data <- gather(ltee.matrix,"Name","mutation.count",2:13) %>%
-    left_join(LTEE.50K.labels) %>%
-    group_by(Gene) %>% filter(Gene %in% fig1C.DM0.DM25.data$Gene) %>%
-    filter(!is.na(Gene))
-
-## Filter out hypermutators.
-non.mutator.ltee.data <- ltee.data %>%
-    filter(Hypermutator == 0) %>%
-    select(-Hypermutator)
-
-## Now join LTEE data to the DM0 and DM25 Cit+ data.
-fig1C.data <- fig1C.DM0.DM25.data %>% bind_rows(non.mutator.ltee.data)
-
-## later I try a different ordering by hierarchical clustering.
-## order the genes by number of mutations to get axes correct on heatmap.
-fig1C.data$Gene <- factor(fig1C.data$Gene)
-fig1C.data$mutation.count <- factor(fig1C.data$mutation.count)
-
-fig1C <-  ggplot(fig1C.data,aes(x=Name,y=Gene,fill=mutation.count,
-                                frame=Environment)) +
-    geom_tile(color="black",size=0.1) +
-    ylab("Gene") +
-    facet_wrap(~Environment,ncol=3, scales = "free_x") +
-    theme_tufte(base_family='Helvetica') +
-    theme(axis.ticks=element_blank()) +
-    theme(axis.text.x=element_text(size=10,angle=45,hjust=1)) +
-    theme(axis.text.y=element_text(size=10,hjust=1,face="italic")) +
-    theme(legend.text=element_text(size=6)) +
-    theme(legend.position="bottom") +
-    theme(legend.key.size=unit(0.2, "cm")) +
-    theme(legend.key.width=unit(1, "cm")) +
-    scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
-                                 "#fb8072", "#80b1d3", "#fdb462"))
-
 fig1C.output <- "../results/figures/Fig1C.pdf"
-ggsave(fig1C, file=fig1C.output,width=7,height=15)
+ggsave(fig1C.stacked, file=fig1C.output,width=7,height=7)
 
-## TODO: add a column corresponding to the valid mutations in Ara-3.
-## might be better to make as a separate figure and then assemble together
-## using cowplot.
+##############################################################
+## Figure 2: growth curve analysis, showing evolution of
+## growth rate and yield in DM0.
 
-############################################################################
-## Recapitulation Index analysis:
-## Percent of valid mutations in the DM0 and DM25 treatments that affected genes
-## that subsequently acquired a valid mutation in the Ara-3 50K clone.
-
-## PROBLEM: being a hypermutator causes high recapitulation indices in the absence
-## of true parallel selection.
-
-A.minus3.50K.df <- read.csv(file.path(proj.dir,"results/ara3_mut_matrix.csv")) %>%
-    rename(mutation.count= REL11364_minus_CZB154)
-
-
-DM0.mutations <- filter(fig1C.DM0.DM25.data,Environment=='DM0')  %>%
-    select(-Name,Environment,PopulationLabel)
-DM25.mutations <- filter(fig1C.DM0.DM25.data,Environment=='DM25') %>%
-    select(-Name,Environment,PopulationLabel)
-
-
-CalcRecapitulationIndex <- function (treat.muts,future.muts) {
-    future.muts <- filter(future.muts,mutation.count > 0)
-    recap.mutations <- filter(treat.muts,Gene %in% future.muts$Gene)
-    total.recaps <- sum(recap.mutations$mutation.count)
-    total.treat.muts <- sum(treat.muts$mutation.count)
-    RI <- total.recaps/total.treat.muts
-    return(RI)
-}
-
-DM0.RI <- CalcRecapitulationIndex(DM0.mutations,A.minus3.50K.df) ## 34.3% for DM0
-DM25.RI <- CalcRecapitulationIndex(DM25.mutations,A.minus3.50K.df) ## 32% for DM25
-
-## Then calculate RI for each population separately, excepting Ara-3.
-all.but.matrix <- ltee.matrix %>% select(-REL11364)
-
-## initialize the RI vectors.
-DM0.RI.vec <- rep(0,ncol(ltee.matrix2)-1)
-DM25.RI.vec <- rep(0,ncol(ltee.matrix2)-1)
-LTEE.clone.vec <- rep('',ncol(ltee.matrix2)-1)
-
-for (i in 2:12) {
-    my.mut.summary <- all.but.matrix[c(1,i)]
-    LTEE.clone.vec[i-1] <- names(my.mut.summary)[2]
-    names(my.mut.summary)[2] <- 'mutation.count'
-    my.mut.summary <- filter(my.mut.summary,mutation.count > 0)
-    DM0.RI.vec[i-1] <- CalcRecapitulationIndex(DM0.mutations, my.mut.summary)
-    DM25.RI.vec[i-1] <- CalcRecapitulationIndex(DM25.mutations, my.mut.summary)
-}
-
-## Now add Ara-3 clone REL11364 to the vectors, and turn into a dataframe.
-DM0.RI.col <- c(DM0.RI.vec,DM0.RI)
-DM25.RI.col <- c(DM25.RI.vec,DM25.RI)
-Name.col <- c(LTEE.clone.vec,'REL11364')
-RI.df <- data.frame(Name=Name.col,DM0.RI=DM0.RI.col,DM25.RI=DM25.RI.col)
-
-
-############################################################################
-## let's play with the vectors in fig1C.data.
-
-## note R's strange behavior when casting factors to numbers: have to
-## change to character first!
-## question: why does PCA result in better clustering with the WRONG encoding?
-## my guess is that Linear Discriminant analysis is really what is desired here
-## (best view to distiguish classes in genome space).
-
-mat.data <- fig1C.data %>%
-    select(-PopulationLabel,-Environment) %>%
-    mutate(mutation.count=as.numeric(as.character(mutation.count)))
-    ##mutate(mutation.count=as.numeric(mutation.count))
-
-## turn these data into a matrix of class "dbCMatrix".
-mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
-
-## convert to regular R matrix class,
-##and take transpose to turn matrix to Genome x Mutation.
-GxM.matrix <- as.matrix(t(mut.matrix))
-## write out to file for analysis in jupyter notebook.
-write.csv(GxM.matrix,file="../results/GxM_matrix.csv")
-
-## cast into a dataframe for annotating the PCA with ggfortify.
-GxM.df <- data.frame(GxM.matrix)
-GxM.df$Genome <- as.factor(rownames(GxM.matrix))
-GxM.df$Environment <- map_chr(
-    GxM.df$Genome,
-    function(x) unique(filter(fig1C.data,Name==x)$Environment))
-
-## plot a PCA on the GxM matrix.
-GxM.PCA <- prcomp(GxM.df[seq(1:ncol(GxM.matrix))],scale=TRUE)
-
-## plot PCA again, using ade4 and factoextra packages.
-## see: http://www.sthda.com/english/articles/31-principal-component-methods-in-r-practical-guide/119-pca-in-r-using-ade4-quick-scripts/
-GxM.PCA2 <- dudi.pca(GxM.df[seq(1:ncol(GxM.matrix))],scannf = FALSE, nf = 10)
-## and visualize.
-fviz_eig(GxM.PCA2)
-
-fviz_pca_ind(GxM.PCA2,
-             col.ind = "cos2", # Color by the quality of representation
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
-
-fviz_pca_var(GxM.PCA2,
-             col.var = "contrib", # Color by contributions to the PC
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
-
-## Do spectral clustering on genomes.
-sc <- specc(GxM.matrix, kernel='rbfdot', centers=3)
-## add spectral clustering information to dataframe for plotting.
-GxM.df$spectral.clustering <- as.factor(sc)
-
-## plot the loadings
-## (which mutations distinguish between different environments).
-quartz()
-autoplot(GxM.PCA,
-         data=GxM.df,
-         colour='Environment',
-         shape='spectral.clustering',
-         loadings=TRUE,loadings.label = TRUE) + theme_classic()
-
-autoplot(GxM.PCA,
-         data=GxM.df,
-         colour='Environment',
-         shape='spectral.clustering') + theme_classic()
-
-## do the same for the transpose.
-MxG.matrix <- as.matrix(mut.matrix)
-## write out to file for analysis in jupyter notebook.
-write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
-write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
-
-## clustergrammer view.
-## http://amp.pharm.mssm.edu/clustergrammer/viz_sim_mats/5c59d632c902bb0430741ef0/MxG_matrix.tsv
-
-## cast into a dataframe for annotating the PCA with ggfortify.
-MxG.df <- data.frame(MxG.matrix)
-MxG.df$Genome <- rownames(MxG.matrix)
-
-quartz() ## for testing.
-
-## plot a PCA on the MxG matrix.
-MxG.PCA <- prcomp(MxG.df[seq(1:ncol(MxG.matrix))],scale=TRUE)
-autoplot(MxG.PCA, label=TRUE)
-
-## plot PCA again, using ade4 and factoextra packages.
-MxG.PCA2 <- dudi.pca(MxG.df[seq(1:ncol(MxG.matrix))],scannf = FALSE, nf = 10)
-## and visualize.
-fviz_eig(MxG.PCA2)
-
-fviz_pca_ind(MxG.PCA2,
-             col.ind = "cos2", # Color by the quality of representation
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
-
-fviz_pca_var(MxG.PCA2,
-             col.var = "contrib", # Color by contributions to the PC
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
-             repel = TRUE     # Avoid text overlapping
-             )
-
-## make the correlation matrices
-GxG.correlation.matrix <- cor(MxG.matrix)
-MxM.correlation.matrix <- cor(GxM.matrix)
-autoplot(GxG.correlation.matrix)
-autoplot(MxM.correlation.matrix)
-
-
-## https://stats.stackexchange.com/questions/165194/using-correlation-as-distance-metric-for-hierarchical-clustering
-
-## following this post to turn a correlation into a distance measure.
-MxM.scaled.cor.matrix <- cor(scale(GxM.matrix))
-
-MxM.heatmap <- heatmap(MxM.scaled.cor.matrix)
-## get the gene order from the heatmap..
-sorted.genes <- sapply(MxM.heatmap$rowInd,function(i) rownames(MxM.scaled.cor.matrix)[i])
-
-## does this order improve how Fig 1C looks? Yes it does!
-testfig1C.data <- fig1C.data
-testfig1C.data$Gene <- factor(fig1C.data$Gene,levels=sorted.genes)
-
-testfig1C <-  ggplot(testfig1C.data,aes(x=Name,y=Gene,fill=mutation.count,
-                                frame=Environment)) +
-    geom_tile(color="black",size=0.1) +
-    ylab("Gene") +
-    facet_wrap(~Environment,ncol=3, scales = "free_x") +
-    theme_tufte(base_family='Helvetica') +
-    theme(axis.ticks=element_blank()) +
-    theme(axis.text.x=element_text(size=10,angle=45,hjust=1)) +
-    theme(axis.text.y=element_text(size=10,hjust=1,face="italic")) +
-    theme(legend.text=element_text(size=6)) +
-    theme(legend.position="bottom") +
-    theme(legend.key.size=unit(0.2, "cm")) +
-    theme(legend.key.width=unit(1, "cm")) +
-    scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
-                                 "#fb8072", "#80b1d3", "#fdb462"))
-
-testfig1C.output <- "../results/figures/testFig1C.pdf"
-ggsave(testfig1C, file=testfig1C.output,width=7,height=15)
-
-## make a mutation co-occurrence matrix.
-MxG.presence <- MxG.matrix
-MxG.presence[MxG.presence > 1] <- 1
-M.co.occurrence <- MxG.presence %*% t(MxG.presence)
-M.co.occurrence.heatmap <- heatmap(M.co.occurrence)
-
-## get the gene order from the heatmap..
-M.co.occurrence.sorted.genes <- sapply(M.co.occurrence.heatmap$rowInd,function(i) rownames(M.co.occurrence)[i])
-
-
-M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
-                                col=colnames(M.co.occurrence)[col(M.co.occurrence)],
-                                co.occurrence=c(as.factor(M.co.occurrence)))
-
-M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
-M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
-
-M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) + geom_tile(color='White') + scale_fill_viridis(option="magma",direction=-1) + theme(axis.text.x = element_text(angle=90,vjust=-0.1))
-M.co.occurrence.plot
-
-## look at largest and smallest eigenvalues and eigenvectors.
-MxM.eigenresults <- eigen(MxM.correlation.matrix)
-
-autoplot(MxM.eigenresults$vectors)
-
-## do hierarchical clustering on the matrix.
-## dist.binary from the ade4 package.
-GxM.matrix2 <- GxM.matrix
-## turn double hits into single to analyze as binary data.
-GxM.matrix2[GxM.matrix2 > 1] <- 1
-## method 5 is the Dice distance metric.
-GxM.dist.mat <- dist.binary(GxM.matrix2,method=5)
-clust.GxM <- hclust(GxM.dist.mat)
-new.palette=colorRampPalette(c("black","red","yellow","white"),space="rgb")
-heatmap(GxM.matrix2,col=new.palette(20))
-
-
-############################################################################
-## Figure 2:
-## A) Fitness of evolved clones in DM0 and DM25.
-## B) Fitness in DM0 vs. Fitness in DM25 (see if any tradeoff).
-
-## NOTE: This figure still needs work, probably will use clone data instead anyway.
-
-DM0.labels <- read.csv(file.path(proj.dir,
-              "data/rohan-formatted/labels-for-DM0-evolved-DM0-fitness.csv"))
-
-DM0.data <- read.csv(file.path(proj.dir,
-              "data/rohan-formatted/DM0-evolved-DM0-fitness.csv"))
-
-DM0.data2 <- left_join(DM0.data,DM0.labels) %>%
-    mutate(Environment='DM0') %>%
-    select(-Set,-Type)
-
-DM25.labels <- read.csv(file.path(proj.dir,
-              "data/rohan-formatted/labels-for-DM0-evolved-DM25-fitness.csv"))
-
-DM25.data <- read.csv(file.path(proj.dir,
-                                "data/rohan-formatted/DM0-evolved-DM25-fitness.csv"))
-
-DM25.data2 <- left_join(DM25.data,DM25.labels) %>% mutate(Environment='DM25')
-
-founder.labels <- select(pop.clone.labels,Name,Founder) %>% rename(C1=Name)
-## put DM0 and DM25 data into a single data frame, and add a Founder column,
-## and turn Dilution into a number (Plate Dilution).
-Fig2.data <- bind_rows(DM0.data2,DM25.data2) %>%
-    left_join(founder.labels) %>%
-    mutate(Plate.Dilution = sapply(as.character(Dilution),
-                                   function(x) {eval(parse(text=x))}))
-
-## filter out all plates with TMTC colonies, and only analyze one-day competition
-## data, and turn Red and White columns (factors) into numeric values
-## (since no more TMTC).
-## WARNING: as.numeric(Red) is WRONG (gets index of the factor).
-## Need to use as.numeric(as.character(Red)) instead.
-filtered.Fig2.data <- filter(Fig2.data,Red != 'TMTC') %>%
-    filter(White != 'TMTC') %>%
-    filter(Day != 'D3') %>% filter(Day != 'D6') %>%
-    mutate(Red=as.numeric(as.character(Red))) %>%
-    mutate(White=as.numeric(as.character(White)))
-
-## split the data into two data frames for the initial and final day,
-## and only include 10^3 dilution D0 and 10^5 dilution D1 data.
-Fig2.day0.data <- filter(filtered.Fig2.data,Day=='D0',Dilution=='10^3')
-Fig2.day1.data <- filter(filtered.Fig2.data,Day=='D1',Dilution=='10^5')
-
-## change column names of initial.df and final.df before merging them together,
-## and drop the Day and Dilution columns.
-Fig2.day0.df <- rename(Fig2.day0.data,Red.Pop=C1, White.Pop=C2,
-                      Red.0=Red,White.0=White, D.0=Plate.Dilution) %>% select(-Day,-Dilution)
-Fig2.day1.df <- rename(Fig2.day1.data,Red.Pop=C1, White.Pop=C2,
-                      Red.1=Red,White.1=White, D.1=Plate.Dilution) %>% select(-Day,-Dilution)
-## Combine these data frames into a nice format for competition analysis (see Fig7 data).
-
-## This is to help make the Rev column. Reverse if White Pop is a parent clone.
-parent.clones <- unique(pop.clone.labels$Parent.Clone)
-
-## Add the Rev and Rep columns.
-Fig2.competition.data <- inner_join(Fig2.day0.df,Fig2.day1.df) %>%
-    group_by(Environment,Founder,Red.Pop,White.Pop) %>%
-    mutate(Rep = row_number()) %>%
-    ## The Rev column ensures M_final/M_initial is always evolved/ancestor.
-    mutate(Rev=Red.Pop %in% parent.clones)
-
-## by diluting stationary phase culture 1:100 on day 0, there is another
-## factor of 100 that multiplies the day 0 plating dilution factor.
-Fig2.competition.data2 <- mutate(Fig2.competition.data, D.0=100*D.0) %>%
-## always one competitions in these experiments.
-    mutate(Mr = log2((D.1/D.0)*Red.1*100^1/Red.0)/1) %>%
-    mutate(Mw = log2((D.1/D.0)*White.1*100^1/White.0)/1) %>%
-    mutate(W = ifelse(Rev,Mw/Mr,Mr/Mw)) ## reverse log ratio depending on ancestor polarity.
-## the data is still grouped_by. so run summarise to get results.
-
-Fig2.results <- summarise(Fig2.competition.data2,
-                          Rev=unique(Rev),
-                          samplesize=n(),
-                          Fitness=mean(W,na.rm=TRUE),
-                          W.sd=sd(W,na.rm=TRUE),
-                          left.error = Fitness - 1.96*W.sd/sqrt(samplesize),
-                          right.error = Fitness + 1.96*W.sd/sqrt(samplesize),
-                          Pop = ifelse(Rev,
-                                       as.character(White.Pop),
-                                       as.character(Red.Pop))) %>% na.omit()
-
-
-Fig2A.output <- "../results/figures/Fig2A.pdf"
-
-plot.Figure2A <- function (results, output.file) {
-    the.plot <- ggplot(results,aes(x=Pop,y=Fitness,color=Rev, label=Pop)) +
-        geom_errorbar(aes(ymin=left.error,ymax=right.error),width=0.1, size=1) +
-        geom_point(size=1) +
-        facet_wrap(~Environment+Founder, scales = "free_x") +
-        scale_y_continuous(breaks=seq(0, 2.5, 0.2), limits=c(0.5,2.2)) +
-        geom_hline(yintercept=1,linetype="dashed") +
-        theme_tufte(base_family='Helvetica') +
-        theme(axis.text.x=element_text(angle=45,hjust=1)) +
-        theme(axis.title.x=element_blank()) +
-        theme(axis.title.y=element_text(hjust=1)) +
-        theme(axis.ticks = element_blank(), axis.text.x = element_blank())
-
-    ggsave(the.plot, file=output.file)
-}
-
-plot.Figure2B <- function(results,output.file) {
-    #' compare fitness in DM0 to fitness in DM25.
-
-    DM0.fitness.results <- filter(results,Environment=='DM0') %>%
-        rename(DM0.Fitness = Fitness) %>%
-        rename(DM0.W.sd = W.sd) %>%
-        rename(DM0.left.error = left.error) %>%
-        rename(DM0.right.error = right.error) %>%
-        ungroup(Environment) %>%
-        select(-Environment,-samplesize,-Rev)
-
-    DM25.fitness.results <- filter(results,Environment=='DM25') %>%
-        rename(DM25.Fitness=Fitness) %>%
-        rename(DM25.W.sd=W.sd) %>% ungroup(Environment) %>%
-        rename(DM25.left.error = left.error) %>%
-        rename(DM25.right.error = right.error) %>%
-        select(-Environment,-samplesize,-Rev)
-
-    comparison.results <- inner_join(DM0.fitness.results,DM25.fitness.results)
-
-    the.plot <- ggplot(comparison.results,aes(x=DM25.Fitness,y=DM0.Fitness, label=Pop,color='red')) +
-        geom_errorbar(aes(ymin=DM0.left.error,ymax=DM0.right.error), width=0.01, size=1) +
-        geom_errorbarh(aes(xmin=DM25.left.error,xmax=DM25.right.error), height=0.01, size=1) +
-        geom_point(size=1) +
-        guides(colour=FALSE) +
-        theme_classic(base_family='Helvetica') +
-        theme(axis.text.x=element_text(angle=45,hjust=1)) +
-        theme(axis.title.y=element_text(hjust=1)) +
-        geom_abline(slope=1,intercept=0,linetype='dashed') +
-        geom_text_repel(size=4,force=50,hjust=-0.5,vjust=-1,color='black')
-
-    ggsave(the.plot, file=output.file)
-
-}
-
-plot.Figure2A(Fig2.results,file.path(home.dir,"/Desktop/Fig2A.pdf"))
-plot.Figure2B(Fig2.results,file.path(home.dir,"/Desktop/Fig2B.pdf"))
-
-
-## print out calculations to compare to Zack's calculations.
-## write.csv(Fig2.competition.data2,file.path(home.dir,"/Desktop/Fig2_fitness.csv")_
-## write.csv(Fig2.results,file.path(home.dir,"/Desktop/Fig2_fitness_results.csv"))
-
-################################################################################
-## Figure 3: Growth curves of evolved populations in DM0 and in DM25.
+## TODO: similar analysis, but with DM25-evolved genomes
+## (don't have these data in hand).
 
 ## Cite the growthcurver package. https://www.ncbi.nlm.nih.gov/pubmed/27094401
 library(growthcurver)
 
-Fig3A.analysis <- function(fig3df) {
+Fig2A.analysis <- function(growth.df) {
     ## The analysis follows what Zack has done:
     ## 1) average blank measurement at every time point.
     ## 2) subtract average blank measurement from each time point.
     ## 3) log2 transform the data.
 
     ## This next line is just for debugging. keep commented out.
-    ##fig3df <- labeled.growth.data
+    ##growth.df <- labeled.growth.data
 
-    blanks <- filter(fig3df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
+    blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
         summarise(blank.time.avg = mean(OD420))
-    fig3df <- left_join(fig3df, blanks)
-    fig3df <- mutate(fig3df, OD420.minus.blank.avg = OD420 - blank.time.avg)
+    growth.df <- left_join(growth.df, blanks)
+    growth.df <- mutate(growth.df, OD420.minus.blank.avg = OD420 - blank.time.avg)
     ## Add one so that the blank avg maps to zero after the log.
-    fig3df <- mutate(fig3df, log2.OD420 = log2(OD420.minus.blank.avg+1))
+    growth.df <- mutate(growth.df, log2.OD420 = log2(OD420.minus.blank.avg+1))
     ## filter out blank rows.
-    fig3df <- filter(fig3df,Name != 'Blank')
+    growth.df <- filter(growth.df,Name != 'Blank')
     ## Make an hours column with lubridate for plotting.
-    fig3df <- mutate(fig3df,Hours = as.numeric(as.duration(hms(Time)))/3600)
-    return(fig3df)
+    growth.df <- mutate(growth.df,Hours = as.numeric(as.duration(hms(Time)))/3600)
+    return(growth.df)
 }
 
-plot.Fig3A <- function(fig3df2) {
-    ## This next line is just for debugging. keep commented out.
-    ##fig3df2 <- final.fig3.data
-
-    fig3A <- ggplot(fig3df2, aes(x=Hours,y=log2.OD420,color=Name)) + geom_point(size=0.5) +
-        facet_grid(Experiment ~ Founder) + theme_classic() #+ ylim(-4,-0.5)
-    ggsave(file.path(proj.dir,"results/figures/Fig3A.pdf"),fig3)
+plot.Fig2A <- function(growth.df) {
+    fig2A <- ggplot(growth.df, aes(x=Hours,y=log2.OD420,color=Name)) +
+        geom_point(size=0.5) +
+        facet_grid(Experiment ~ Founder) +
+        theme_classic() +
+        #theme_tufte(base_family='Helvetica') +
+        #theme(axis.ticks=element_blank()) +
+        geom_point(data=filter(growth.df,Name==Founder),size=0.5,color="black") +
+        guides(color=FALSE) +
+        ylab(expression('log'[2]*'(OD420)'))
+    return(fig2A)
 }
 
-growth.data <- read.csv(file.path(proj.dir,"results/growth-data-for-fig3.csv"))
+growth.data <- read.csv(file.path(proj.dir,"results/growth-data.csv"))
 labeled.growth.data <- left_join(growth.data,pop.clone.labels,by="Name")
 
-final.fig3.data <- Fig3A.analysis(labeled.growth.data)
-plot.Fig3A(final.fig3.data)
+final.growth.data <- Fig2A.analysis(labeled.growth.data)
+Fig2A <- plot.Fig2A(final.growth.data)
 
 #####################################
 ## use growthcurver package to fit K and r to growth data.
+## TODO: I could modify code to estimate lag time.
 
 ## This function splits the growth plate data by Well and Experiment,
 ## Where Experiment is either 'DM0-growth' or 'DM25-growth'.
@@ -638,40 +195,374 @@ growth.curve.fits <- map.reduce.growth.curve(labeled.growth.data)
 growth.curve.fit.summary <- growth.curve.fits %>% filter(Name != 'Blank') %>%
     group_by(Experiment,Name) %>% summarize(r.avg = mean(r),
                                             k.avg=mean(k),
+                                            n0.avg=mean(n0),
                                             Environment=unique(Environment),
                                             Generation=unique(Generation),
                                             Founder=unique(Founder))
 
-growth.curve.plotA <- ggplot(growth.curve.fit.summary,aes(x=k.avg,y=r.avg,color=Generation,label=Founder)) +
-    geom_point() +
-    geom_text_repel() +
-    facet_wrap(Experiment~Founder) +
-    theme_classic()
 
-## examine how rate and yield evolved in the experiment.
-ggsave(file.path(proj.dir,"results/figures/Fig3B.pdf"),growth.curve.plotA)
-
-## now directly visualize if there's any tradeoff between DM0 and DM25.
 DM0.growth.summary <- filter(growth.curve.fit.summary,Experiment=='DM0-growth') %>%
-    rename(DM0.r = r.avg,DM0.k = k.avg) %>% ungroup(Experiment) %>% select(-Experiment) %>%
+    rename(DM0.r = r.avg,DM0.k = k.avg,DM0.n0=n0.avg) %>%
+    ungroup(Experiment) %>% select(-Experiment) %>%
     mutate(Generation=as.factor(Generation))
 
 DM25.growth.summary <- filter(growth.curve.fit.summary,Experiment=='DM25-growth') %>%
-    rename(DM25.r = r.avg,DM25.k = k.avg) %>% ungroup(Experiment) %>% select(-Experiment) %>%
+    rename(DM25.r = r.avg,DM25.k = k.avg, DM25.n0=n0.avg) %>%
+    ungroup(Experiment) %>% select(-Experiment) %>%
     mutate(Generation=as.factor(Generation))
 
-growth.fit.summary2 <- inner_join(DM0.growth.summary,DM25.growth.summary)
+growth.summary <- inner_join(DM0.growth.summary,DM25.growth.summary)
 
-R.comparison.plot <- ggplot(growth.fit.summary2,aes(x=DM25.r,y=DM0.r,color=Founder,shape=Generation)) +
+## calculate the log ratio of evolved growth to ancestral growth for both rate and yield,
+## and then calculate a confidence intervals around the means, using
+## the non-parametric bootstrap.
+## This is a better statistical test for an increase in rate.
+
+calc.growth.log.ratios <- function(growth.summary) {
+
+    ## Since the data is small, go ahead and use a for loop
+    ## to make vectors corresponding to ancestral R and K
+    ## in DM0 and DM25.
+    anc.DM0.k <- rep(-1,nrow(growth.summary))
+    anc.DM0.r <- rep(-1,nrow(growth.summary))
+    anc.DM25.r <- rep(-1,nrow(growth.summary))
+    anc.DM25.k <- rep(-1,nrow(growth.summary))
+    for (index in 1:nrow(growth.summary)) {
+        my.row <- growth.summary[index, ]
+        my.anc <- filter(growth.summary,Name==my.row$Founder)
+        anc.DM0.k[index] <- my.anc$DM0.k
+        anc.DM0.r[index] <- my.anc$DM0.r
+        anc.DM25.k[index] <- my.anc$DM25.k
+        anc.DM25.r[index] <- my.anc$DM25.r
+    }
+
+    growth.summary2 <- growth.summary %>%
+        mutate(log.DM0.k.ratio=log(DM0.k/anc.DM0.k)) %>%
+        mutate(log.DM0.r.ratio=log(DM0.r/anc.DM0.r)) %>%
+        mutate(log.DM25.k.ratio=log(DM25.k/anc.DM25.k)) %>%
+        mutate(log.DM25.r.ratio=log(DM25.r/anc.DM25.r))
+    return(growth.summary2)
+}
+
+final.growth.summary <- calc.growth.log.ratios(growth.summary)
+evolved.growth.summary <- filter(final.growth.summary,Name != Founder)
+
+## bootstrap confidence intervals around the mean.
+## See http://www.stat.wisc.edu/~larget/stat302/chap3.pdf
+## for sample code.
+calc.bootstrap.conf.int <- function(vec) {
+    B <- 10000
+    n <- length(vec)
+    boot.samples <- matrix(sample(vec, size = B*n, replace = TRUE),B, n)
+    boot.statistics <- apply(boot.samples, 1, mean)
+    boot.mean <- mean(boot.statistics)
+    boot.se <- sd(boot.statistics)
+    boot.confint <- boot.mean + c(-1,1)*2*boot.se
+    return(boot.confint)
+}
+
+log.DM0.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.r.ratio)
+log.DM0.k.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.k.ratio)
+log.DM25.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.ratio)
+log.DM25.k.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.k.ratio)
+
+mean.log.DM0.r.ratio <- mean(evolved.growth.summary$log.DM0.r.ratio)
+mean.log.DM0.k.ratio <- mean(evolved.growth.summary$log.DM0.k.ratio)
+mean.log.DM25.r.ratio <- mean(evolved.growth.summary$log.DM25.r.ratio)
+mean.log.DM25.k.ratio <- mean(evolved.growth.summary$log.DM25.k.ratio)
+
+## significant increases in growth rate, no significant change in growth yield.
+## Make a figure of these confidence intervals (Figure 2D).
+
+bootstrap.results <- data.frame(Parameter=c("DM0 r",
+                                            "DM25 r",
+                                            "DM0 K",
+                                            "DM25 K"),
+                                Estimate = c(mean.log.DM0.r.ratio,
+                                             mean.log.DM25.r.ratio,
+                                             mean.log.DM0.k.ratio,
+                                             mean.log.DM25.k.ratio),
+                                Left = c(log.DM0.r.ratio.conf.int[1],
+                                         log.DM25.r.ratio.conf.int[1],
+                                         log.DM0.k.ratio.conf.int[1],
+                                         log.DM25.k.ratio.conf.int[1]),
+                                Right = c(log.DM0.r.ratio.conf.int[2],
+                                          log.DM25.r.ratio.conf.int[2],
+                                          log.DM0.k.ratio.conf.int[2],
+                                          log.DM25.k.ratio.conf.int[2]))
+
+plot.Fig2B <- function (results) {
+    the.plot <- ggplot(results,aes(x=Parameter,y=Estimate)) +
+        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
+        geom_line() +
+        geom_point(size=2) +
+        geom_hline(yintercept=0,linetype='dashed') +
+        ylab("log(Evolved/Ancestral)") +
+        xlab("Growth parameter") +
+        theme_classic()
+    return(the.plot)
+}
+
+Fig2B <- plot.Fig2B(bootstrap.results)
+
+Fig2C <- ggplot(growth.summary,aes(x=DM25.r,y=DM0.r,color=Founder,shape=Generation)) +
     geom_point() +
-    theme_classic()
+    theme_classic() +
+    xlab("DM25 growth rate") +
+    ylab("DM0 growth rate") +
+    scale_color_manual(values=c("#e41a1c","#377eb8","#4daf4a")) +
+    coord_fixed() +
+    guides(color=FALSE,shape=FALSE)
 
-K.comparison.plot <- ggplot(growth.fit.summary2,aes(x=DM25.k,y=DM0.k,color=Founder,shape=Generation)) +
+Fig2D <- ggplot(growth.summary,aes(x=DM25.k,y=DM0.k,color=Founder,shape=Generation)) +
     geom_point() +
-    theme_classic()
+    theme_classic() +
+    xlab("DM25 growth yield") +
+    ylab("DM0 growth yield") +
+    scale_color_manual(values=c("#e41a1c","#377eb8","#4daf4a")) +
+    coord_fixed() +
+    guides(color=FALSE,shape=FALSE)
 
-ggsave(file.path(proj.dir,"results/figures/Fig3C.pdf"),R.comparison.plot)
-ggsave(file.path(proj.dir,"results/figures/Fig3D.pdf"),K.comparison.plot)
+
+####### Make Figure 2 using cowplot.
+outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
+Fig2BCD <- plot_grid(Fig2B,Fig2C,Fig2D, labels = c('B','C', 'D'), ncol = 3)
+Fig2 <- plot_grid(Fig2A, Fig2BCD, labels = c('A', ''), ncol = 1, rel_heights = c(1.8, 1))
+save_plot(outf,Fig2,base_height=7)
+
+## significant correlation between growth rate in DM25 and DM0:
+## Kendall's tau = 0.46, p = 0.0155
+cor.test(x=final.growth.summary$DM25.r,y=final.growth.summary$DM0.r,method="kendall")
+## no correlation in growth yield in DM25 and DM0
+## Kendall's tau = -0.028, p = 0.9226
+cor.test(x=final.growth.summary$DM25.k,y=final.growth.summary$DM0.k,method="kendall")
+
+################################################################################
+## Figure 3: matrix plots showing similarity and divergence between
+## genomes evolved in different environments. Also, co-occurrence
+## and LDA analysis.
+
+## Figure 3A: make a matrix plot of genes with mutations in two or more clones.
+raw.matrix <- read.csv(file.path(proj.dir,
+        "results/DM0-DM25-comparison-mut-matrix.csv"))
+
+## fix the names of the samples.
+names(raw.matrix) <- map_chr(
+    names(raw.matrix),
+    function (x) str_trunc(x,width=7,side="right",ellipsis=''))
+
+## import rows for the maeA and dctA amplifications.
+amp.matrix <- read.csv(file.path(proj.dir,"results/amp_matrix.csv"))
+## and merge with the mutation matrix.
+merged.with.amps.matrix <- full_join(raw.matrix,amp.matrix)
+
+DM0.DM25.matrix.data <- gather(merged.with.amps.matrix,"Name","mutation.count",2:26) %>%
+    left_join(pop.clone.labels) %>%
+    select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
+    group_by(Gene) %>% filter(sum(mutation.count)>1)
+
+fig1C.counts <- summarize(DM0.DM25.matrix.data,total.count=sum(mutation.count)) %>%
+    arrange(desc(total.count))
+
+## Now: add LTEE mutation matrix as well.
+## filter on genes mutated in the DM0 and DM25 matrix data.
+ltee.matrix <- read.csv(
+    file.path(
+        proj.dir,
+        "results/LTEE-mut_matrix.csv"))
+## fix the names of the samples.
+names(ltee.matrix) <- map_chr(
+    names(ltee.matrix),
+    function (x) str_trunc(x,width=8,side="left",ellipsis=''))
+
+LTEE.50K.labels <- read.csv(
+    file.path(proj.dir,
+        "data/rohan-formatted/LTEE-50K-clones.csv"))
+
+ltee.data <- gather(ltee.matrix,"Name","mutation.count",2:13) %>%
+    left_join(LTEE.50K.labels) %>%
+    group_by(Gene) %>% filter(Gene %in% DM0.DM25.matrix.data$Gene) %>%
+    filter(!is.na(Gene))
+
+## keep non-mutators and the Ara-3 50K clone.
+non.mutators.and.ara.minus.3 <- ltee.data %>%
+    filter(Hypermutator == 0 | PopulationLabel == 'Ara-3') %>%
+    select(-Hypermutator)
+
+## Now join LTEE data to the DM0 and DM25 Cit+ data.
+## Give the Ara-3 LTEE clone its own special label.
+matrix.data <- DM0.DM25.matrix.data %>%
+    bind_rows(non.mutators.and.ara.minus.3) %>%
+    mutate(Name=ifelse(Name=='REL11364','Ara-3 50K',Name))
+
+## For the figure, we want to sort the genes by a
+## hierarchical clustering. So convert to a matrix data structure,
+## do the clustering, and use that ordering for the figure.
+
+## note R's strange behavior when casting factors to numbers: have to
+## change to character first!
+mat.data <- matrix.data %>%
+    select(-PopulationLabel,-Environment) %>%
+    mutate(mutation.count=as.numeric(as.character(mutation.count)))
+
+## turn these data into a matrix of class "dbCMatrix".
+mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
+
+## convert to regular R matrix class,
+##and take transpose to turn matrix to Genome x Mutation.
+GxM.matrix <- as.matrix(t(mut.matrix))
+## write out to file for analysis in jupyter notebook.
+write.csv(GxM.matrix,file="../results/GxM_matrix.csv")
+write.table(GxM.matrix,file="../results/GxM_matrix.tsv",sep="\t")
+
+## cast into a dataframe for annotating the PCA with ggfortify.
+GxM.df <- data.frame(GxM.matrix)
+GxM.df$Genome <- as.factor(rownames(GxM.matrix))
+GxM.df$Environment <- map_chr(
+    GxM.df$Genome,
+    function(x) unique(filter(fig1C.data,Name==x)$Environment))
+
+## plot a PCA on the GxM matrix.
+GxM.PCA <- prcomp(GxM.df[seq(1:ncol(GxM.matrix))],scale=TRUE)
+
+## Do spectral clustering on genomes.
+sc <- specc(GxM.matrix, kernel='stringdot', centers=3)
+## add spectral clustering information to dataframe for plotting.
+GxM.df$spectral.clustering <- as.factor(sc)
+
+autoplot(GxM.PCA,
+         data=GxM.df,
+         colour='Environment',
+         shape='spectral.clustering') + theme_classic()
+
+## do the same for the transpose.
+MxG.matrix <- as.matrix(mut.matrix)
+## write out to file for analysis in jupyter notebook.
+write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
+write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
+
+## clustergrammer view.
+## http://amp.pharm.mssm.edu/clustergrammer/viz_sim_mats/5c59d632c902bb0430741ef0/MxG_matrix.tsv
+
+## cast into a dataframe for annotating the PCA with ggfortify.
+MxG.df <- data.frame(MxG.matrix)
+MxG.df$Genome <- rownames(MxG.matrix)
+
+quartz() ## for testing.
+
+## plot a PCA on the MxG matrix.
+MxG.PCA <- prcomp(MxG.df[seq(1:ncol(MxG.matrix))],scale=TRUE)
+autoplot(MxG.PCA, label=TRUE)
+
+## make the correlation matrices
+GxG.correlation.matrix <- cor(MxG.matrix)
+MxM.correlation.matrix <- cor(GxM.matrix)
+autoplot(GxG.correlation.matrix)
+autoplot(MxM.correlation.matrix)
+
+## following this post to turn a correlation into a distance measure.
+## https://stats.stackexchange.com/questions/165194/using-correlation-as-distance-metric-for-hierarchical-clustering
+MxM.scaled.cor.matrix <- cor(scale(GxM.matrix))
+
+MxM.heatmap <- heatmap(MxM.scaled.cor.matrix)
+## get the gene order from the heatmap..
+sorted.genes <- sapply(MxM.heatmap$rowInd,function(i) rownames(MxM.scaled.cor.matrix)[i])
+
+## does this order improve how Fig 1C looks? Yes it does!
+testfig1C.data <- fig1C.data
+testfig1C.data$Gene <- factor(fig1C.data$Gene,levels=sorted.genes)
+
+testfig1C <-  ggplot(testfig1C.data,aes(x=Name,y=Gene,fill=mutation.count,
+                                frame=Environment)) +
+    geom_tile(color="black",size=0.1) +
+    ylab("Gene") +
+    facet_wrap(~Environment,ncol=3, scales = "free_x") +
+    theme_tufte(base_family='Helvetica') +
+    theme(axis.ticks=element_blank()) +
+    theme(axis.text.x=element_text(size=10,angle=45,hjust=1)) +
+    theme(axis.text.y=element_text(size=10,hjust=1,face="italic")) +
+    theme(legend.text=element_text(size=6)) +
+    theme(legend.position="bottom") +
+    theme(legend.key.size=unit(0.2, "cm")) +
+    theme(legend.key.width=unit(1, "cm")) +
+    scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
+                                 "#fb8072", "#80b1d3", "#fdb462"))
+
+testfig1C.output <- "../results/figures/testFig1C.pdf"
+ggsave(testfig1C, file=testfig1C.output,width=7,height=15)
+
+## make a mutation co-occurrence matrix.
+MxG.presence <- MxG.matrix
+MxG.presence[MxG.presence > 1] <- 1
+M.co.occurrence <- MxG.presence %*% t(MxG.presence)
+M.co.occurrence.heatmap <- heatmap(M.co.occurrence)
+
+## get the gene order from the heatmap..
+M.co.occurrence.sorted.genes <- sapply(M.co.occurrence.heatmap$rowInd,function(i) rownames(M.co.occurrence)[i])
+
+M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
+                                col=colnames(M.co.occurrence)[col(M.co.occurrence)],
+                                co.occurrence=c(as.factor(M.co.occurrence)))
+
+M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
+M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
+
+M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) + geom_tile(color='White') + scale_fill_viridis(option="magma",direction=-1) + theme(axis.text.x = element_text(angle=90,vjust=-0.1))
+M.co.occurrence.plot
+
+
+
+
+############################################################################
+## Recapitulation Index analysis:
+## Percent of valid mutations in the DM0 and DM25 treatments that affected genes
+## that subsequently acquired a valid mutation in the Ara-3 50K clone.
+
+## PROBLEM: being a hypermutator causes high recapitulation indices in the absence
+## of true parallel selection.
+
+A.minus3.50K.df <- read.csv(file.path(proj.dir,"results/ara3_mut_matrix.csv")) %>%
+    rename(mutation.count= REL11364_minus_CZB154)
+
+DM0.mutations <- filter(fig1C.DM0.DM25.data,Environment=='DM0')  %>%
+    select(-Name,Environment,PopulationLabel)
+DM25.mutations <- filter(fig1C.DM0.DM25.data,Environment=='DM25') %>%
+    select(-Name,Environment,PopulationLabel)
+
+CalcRecapitulationIndex <- function (treat.muts,future.muts) {
+    future.muts <- filter(future.muts,mutation.count > 0)
+    recap.mutations <- filter(treat.muts,Gene %in% future.muts$Gene)
+    total.recaps <- sum(recap.mutations$mutation.count)
+    total.treat.muts <- sum(treat.muts$mutation.count)
+    RI <- total.recaps/total.treat.muts
+    return(RI)
+}
+
+DM0.RI <- CalcRecapitulationIndex(DM0.mutations,A.minus3.50K.df) ## 34.3% for DM0
+DM25.RI <- CalcRecapitulationIndex(DM25.mutations,A.minus3.50K.df) ## 32% for DM25
+
+## Then calculate RI for each population separately, excepting Ara-3.
+all.but.matrix <- ltee.matrix %>% select(-REL11364)
+
+## initialize the RI vectors.
+DM0.RI.vec <- rep(0,ncol(ltee.matrix2)-1)
+DM25.RI.vec <- rep(0,ncol(ltee.matrix2)-1)
+LTEE.clone.vec <- rep('',ncol(ltee.matrix2)-1)
+
+for (i in 2:12) {
+    my.mut.summary <- all.but.matrix[c(1,i)]
+    LTEE.clone.vec[i-1] <- names(my.mut.summary)[2]
+    names(my.mut.summary)[2] <- 'mutation.count'
+    my.mut.summary <- filter(my.mut.summary,mutation.count > 0)
+    DM0.RI.vec[i-1] <- CalcRecapitulationIndex(DM0.mutations, my.mut.summary)
+    DM25.RI.vec[i-1] <- CalcRecapitulationIndex(DM25.mutations, my.mut.summary)
+}
+
+## Now add Ara-3 clone REL11364 to the vectors, and turn into a dataframe.
+DM0.RI.col <- c(DM0.RI.vec,DM0.RI)
+DM25.RI.col <- c(DM25.RI.vec,DM25.RI)
+Name.col <- c(LTEE.clone.vec,'REL11364')
+RI.df <- data.frame(Name=Name.col,DM0.RI=DM0.RI.col,DM25.RI=DM25.RI.col)
 
 ################################################################################
 
@@ -728,7 +619,8 @@ ZDB152.data <- rbind(d3,d4X)
 fres1 <- Fig7.analysis(ZDB151.data,samplesize=6)
 fres2 <- Fig7.analysis(ZDB152.data,samplesize=6)
 fig7.plot.data <- rbind(fres1,fres2)
-fig7.plot.data$Strain <- c('ZDB151','ZDB152')
+#' Correct the strain names here.
+fig7.plot.data$Strain <- c('CZB151','CZB152')
 
 ## Make Figure 7.
 fig7.output <- "../results/figures/Fig7.pdf"
@@ -749,8 +641,10 @@ plot.Figure7(fig7.plot.data,fig7.output)
 ########################################################
 ## IS element analysis and visualization.
 
-IS.insertions <- read.csv(file.path(proj.dir,
-                                   "results/genome-analysis/IS_insertions.csv")) %>% arrange(genome_start)
+IS.insertions <- read.csv(
+    file.path(proj.dir,
+              "results/genome-analysis/IS_insertions.csv")) %>%
+    arrange(genome_start)
 
 
 parallel.IS.insertions <- group_by(IS.insertions,genome_start) %>%
@@ -789,17 +683,165 @@ IS.plot2 <- ggplot(parallel.IS.summary,aes(x=genome_start,
 ggsave("../results/figures/parallel-IS-insertions.pdf",IS.plot2)
 
 ## plot genomic distribution of IS elements in LCA (including REL606).
-LCA.IS.insertions <- read.csv(file.path(proj.dir,
-                                   "results/genome-analysis/LCA_IS_insertions.csv")) %>% arrange(genome_start)
+LCA.IS.insertions <- read.csv(
+    file.path(proj.dir,
+              "results/genome-analysis/LCA_IS_insertions.csv")) %>%
+    arrange(genome_start)
 
 LCA.IS.plot <- ggplot(LCA.IS.insertions,aes(x=genome_start,fill=IS_element)) +
     geom_histogram(bins=1000) +
     theme_classic()
 
-## compare the eCDFs of IS elements in the LCA and in the evolved populations.
+## compare the eCDFs of IS elements over the length of the genome
+## in the LCA and in the evolved populations.
 ## they are not strikingly similar or dissimilar.
 IS.insertion.CDF.plot <- ggplot(LCA.IS.insertions,aes(x=genome_start)) +
     stat_ecdf(color='red') + theme_classic() + stat_ecdf(inherit.aes=FALSE,data=IS.insertions,mapping=aes(x=genome_start),color='black')
 
 ## p-val: 0.1033. So neither similar nor dissimilar given the data.
 ks.test(IS.insertions$genome_start,LCA.IS.insertions$genome_start)
+
+## However-- by Heewook Lee et al. (2016) it is possible that IS elements
+## cluster in the genome if I look purely by distance.
+## For now, I'm not doing this analysis because it's not a priority.
+
+########
+
+## POSSIBLE TODO:
+## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
+## in comparison to the rate of increase of IS-elements in Ara-3.
+
+LTEE.MAE.IS.insertions <- read.csv(
+    file.path(proj.dir,
+              "results/genome-analysis/LTEE_MAE_IS150_insertions.csv")) %>%
+    arrange(Position)
+
+LTEE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='LTEE')
+MAE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='MAE')
+
+## handle duplicate due to ancestral mutations by counting the total
+## unique rows per generation, and subtracting the total from the
+## previous generation timepoint.
+## NOTE: since I'm looking at all clones at a timepoint, there's some
+## chance of overcounting by including mutations off the LoD.
+## worry about this later...
+
+
+Ara.minus.3.IS150 <- filter(LTEE.IS150,Population=='Ara-3')
+
+gen.vec <- sort(unique(Ara.minus.3.IS150$Generation))
+Ara.minus.3.IS150.total.vec <- c()
+
+## NOTE: This code is broken! total.count is NOT monotonically increasing!
+## due to IS elements off the line of descent, probably.
+## don't plot rate of increase for Ara-3 from LTEE for time being.
+
+##for (i in 1:length(gen.vec)) {
+##    cur.gen <- gen.vec[i]
+##    cur.IS150 <- Ara.minus.3.IS150 %>%
+##        filter(Generation==cur.gen) %>%
+##        select(-Clone) %>% distinct() %>%
+##        group_by(Generation) %>% summarize(total.count=n())
+##    cur.total <- cur.IS150$total.count
+##    if (i == 1) {
+##        Ara.minus.3.IS150.total.vec <- c(cur.total)
+##    } else { ## subtract the number in the previous generation.
+##        updated.total <- cur.total - Ara.minus.3.IS150.total.vec[i-1]
+##        Ara.minus.3.IS150.total.vec <- c(Ara.minus.3.IS150.total.vec, updated.total)
+##    }
+##}
+
+## This dataframe does not have results that make sense.. skip for now.
+
+##Ara.minus.3.IS150.over.time <- data.frame(Generation=gen.vec,
+##                                          Environment=rep('LTEE',length(gen.vec)),
+##                                          Population=rep('Ara-3',length(gen.vec)),
+##                                          total.count=Ara.minus.3.IS150.total.vec)
+
+MAE.IS150.over.time <- group_by(MAE.IS150,Generation,Environment,Population) %>%
+    summarize(total.count=n())
+
+DM0.DM25.over.time <- group_by(IS.insertions,Generation,Environment,Population) %>%
+    summarize(total.count=n())
+
+IS150.rate.df <- rbind(MAE.IS150.over.time,DM0.DM25.over.time)
+
+# The colorblind-friendly palette with black:
+cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+IS150.rate.plot <- ggplot(IS150.rate.df,
+                          aes(x=Generation,y=total.count,color=Environment)) +
+    theme_classic() + scale_colour_manual(values=cbPalette) +
+    ylab('IS150 insertions') +
+    geom_jitter(width=50)
+
+ggsave(file="../results/figures/IS150-rate.pdf", IS150.rate.plot)
+
+## Conduct the following test for parallel evolution of IS-insertions:
+## Assume all IS insertions occur in the set union(A,B), with
+## probability = empirical mass distribution over LTEE/MAE/DM0/DM25.
+## Set the number of samples to the number of IS150 insertions
+## in the DM0 genomes. For 10000 replicates,
+## count how often some site gets hit 11 times. I could also repeat this test for the
+## chance that a particular site gets hit 11 times (for instance).
+
+## filter out mutations in clones on the same lineage
+## by removing duplicates within the same population.
+LTEE.MAE.IS150.hit.pos <- LTEE.MAE.IS.insertions %>%
+    select(-Clone) %>% distinct() %>%
+    group_by(Position,GenePosition) %>%
+    summarize(count=n()) %>% ungroup()
+
+## again, filter out duplicates on line of descent
+## by removing duplicates within the same population.
+DM0.DM25.IS150.hit.pos <- IS.insertions %>%
+    filter(IS_element == 'IS150') %>% mutate(Position=genome_start) %>%
+    select(Position,Environment,Population,GeneName,GenePosition) %>%
+    distinct() %>%
+    group_by(Position,GenePosition) %>%
+    summarize(count=n()) %>% ungroup()
+
+## use GenePosition to match up IS element insertion positions.
+## number of DM0/DM25 IS150 events with sites in LTEE/MAE: 22.
+DM0.DM25.pos.intersect <- filter(DM0.DM25.IS150.hit.pos,
+                                 GenePosition %in% LTEE.MAE.IS150.hit.pos$GenePosition)
+## number of DM0/DM25 IS150 events in total: 124. 22/124 = 0.1774 in LTEE/MAE set.
+length(DM0.DM25.IS150.hit.pos$GenePosition)
+
+## make an empirical mass function over GenePosition.
+total.hit.pos <- rbind(
+    select(DM0.DM25.IS150.hit.pos,-Position),
+    select(LTEE.MAE.IS150.hit.pos,-Position)) %>%
+    group_by(GenePosition) %>% summarize(count2 = sum(count)) %>%
+    arrange(desc(count2)) %>% mutate(prob=count2/sum(count2)) %>%
+    mutate(eCDF=cumsum(prob))
+
+## number of draws for each simulation = IS150 in DM0.
+DM0.IS150 <- IS.insertions %>% filter(IS_element == 'IS150',Environment=='DM0') %>%
+    select(-Clone) %>% distinct()
+draws <- nrow(DM0.IS150)
+
+null.parallel.hits <- function(total.hit.pos,empirical.parallel=11,replicates=10000) {
+
+    max.hits <- function(total.hit.pos) {
+        my.sample <- sample(x=total.hit.pos$GenePosition,
+                            size=draws,replace=TRUE,prob=total.hit.pos$prob)
+        my.sample.parallel.hits <- data.table(my.sample)[, .N, keyby = my.sample]
+        max.sampled.parallelism <- max(my.sample.parallel.hits$N)
+        return(max.sampled.parallelism)
+    }
+
+    max.hit.vec <- unlist(map(seq_len(replicates), ~max.hits(total.hit.pos)))
+    max.hit.df.col <- data.frame('max.hit'=max.hit.vec)
+    past.threshold <- nrow(filter(max.hit.df.col,max.hit>=empirical.parallel))
+    return(past.threshold/replicates)
+    }
+
+## empirical p-value for 11 hits is on the order of 0.0001.
+null.parallel.hits(total.hit.pos,replicates=10000)
+##null.parallel.hits(total.hit.pos,replicates=100000)
+
+## empirical p-value for 8 hits is on the order of 0.01.
+##null.parallel.hits(total.hit.pos,empirical.parallel=8)
+
+

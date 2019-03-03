@@ -290,7 +290,11 @@ write.csv(x=annotated.amps,file=file.path(outdir,"amplified_genes.csv"))
 
 write.csv(x=filter(annotated.amps,Genome=='ZDBp874'),file=file.path(outdir,"ZDBp874_amplified_genes.csv"))
 
-amp.parallelism <- annotated.amps %>% group_by(gene,locus_tag) %>% summarise(count=n()) %>% arrange(desc(count),locus_tag)
+## just report parallel amps in evolved genomes.
+amp.parallelism <- annotated.amps %>%
+    filter(!(Genome %in% c('CZB151','CZB152','CZB154','ZDB67','ZDB68','ZDB69'))) %>%
+    group_by(gene,locus_tag) %>% summarise(count=n()) %>% arrange(locus_tag)
+write.csv(x=amp.parallelism,file=file.path(outdir,"amp_parallelism.csv"))
 
 #' report copy number of maeA, citT, and dctA in a table.
 #' (I can do this easily by hand).
@@ -326,3 +330,44 @@ ggsave(heatmap2,filename=file.path(outdir,"figures/Fig4A.pdf"),height=5,width=7)
 
 stacked2 <- plot.Fig4B.stackedbar(amps,clone.labels)
 ggsave(stacked2,filename=file.path(outdir,"figures/Fig4B.pdf"))
+
+#' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
+#' and columns are genome names. This will be used to merge
+#' the amplification information with the mutation matrix
+#' data in order include these amplifications in the
+#' co-occurrence analysis analysis.
+write.amp.matrix <- function(annotated.amps,clone.labels, outfile) {
+    amp.matrix.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
+    filter(!(Genome %in% ParentClone)) %>%
+    mutate(Genome=factor(Genome)) %>%
+    mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
+    mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
+    filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
+    select(Genome,gene)
+
+    maeA.amp.matrix.df <- filter(amp.matrix.df, gene == 'maeA-AMP')
+    dctA.amp.matrix.df <- filter(amp.matrix.df, gene == 'dctA-AMP')
+
+    maeA.AMP.binary.vec <- sapply(levels(amp.matrix.df$Genome),function(x) ifelse(x %in% maeA.amp.matrix.df$Genome,1,0))
+    dctA.AMP.binary.vec <- sapply(levels(amp.matrix.df$Genome),function(x) ifelse(x %in% dctA.amp.matrix.df$Genome,1,0))
+
+    amp.matrix <- data.frame(rbind(maeA.AMP.binary.vec,dctA.AMP.binary.vec),row.names=NULL)
+    amp.matrix$Gene <- c('maeA-AMP','dctA-AMP')
+    write.csv(x=amp.matrix,file=outfile,row.names = FALSE)
+}
+
+write.amp.matrix(annotated.amps,clone.labels,file.path(outdir,"amp_matrix.csv"))
+
+#' check the genetic background of the maeA and dctA amplifications.
+#' strong association with dctA amplifications due to anti-correlation
+#' to an ancestral dctA promoter mutation in the CZB151/154 clade.
+
+#' maeA amplifications tend to occur in CZB151/154 rather than 152 background..
+#' but Tanush's competition data shows that it's beneficial in both backgrounds?
+maeA.dct.amps.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
+    filter(!(Genome %in% ParentClone)) %>%
+    mutate(Genome=factor(Genome)) %>%
+    mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
+    mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
+    filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
+    select(Genome,gene,Founder,ParentClone)

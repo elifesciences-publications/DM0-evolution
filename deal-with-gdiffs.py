@@ -6,6 +6,10 @@ DM0 and DM25 Cit+ evolution experiments. Then, I examine the evolved genomes
 for possible contamination or cross-contamination. Then, I take the evolved genomes,
 with ancestral mutations subtracted out, and write out a table for make-figures.R
 to plot the counts and types of mutations in each population.
+
+This script also makes table of the IS insertions in the LTEE and in the MAE,
+using the genomes in Jeff Barrick's LTEE-Ecoli GitHub repository.
+
 '''
 
 from os.path import join, basename, exists, isfile, expanduser, dirname
@@ -23,16 +27,20 @@ import genomediff
 
 class CallGDtools:
 
-    def __init__(self,calltype,outfile,infiles=[],mut_type=None,conditions=None,overwrite=False):
-        if calltype not in ['INTERSECT','SUBTRACT', 'REMOVE','UNION']:
+    def __init__(self,calltype,outfile,infiles=[],mut_type=None,conditions=None,overwrite=False,refgenome=None):
+        if calltype not in ['INTERSECT','SUBTRACT', 'REMOVE','UNION','ANNOTATE']:
             print('ERROR: NOT IMPLEMENTED.')
             quit()
         self.calltype = calltype
         self.outfile = outfile
         self.infiles = infiles
         self.overwrite = overwrite
+        self.refgenome = refgenome
         self.args = ['gdtools', self.calltype, '-o', self.outfile] + self.infiles
-        if calltype == 'REMOVE':
+
+        if calltype == 'ANNOTATE': ## only genomediff output format implemented.
+            self.args = ['gdtools', self.calltype, '-o', self.outfile] + ['-r', refgenome, '-f', 'GD'] + self.infiles
+        elif calltype == 'REMOVE':
             self.conditions = conditions
             if mut_type is not None:
                 if mut_type not in ['SNP','DEL','MOB','SUB', 'INS', 'AMP']:
@@ -42,7 +50,9 @@ class CallGDtools:
                 self.args = ['gdtools', self.calltype, '-o', self.outfile, '-m', mut_type] + [x for pair in zip(['-c']*len(conditions), conditions) for x in pair] + self.infiles
             else:
                 self.args = ['gdtools', self.calltype, '-o', self.outfile] + [x for pair in zip(['-c']*len(conditions),conditions) for x in pair] + self.infiles
+
         self.cmd = ' '.join(self.args)
+        return None
 
     def call(self):
         if not self.overwrite and isfile(self.outfile):
@@ -170,10 +180,10 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf,polymorphism=F
                 else:
                     outfh.write(','.join([name, muttype, gene, pos, env, population])+"\n")
 
-def make_IS_insertion_tbl(evol_pop_clone_labels, inputdir, outf):
+def make_IS_insertion_tbl(evol_pop_clone_labels,inputdir, outf):
 
     outfh = open(outf,"w")
-    outfh.write("Clone, IS_element, genome_start, genome_end, genes_promoter, genes_inactivated, Environment, Population\n")
+    outfh.write("Clone,IS_element,genome_start,genome_end,genes_promoter,genes_inactivated,Environment,Population,GeneName,GenePosition,Generation\n")
 
     for path, subdirs, files in walk(inputdir):
         for f in [x for x in files if x.endswith('.gd')]:
@@ -183,18 +193,23 @@ def make_IS_insertion_tbl(evol_pop_clone_labels, inputdir, outf):
             my_row = evol_pop_clone_labels[evol_pop_clone_labels.Name == name].iloc[0]
             env = my_row['Environment']
             population = my_row['PopulationLabel']
+            generation = my_row['Generation']
             gd = genomediff.GenomeDiff.read(infh)
             for rec in gd.mutations:
                 if rec.type != 'MOB':
                     continue
                 try: ## get name of affected promoters.
                     affected_promoter = rec.genes_promoter
-                except:
+                except AttributeError:
                     affected_promoter = 'NA'
                 try: ## get the name of inactivated genes.
                     inactivated = rec.genes_inactivated
-                except:
+                except AttributeError:
                     inactivated = 'NA'
+                try:
+                    gene_pos = rec.gene_position
+                except AttributeError:
+                    gene_pos = 'NA'
                 outfh.write(','.join([name,
                                       rec.repeat_name,
                                       str(rec.position_start),
@@ -202,12 +217,15 @@ def make_IS_insertion_tbl(evol_pop_clone_labels, inputdir, outf):
                                       affected_promoter,
                                       inactivated,
                                       env,
-                                      population])+"\n")
+                                      population,
+                                      rec.gene_name,
+                                      gene_pos,
+                                      str(generation)])+"\n")
 
 
 def make_LCA_IS_insertion_csv(evol_pop_clone_labels, inputdir, outf, gff):
     outfh = open(outf,"w")
-    outfh.write("IS_element, genome_start, genome_end\n")
+    outfh.write("IS_element,genome_start,genome_end\n")
     ''' parse IS elements in LCA.gff3 annotation file.'''
     for line in open(gff,'r'):
         line = line.strip()
@@ -258,6 +276,58 @@ def organize_diffs(analysisdir):
     cp_files("environment-comparison","DM0",DM0_paths)
     cp_files("environment-comparison","DM25",DM25_paths)
 
+def make_LTEE_MAE_IS150_tbl(inputdir, outf):
+
+    outfh = open(outf,"w")
+    outfh.write("Clone,IS_element,Position,Environment,Population,GeneName,GenePosition,Generation\n")
+
+    for path, subdirs, files in walk(inputdir):
+        for f in [x for x in files if x.endswith('.gd')]:
+            if 'Anc' in f: ## skip ancestral strains
+                continue
+            full_f = join(path, f)
+            infh = open(full_f, 'r', encoding='utf-8')
+            fname = f.split('.')[0]
+            if fname.startswith('JEB'):
+                env = 'MAE'
+                name = fname
+                population = fname
+                ## metadata says TIME=14300, but Tenaillon paper says ~13,750 generations.
+                generation = '13750'
+            else: ## LTEE strain.
+                env = 'LTEE'
+                population, gen, name = fname.split('_')
+                assert gen.endswith('gen')
+                generation = gen[:-3]
+            gd = genomediff.GenomeDiff.read(infh)
+            for rec in gd.mutations:
+                if rec.type != 'MOB':
+                    continue
+                if rec.repeat_name != 'IS150':
+                    continue
+                try:
+                    gene_pos = rec.gene_position
+                except AttributeError:
+                    gene_pos = 'NA'
+                outfh.write(','.join([name,
+                                      rec.repeat_name,
+                                      str(rec.position),
+                                      env,
+                                      population,
+                                      rec.gene_name,
+                                      gene_pos,
+                                      generation])+"\n")
+
+def annotate_LTEE_MAE_genomes(LTEE_Ecoli_dir, outdir, refgen):
+    ''' run gdtools ANNOTATE on genomes in LTEE-Ecoli directory.'''
+    for path, subdirs, files in walk(LTEE_Ecoli_dir):
+        for f in [x for x in files if x.endswith('.gd')]:
+            full_f = join(path, f)
+            out_f = join(outdir,f)
+            annotate_cmd = CallGDtools('ANNOTATE',out_f,[full_f],refgenome=refgen)
+            annotate_cmd.call()
+
+
 def main():
 
     homedir = expanduser("~")
@@ -290,10 +360,10 @@ def main():
     rrlA, rhsA, rhsB, insE-3, insE-5 from the analysis. Then, organize diffs for the
     Dice analysis. '''
     ##subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
-    organize_diffs(resultsdir)
+    ##organize_diffs(resultsdir)
     ''' do the same thing,using the breseq --polymorphism mode results.'''
     ##subtract_ancestors_and_filter_mutations(poly_genome_path_dict,all_pop_clone_labels,poly_resultsdir)
-    organize_diffs(poly_resultsdir)
+    ##organize_diffs(poly_resultsdir)
 
     ''' tabulate the evolved mutations.'''
     evolved_genomes = [x for x in listdir(breseqoutput_dir) if x.startswith('ZDBp')]
@@ -304,17 +374,31 @@ def main():
 
     poly_genomesdir = join(poly_resultsdir,"environment-comparison")
     poly_mut_table_outf = join(resultsdir,"poly_evolved_mutations.csv")
-    write_evolved_mutations(evol_pop_clone_labels, poly_genomesdir, poly_mut_table_outf,polymorphism=True)
+    ##write_evolved_mutations(evol_pop_clone_labels, poly_genomesdir, poly_mut_table_outf,polymorphism=True)
 
     ''' make a table of IS-insertions, genome, and start and end locations.
         in the evolved and subtracted clones.'''
     IS_table_outf = join(resultsdir,"IS_insertions.csv")
-    ##make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
+    make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
 
     ''' make a table of IS elements in LCA (including REL606).'''
     LCA_table_outf = join(resultsdir,"LCA_IS_insertions.csv")
     LCAgff = join(projdir,"genomes/curated-diffs/LCA.gff3")
     ##make_LCA_IS_insertion_csv(evol_pop_clone_labels, resultsdir, LCA_table_outf, LCAgff)
 
+    ''' run gdtools ANNOTATE on the LTEE and MAE genomes.'''
+    LTEE_MAE_dir = join(projdir,"genomes/LTEE-Ecoli")
+    annotated_LTEE_MAE_dir = join(resultsdir,"annotated-LTEE-Ecoli")
+    REL606ref = join(projdir,"genomes/REL606.7.gbk")
+    if not exists(annotated_LTEE_MAE_dir):
+        makedirs(annotated_LTEE_MAE_dir)
+    ##annotate_LTEE_MAE_genomes(LTEE_MAE_dir,annotated_LTEE_MAE_dir,REL606ref)
+
+
+    ''' make a table of IS-insertions, genome, and start and end locations in the
+    LTEE and MAE clones. '''
+
+    LTEE_MAE_IS_outf = join(resultsdir, "LTEE_MAE_IS150_insertions.csv")
+    make_LTEE_MAE_IS150_tbl(annotated_LTEE_MAE_dir, LTEE_MAE_IS_outf)
 
 main()

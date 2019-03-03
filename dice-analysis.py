@@ -5,11 +5,11 @@ dice-analysis.py by Rohan Maddamsetti
 1) Generate the input directory structure needed for Dan Deatherage's
 TEE.py to run on the Cit+ evolution experiment data.
 
-2) Run TEE.py on the data two ways: DM0 versus DM25, and CZB151 versus CZB152 and CZB154.
+2) Run cirate_dice.py on the data two ways: DM0 versus DM25, and CZB151 versus CZB152 and CZB154.
 
 It is necessary to have run deal-with-diffs.py before running this program.
 
-Command line used in the TEE analysis:
+Command line used in the Daniel Deatherage's TEE analysis:
 python TEE.py -n 1000000 -p 150 -dt -s annotated_gd/ -g ../REL606.gbk -e annotated_gd/REL1207.gd -ct 37c
 
 parser = argparse.ArgumentParser(description="Read in gd files, assign mutations to genes, perform statistics where applicable.")
@@ -34,8 +34,7 @@ import pandas as pd
 
 class CallDICE:
     def __init__(self, gd_dir, genbank_ref, mutmatrixfile, control_treatment='', excluded=None):
-        ##self.number = 1000000
-        self.number = 10000 ## for debugging
+        self.number = 1000#0 #1000000 ## do one million for final submission.
         self.promoter_length = 150
         self.genbank_ref = genbank_ref
         self.control_treatment = control_treatment
@@ -79,7 +78,7 @@ def main():
     print(LTEE_DiceRun)
     LTEE_DiceRun.call()
 
-    ## run citrate_dice.py on just the 50K Ara-3 clone to get validate mutations for
+    ## run citrate_dice.py on just the 50K Ara-3 clone to get valid mutations for
     ## the Recapitulation Index analysis.
 
     ara_minus3_gddir = join(projdir,"genomes/curated-diffs")
