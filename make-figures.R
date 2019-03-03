@@ -1,7 +1,6 @@
 ## make-figures.R by Rohan Maddamsetti.
 
 ## go through and remove unneeded dependencies once this script is more polished.
-
 ## there's some problem with dplyr::rename due to some of these imports I think.
 
 library(cowplot)
@@ -20,8 +19,6 @@ library(stringr)
 library(purrr)
 library(tidytext)
 library(Matrix)
-library(ggfortify)
-library(kernlab)
 
 home.dir <- path.expand("~")
 proj.dir <- file.path(home.dir,"BoxSync/DM0-evolution")
@@ -342,7 +339,7 @@ cor.test(x=final.growth.summary$DM25.k,y=final.growth.summary$DM0.k,method="kend
 ## genomes evolved in different environments. Also, co-occurrence
 ## and LDA analysis.
 
-## Figure 3A: make a matrix plot of genes with mutations in two or more clones.
+## Figure 3: make a matrix plot of genes with mutations in two or more clones.
 raw.matrix <- read.csv(file.path(proj.dir,
         "results/DM0-DM25-comparison-mut-matrix.csv"))
 
@@ -390,77 +387,41 @@ non.mutators.and.ara.minus.3 <- ltee.data %>%
     select(-Hypermutator)
 
 ## Now join LTEE data to the DM0 and DM25 Cit+ data.
-## Give the Ara-3 LTEE clone its own special label.
+## Give the Ara-3 LTEE clone a special label.
 matrix.data <- DM0.DM25.matrix.data %>%
     bind_rows(non.mutators.and.ara.minus.3) %>%
-    mutate(Name=ifelse(Name=='REL11364','Ara-3 50K',Name))
+    mutate(Name=ifelse(Name=='REL11364','Ara-3: REL11364',Name))
 
 ## For the figure, we want to sort the genes by a
 ## hierarchical clustering. So convert to a matrix data structure,
 ## do the clustering, and use that ordering for the figure.
 
+## Only use the DM0 and DM25 data for this step.
+
 ## note R's strange behavior when casting factors to numbers: have to
 ## change to character first!
-mat.data <- matrix.data %>%
+mat.data <- DM0.DM25.matrix.data %>%
     select(-PopulationLabel,-Environment) %>%
     mutate(mutation.count=as.numeric(as.character(mutation.count)))
 
 ## turn these data into a matrix of class "dbCMatrix".
 mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
 
-## convert to regular R matrix class,
+## convert to regular R matrix class
+MxG.matrix <- as.matrix(mut.matrix)
+## write out to file for analysis in jupyter notebook
+## or using the clustergrammer web app:
+## http://amp.pharm.mssm.edu/clustergrammer/
+write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
+write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
+
 ##and take transpose to turn matrix to Genome x Mutation.
 GxM.matrix <- as.matrix(t(mut.matrix))
 ## write out to file for analysis in jupyter notebook.
 write.csv(GxM.matrix,file="../results/GxM_matrix.csv")
 write.table(GxM.matrix,file="../results/GxM_matrix.tsv",sep="\t")
 
-## cast into a dataframe for annotating the PCA with ggfortify.
-GxM.df <- data.frame(GxM.matrix)
-GxM.df$Genome <- as.factor(rownames(GxM.matrix))
-GxM.df$Environment <- map_chr(
-    GxM.df$Genome,
-    function(x) unique(filter(fig1C.data,Name==x)$Environment))
-
-## plot a PCA on the GxM matrix.
-GxM.PCA <- prcomp(GxM.df[seq(1:ncol(GxM.matrix))],scale=TRUE)
-
-## Do spectral clustering on genomes.
-sc <- specc(GxM.matrix, kernel='stringdot', centers=3)
-## add spectral clustering information to dataframe for plotting.
-GxM.df$spectral.clustering <- as.factor(sc)
-
-autoplot(GxM.PCA,
-         data=GxM.df,
-         colour='Environment',
-         shape='spectral.clustering') + theme_classic()
-
-## do the same for the transpose.
-MxG.matrix <- as.matrix(mut.matrix)
-## write out to file for analysis in jupyter notebook.
-write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
-write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
-
-## clustergrammer view.
-## http://amp.pharm.mssm.edu/clustergrammer/viz_sim_mats/5c59d632c902bb0430741ef0/MxG_matrix.tsv
-
-## cast into a dataframe for annotating the PCA with ggfortify.
-MxG.df <- data.frame(MxG.matrix)
-MxG.df$Genome <- rownames(MxG.matrix)
-
-quartz() ## for testing.
-
-## plot a PCA on the MxG matrix.
-MxG.PCA <- prcomp(MxG.df[seq(1:ncol(MxG.matrix))],scale=TRUE)
-autoplot(MxG.PCA, label=TRUE)
-
-## make the correlation matrices
-GxG.correlation.matrix <- cor(MxG.matrix)
-MxM.correlation.matrix <- cor(GxM.matrix)
-autoplot(GxG.correlation.matrix)
-autoplot(MxM.correlation.matrix)
-
-## following this post to turn a correlation into a distance measure.
+## follow this post to use correlation as a distance.
 ## https://stats.stackexchange.com/questions/165194/using-correlation-as-distance-metric-for-hierarchical-clustering
 MxM.scaled.cor.matrix <- cor(scale(GxM.matrix))
 
@@ -468,14 +429,18 @@ MxM.heatmap <- heatmap(MxM.scaled.cor.matrix)
 ## get the gene order from the heatmap..
 sorted.genes <- sapply(MxM.heatmap$rowInd,function(i) rownames(MxM.scaled.cor.matrix)[i])
 
-## does this order improve how Fig 1C looks? Yes it does!
-testfig1C.data <- fig1C.data
-testfig1C.data$Gene <- factor(fig1C.data$Gene,levels=sorted.genes)
+## now use this gene ordering for the mutation matrix figure.
+matrix.data$Gene <- factor(matrix.data$Gene,levels=sorted.genes)
+## cast mutation.count into a factor for plotting.
+matrix.data$mutation.count <- factor(matrix.data$mutation.count)
 
-testfig1C <-  ggplot(testfig1C.data,aes(x=Name,y=Gene,fill=mutation.count,
-                                frame=Environment)) +
+matrix.figure <- ggplot(matrix.data,aes(x=Name,
+                                        y=Gene,
+                                        fill=mutation.count,
+                                        frame=Environment)) +
     geom_tile(color="black",size=0.1) +
     ylab("Gene") +
+    xlab("Genome") +
     facet_wrap(~Environment,ncol=3, scales = "free_x") +
     theme_tufte(base_family='Helvetica') +
     theme(axis.ticks=element_blank()) +
@@ -485,19 +450,22 @@ testfig1C <-  ggplot(testfig1C.data,aes(x=Name,y=Gene,fill=mutation.count,
     theme(legend.position="bottom") +
     theme(legend.key.size=unit(0.2, "cm")) +
     theme(legend.key.width=unit(1, "cm")) +
+    guides(fill=FALSE) +
     scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
                                  "#fb8072", "#80b1d3", "#fdb462"))
 
-testfig1C.output <- "../results/figures/testFig1C.pdf"
-ggsave(testfig1C, file=testfig1C.output,width=7,height=15)
+matrix.outfile <- "../results/figures/Fig3.pdf"
+ggsave(matrix.figure, file=matrix.outfile,width=7,height=15)
 
 ## make a mutation co-occurrence matrix.
+## nice to have, but I don't see anything interesting.
+
 MxG.presence <- MxG.matrix
 MxG.presence[MxG.presence > 1] <- 1
 M.co.occurrence <- MxG.presence %*% t(MxG.presence)
 M.co.occurrence.heatmap <- heatmap(M.co.occurrence)
 
-## get the gene order from the heatmap..
+## get the gene order from the heatmap.
 M.co.occurrence.sorted.genes <- sapply(M.co.occurrence.heatmap$rowInd,function(i) rownames(M.co.occurrence)[i])
 
 M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
@@ -507,30 +475,56 @@ M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurren
 M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
 M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
 
-M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) + geom_tile(color='White') + scale_fill_viridis(option="magma",direction=-1) + theme(axis.text.x = element_text(angle=90,vjust=-0.1))
+## plot the co-occurrence matrix.
+M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) +
+    geom_tile(color='White') +
+    scale_fill_viridis(option="magma",direction=-1) +
+    theme(axis.text.x = element_text(angle=90,vjust=-0.1))
 M.co.occurrence.plot
 
-
-
-
 ############################################################################
-## Recapitulation Index analysis:
-## Percent of valid mutations in the DM0 and DM25 treatments that affected genes
+## Deatherage et al. defines a recapitulation index as the
+## percent of valid mutations in the DM0 and DM25 treatments that affected genes
 ## that subsequently acquired a valid mutation in the Ara-3 50K clone.
+## This is problematic because being a hypermutator causes high recapitulation
+## indices in the absence of true parallel selection.
 
-## PROBLEM: being a hypermutator causes high recapitulation indices in the absence
-## of true parallel selection.
+## Solution: in analogy with the Dice similarity coefficient,
+## take the harmonic mean of the recapitulation index with the
+## percent of valid mutations in the LTEE clone that affected
+## genes that mutated in the DM0/DM25 treatment. This solution
+## seems like a good idea because for a full confusion matrix,
+## the F1 score is the harmonic mean
+## of the sensitivity/true positive rate and the precision, or
+## positive predictive value, and the F1 score is synonymous with
+## Dice similarity.
+## Because I want to include the number of mutations instead of
+## presence/absence, this isn't exactly the Dice coefficient.
+## take the harmonic mean of RI with
+##
 
 A.minus3.50K.df <- read.csv(file.path(proj.dir,"results/ara3_mut_matrix.csv")) %>%
     rename(mutation.count= REL11364_minus_CZB154)
 
-DM0.mutations <- filter(fig1C.DM0.DM25.data,Environment=='DM0')  %>%
+DM0.mutations <- filter(DM0.DM25.matrix.data,Environment=='DM0')  %>%
     select(-Name,Environment,PopulationLabel)
-DM25.mutations <- filter(fig1C.DM0.DM25.data,Environment=='DM25') %>%
+DM25.mutations <- filter(DM0.DM25.matrix.data,Environment=='DM25') %>%
     select(-Name,Environment,PopulationLabel)
 
-CalcRecapitulationIndex <- function (treat.muts,future.muts) {
+## just score presence/absence rather than counts.
+CalcDice <- function(treat.muts,future.muts) {
     future.muts <- filter(future.muts,mutation.count > 0)
+    treat.muts <- filter(treat.muts,mutation.count > 0)
+    A <- length(treat.muts$Gene)
+    B <- length(future.muts$Gene)
+    AB <- length(intersect(treat.muts$Gene,future.muts$Gene))
+    dice <- 2*AB/(A*B)
+    return (dice)
+}
+
+CalcRI <- function (treat.muts,future.muts) {
+    future.muts <- filter(future.muts,mutation.count > 0)
+    treat.muts <- filter(treat.muts,mutation.count > 0)
     recap.mutations <- filter(treat.muts,Gene %in% future.muts$Gene)
     total.recaps <- sum(recap.mutations$mutation.count)
     total.treat.muts <- sum(treat.muts$mutation.count)
@@ -538,24 +532,69 @@ CalcRecapitulationIndex <- function (treat.muts,future.muts) {
     return(RI)
 }
 
-DM0.RI <- CalcRecapitulationIndex(DM0.mutations,A.minus3.50K.df) ## 34.3% for DM0
-DM25.RI <- CalcRecapitulationIndex(DM25.mutations,A.minus3.50K.df) ## 32% for DM25
+CalcInverseRI <- function (treat.muts,future.muts) {
+    future.muts <- filter(future.muts,mutation.count > 0)
+    treat.muts <- filter(treat.muts,mutation.count > 0)
+    inv.recap.mutations <- filter(future.muts,Gene %in% treat.muts$Gene)
+    total.inv.recaps <- sum(inv.recap.mutations$mutation.count)
+    total.future.muts <- sum(future.muts$mutation.count)
+    revRI <- total.inv.recaps/total.future.muts
+    return(revRI)
+}
 
-## Then calculate RI for each population separately, excepting Ara-3.
+CalcHMRI <- function(treat.muts,future.muts) {
+    1/mean(1/c(CalcRI(treat.muts,future.muts),
+               CalcInverseRI(treat.muts,future.muts)))
+}
+
+DM0.invRI <- CalcInverseRI(DM0.mutations,A.minus3.50K.df)
+
+DM0.HMRI <- CalcHMRI(DM0.mutations,A.minus3.50K.df) ## 4.9% for DM0
+DM25.HMRI <- CalcHMRI(DM25.mutations,A.minus3.50K.df) ## 4.2% for DM25
+
+DM0.RI <- CalcRI(DM0.mutations,A.minus3.50K.df) ## 35.4% for DM0
+DM25.RI <- CalcRI(DM25.mutations,A.minus3.50K.df) ## 31.2% for DM25
+
+DM0.Dice <- CalcDice(DM0.mutations,A.minus3.50K.df) ## 35.4% for DM0
+DM25.Dice <- CalcDice(DM25.mutations,A.minus3.50K.df) ## 31.2% for DM25
+
+
+## Then calculate HMRI for each population separately, excepting Ara-3.
 all.but.matrix <- ltee.matrix %>% select(-REL11364)
 
-## initialize the RI vectors.
-DM0.RI.vec <- rep(0,ncol(ltee.matrix2)-1)
-DM25.RI.vec <- rep(0,ncol(ltee.matrix2)-1)
-LTEE.clone.vec <- rep('',ncol(ltee.matrix2)-1)
+## initialize the HMRI vectors.
+DM0.HMRI.vec <- rep(0,ncol(all.but.matrix)-1)
+DM25.HMRI.vec <- rep(0,ncol(all.but.matrix)-1)
+LTEE.clone.vec <- rep('',ncol(all.but.matrix)-1)
 
 for (i in 2:12) {
     my.mut.summary <- all.but.matrix[c(1,i)]
     LTEE.clone.vec[i-1] <- names(my.mut.summary)[2]
     names(my.mut.summary)[2] <- 'mutation.count'
     my.mut.summary <- filter(my.mut.summary,mutation.count > 0)
-    DM0.RI.vec[i-1] <- CalcRecapitulationIndex(DM0.mutations, my.mut.summary)
-    DM25.RI.vec[i-1] <- CalcRecapitulationIndex(DM25.mutations, my.mut.summary)
+    DM0.HMRI.vec[i-1] <- CalcHMRI(DM0.mutations, my.mut.summary)
+    DM25.HMRI.vec[i-1] <- CalcHMRI(DM25.mutations, my.mut.summary)
+}
+
+## Now add Ara-3 clone REL11364 to the vectors, and turn into a dataframe.
+DM0.HMRI.col <- c(DM0.HMRI.vec,DM0.HMRI)
+DM25.HMRI.col <- c(DM25.HMRI.vec,DM25.HMRI)
+Name.col <- c(LTEE.clone.vec,'REL11364')
+HMRI.df <- data.frame(Name=Name.col,DM0.HMRI=DM0.HMRI.col,DM25.HMRI=DM25.HMRI.col)
+
+## repeat for regular RI
+## initialize the RI vectors.
+DM0.RI.vec <- rep(0,ncol(all.but.matrix)-1)
+DM25.RI.vec <- rep(0,ncol(all.but.matrix)-1)
+LTEE.clone.vec <- rep('',ncol(all.but.matrix)-1)
+
+for (i in 2:12) {
+    my.mut.summary <- all.but.matrix[c(1,i)]
+    LTEE.clone.vec[i-1] <- names(my.mut.summary)[2]
+    names(my.mut.summary)[2] <- 'mutation.count'
+    my.mut.summary <- filter(my.mut.summary,mutation.count > 0)
+    DM0.RI.vec[i-1] <- CalcRI(DM0.mutations, my.mut.summary)
+    DM25.RI.vec[i-1] <- CalcRI(DM25.mutations, my.mut.summary)
 }
 
 ## Now add Ara-3 clone REL11364 to the vectors, and turn into a dataframe.
@@ -564,88 +603,34 @@ DM25.RI.col <- c(DM25.RI.vec,DM25.RI)
 Name.col <- c(LTEE.clone.vec,'REL11364')
 RI.df <- data.frame(Name=Name.col,DM0.RI=DM0.RI.col,DM25.RI=DM25.RI.col)
 
+## repeat for dice
+## initialize the RI vectors.
+DM0.Dice.vec <- rep(0,ncol(all.but.matrix)-1)
+DM25.Dice.vec <- rep(0,ncol(all.but.matrix)-1)
+LTEE.clone.vec <- rep('',ncol(all.but.matrix)-1)
+
+for (i in 2:12) {
+    my.mut.summary <- all.but.matrix[c(1,i)]
+    LTEE.clone.vec[i-1] <- names(my.mut.summary)[2]
+    names(my.mut.summary)[2] <- 'mutation.count'
+    my.mut.summary <- filter(my.mut.summary,mutation.count > 0)
+    DM0.Dice.vec[i-1] <- CalcDice(DM0.mutations, my.mut.summary)
+    DM25.Dice.vec[i-1] <- CalcDice(DM25.mutations, my.mut.summary)
+}
+
+## Now add Ara-3 clone REL11364 to the vectors, and turn into a dataframe.
+DM0.Dice.col <- c(DM0.Dice.vec,DM0.Dice)
+DM25.Dice.col <- c(DM25.Dice.vec,DM25.Dice)
+Name.col <- c(LTEE.clone.vec,'REL11364')
+Dice.df <- data.frame(Name=Name.col,DM0.Dice=DM0.Dice.col,DM25.Dice=DM25.Dice.col)
+
 ################################################################################
-
-## Figure 7: Fitness and growth effects of plasmid-borne maeA expression.
-Fig7.analysis <- function(data, samplesize=6, days.competition=1,rev=FALSE) {
-    ## by diluting stationary phase culture 1:100 on day 0, there is another
-    ## factor of 100 that multiplies the day 0 plating dilution factor.
-    data$D.0 <- 100*data$D.0
-    data$Mr <- log2((data$D.1/data$D.0)*data$Red.1*100^days.competition/data$Red.0)/days.competition
-    data$Mw <- log2((data$D.1/data$D.0)*data$White.1*100^days.competition/data$White.0)/days.competition
-## reverse log ratio when polarity is reversed.
-if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
-
-my.mean <- mean(data$W, na.rm=T)
-my.sd <- sd(data$W, na.rm=T)
-my.confint <- c(my.mean - 1.96*my.sd/sqrt(samplesize), my.mean + 1.96*my.sd/sqrt(samplesize))
-
-print("mean is:")
-print(my.mean)
-
-print("confint is:")
-print(my.confint)
-
-##return a dataframe of the results for plotting.
-left.error <- c(my.confint[1])
-right.error <- c(my.confint[2])
-results <- data.frame(Fitness=c(my.mean),Left=left.error,Right=right.error)
-return(results)
-}
-
-fig7.data <- read.csv("../data/rohan-formatted/DM0_Fitness2.csv",header=TRUE)
-## these data come from one day competitions that Tanush ran.
-res1 <- filter(fig7.data,Red.Pop=='ZDB151_with_maeA') %>% Fig7.analysis()
-res2 <- filter(fig7.data,Red.Pop=='ZDB67_with_maeA') %>% Fig7.analysis(rev=TRUE)
-res3 <- filter(fig7.data,Red.Pop=='ZDB152_with_maeA') %>% Fig7.analysis()
-res4 <- filter(fig7.data,Red.Pop=='ZDB68_with_maeA') %>% Fig7.analysis(rev=TRUE)
-
-## beautiful! All confints overlap with each other, showing no maeA fitness effect
-## does not depend on Ara polarity or genetic background.
-
-## let's combine data from the switched polarity competitions (since Ara marker is neutral)
-d1 <- filter(fig7.data,Red.Pop=='ZDB151_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-d2 <- filter(fig7.data,Red.Pop=='ZDB67_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-## now switch column labels.
-d2X <- rename(d2,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
-ZDB151.data <- rbind(d1,d2X)
-
-d3 <- filter(fig7.data,Red.Pop=='ZDB152_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-d4 <- filter(fig7.data,Red.Pop=='ZDB68_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-## switch column labels.
-d4X <- rename(d4,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
-ZDB152.data <- rbind(d3,d4X)
-
-fres1 <- Fig7.analysis(ZDB151.data,samplesize=6)
-fres2 <- Fig7.analysis(ZDB152.data,samplesize=6)
-fig7.plot.data <- rbind(fres1,fres2)
-#' Correct the strain names here.
-fig7.plot.data$Strain <- c('CZB151','CZB152')
-
-## Make Figure 7.
-fig7.output <- "../results/figures/Fig7.pdf"
-
-plot.Figure7 <- function (results, output.file) {
-    the.plot <- ggplot(results,aes(x=Strain,y=Fitness)) +
-        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
-        geom_line() +
-        geom_point(size=2) +
-        scale_y_continuous(limits=c(1.0,1.30)) +
-        ylab("Fitness of maeA plasmid relative to empty plasmid") +
-        theme_classic()
-    ggsave(the.plot, file=output.file,width=4,height=4)
-}
-
-plot.Figure7(fig7.plot.data,fig7.output)
-
-########################################################
 ## IS element analysis and visualization.
 
 IS.insertions <- read.csv(
     file.path(proj.dir,
               "results/genome-analysis/IS_insertions.csv")) %>%
     arrange(genome_start)
-
 
 parallel.IS.insertions <- group_by(IS.insertions,genome_start) %>%
     filter(n()>1)
@@ -844,4 +829,78 @@ null.parallel.hits(total.hit.pos,replicates=10000)
 ## empirical p-value for 8 hits is on the order of 0.01.
 ##null.parallel.hits(total.hit.pos,empirical.parallel=8)
 
+################################################################################
+## Figure 7: Fitness and growth effects of plasmid-borne maeA expression.
+Fig7.analysis <- function(data, samplesize=6, days.competition=1,rev=FALSE) {
+    ## by diluting stationary phase culture 1:100 on day 0, there is another
+    ## factor of 100 that multiplies the day 0 plating dilution factor.
+    data$D.0 <- 100*data$D.0
+    data$Mr <- log2((data$D.1/data$D.0)*data$Red.1*100^days.competition/data$Red.0)/days.competition
+    data$Mw <- log2((data$D.1/data$D.0)*data$White.1*100^days.competition/data$White.0)/days.competition
+## reverse log ratio when polarity is reversed.
+if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
+
+my.mean <- mean(data$W, na.rm=T)
+my.sd <- sd(data$W, na.rm=T)
+my.confint <- c(my.mean - 1.96*my.sd/sqrt(samplesize), my.mean + 1.96*my.sd/sqrt(samplesize))
+
+print("mean is:")
+print(my.mean)
+
+print("confint is:")
+print(my.confint)
+
+##return a dataframe of the results for plotting.
+left.error <- c(my.confint[1])
+right.error <- c(my.confint[2])
+results <- data.frame(Fitness=c(my.mean),Left=left.error,Right=right.error)
+return(results)
+}
+
+fig7.data <- read.csv("../data/rohan-formatted/DM0_Fitness2.csv",header=TRUE)
+## these data come from one day competitions that Tanush ran.
+res1 <- filter(fig7.data,Red.Pop=='ZDB151_with_maeA') %>% Fig7.analysis()
+res2 <- filter(fig7.data,Red.Pop=='ZDB67_with_maeA') %>% Fig7.analysis(rev=TRUE)
+res3 <- filter(fig7.data,Red.Pop=='ZDB152_with_maeA') %>% Fig7.analysis()
+res4 <- filter(fig7.data,Red.Pop=='ZDB68_with_maeA') %>% Fig7.analysis(rev=TRUE)
+
+## beautiful! All confints overlap with each other, showing no maeA fitness effect
+## does not depend on Ara polarity or genetic background.
+
+## let's combine data from the switched polarity competitions (since Ara marker is neutral)
+d1 <- filter(fig7.data,Red.Pop=='ZDB151_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d2 <- filter(fig7.data,Red.Pop=='ZDB67_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+## now switch column labels.
+d2X <- rename(d2,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
+ZDB151.data <- rbind(d1,d2X)
+
+d3 <- filter(fig7.data,Red.Pop=='ZDB152_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d4 <- filter(fig7.data,Red.Pop=='ZDB68_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+## switch column labels.
+d4X <- rename(d4,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
+ZDB152.data <- rbind(d3,d4X)
+
+fres1 <- Fig7.analysis(ZDB151.data,samplesize=6)
+fres2 <- Fig7.analysis(ZDB152.data,samplesize=6)
+fig7.plot.data <- rbind(fres1,fres2)
+#' Correct the strain names here.
+fig7.plot.data$Strain <- c('CZB151','CZB152')
+
+## Make Figure 7.
+fig7.output <- "../results/figures/Fig7.pdf"
+
+plot.Figure7 <- function (results, output.file) {
+    the.plot <- ggplot(results,aes(x=Strain,y=Fitness)) +
+        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
+        geom_line() +
+        geom_point(size=2) +
+        scale_y_continuous(limits=c(1.0,1.30)) +
+        ylab("Fitness of maeA plasmid relative to empty plasmid") +
+        theme_classic()
+    ggsave(the.plot, file=output.file,width=4,height=4)
+}
+
+plot.Figure7(fig7.plot.data,fig7.output)
+
+########################################################
 
