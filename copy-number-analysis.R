@@ -19,9 +19,9 @@
 ## 6) find the genes contained in these regions (and genes chopped at the boundaries).
 
 ## 7) do a quick check to see whether polymorphism occurs in the genomes
-##    with the largest amplifications (this should be clear from Fig. 3).
+##    with the largest amplifications (this should be clear from Fig. 5).
 
-## 8) make Fig. 3, showing maeA and citT copy number.
+## 8) make Fig. 5, showing maeA and citT copy number.
 
 library(xml2)
 library(roxygen2)
@@ -41,7 +41,7 @@ library(DT)          # prettier data.frame output
 library(data.table)  # faster fread()
 library(dplyr)       # consistent data.frame operations.
 library(dtplyr)      # dplyr works with data.table now.
-
+library(cowplot)     # layout figures nicely.
 
 #' parse the summary.html breseq output file, and return the mean and dispersion
 #' of the negative binomial fit to the read coverage distribution, returned as a
@@ -202,7 +202,7 @@ annotate.amplifications <- function(amplifications,LCA.gff) {
 }
 
 ## see the excellent plots on https://rud.is/projects/facetedheatmaps.html
-plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
+plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
 
     ## for annotated.amps and clone.labels to play nicely with each other.
     clone.labels$Name <- as.character(clone.labels$Name)
@@ -238,7 +238,7 @@ plot.Fig4A.heatmap <- function(annotated.amps,clone.labels) {
 
 ## plot a stacked bar graph to show how big the amplifications are
 ## in the DM0 and DM25 treatments.
-plot.Fig4B.stackedbar <- function(amps,clone.labels) {
+plot.Fig5B.stackedbar <- function(amps,clone.labels) {
 
 amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
     left_join(clone.labels, by=c("Genome" = "Name")) %>% select(-Population) %>%
@@ -309,8 +309,6 @@ copy.number.table <- annotated.amps %>%
 
 write.csv(x=copy.number.table,file=file.path(outdir,"copy_number_table.csv"))
 
-#' dctA and maeA amplifications don't occur together. The probability
-#' of this occurrence is (20/24)*(19/23)*...*(15/19) = 28.7% by chance.
 
 #' Make figures.
 
@@ -321,15 +319,15 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 #' Make a heatmap plot with facet grid on DM0 versus DM25.
 #' color the matrix based on gene location.
 
-heatmap2 <- plot.Fig4A.heatmap(annotated.amps,clone.labels)
-ggsave(heatmap2,filename=file.path(outdir,"figures/Fig4A.pdf"),height=5,width=7)
+heatmap2 <- plot.Fig5A.heatmap(annotated.amps,clone.labels)
+ggsave(heatmap2,filename=file.path(outdir,"figures/Fig5A.pdf"),height=5,width=7)
 
 #' Make a stacked bar plot, with facet grid on DM0 versus DM25.
 #' color the stacked bars based on the left boundary
 #' of the amplification.
 
-stacked2 <- plot.Fig4B.stackedbar(amps,clone.labels)
-ggsave(stacked2,filename=file.path(outdir,"figures/Fig4B.pdf"))
+stacked2 <- plot.Fig5B.stackedbar(amps,clone.labels)
+ggsave(stacked2,filename=file.path(outdir,"figures/Fig5B.pdf"))
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge

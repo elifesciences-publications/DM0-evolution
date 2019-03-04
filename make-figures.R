@@ -27,37 +27,6 @@ pop.clone.labels <- read.csv(
     file.path(proj.dir,
         "data/rohan-formatted/populations-and-clones.csv"))
 
-evolved.mutations <- read.csv(
-    file.path(proj.dir,
-        "results/genome-analysis/evolved_mutations.csv"))
-
-#### TODO: move this code based on where the results are discussed
-####       in the manuscript.
-## examine basepair-level parallel evolution.
-
-bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
-    summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
-
-parallel.MOB <- filter(bp.parallel.mutations,Mutation=='MOB')
-parallel.DEL <- filter(bp.parallel.mutations,Mutation=='DEL')
-parallel.INS <- filter(bp.parallel.mutations,Mutation=='INS')
-parallel.dN <- filter(bp.parallel.mutations,Mutation=='nonsynonymous')
-
-## examine basepair-level parallel evolution in the polymorphism runs.
-
-poly.evolved.mutations <- read.csv(
-    file.path(proj.dir,
-        "results/genome-analysis/poly_evolved_mutations.csv"))
-
-poly.bp.parallel.mutations <- poly.evolved.mutations %>% filter(Frequency < 1) %>%
-    filter(Frequency > 0.1) %>% group_by(Position) %>% summarise(count = n()) %>%
-    filter(count>1) %>% inner_join(poly.evolved.mutations)
-
-poly.parallel.MOB <- filter(poly.bp.parallel.mutations,Mutation=='MOB')
-poly.parallel.DEL <- filter(poly.bp.parallel.mutations,Mutation=='DEL')
-poly.parallel.INS <- filter(poly.bp.parallel.mutations,Mutation=='INS')
-poly.parallel.dN <- filter(poly.bp.parallel.mutations,Mutation=='nonsynonymous')
-
 ###############################################
 ## Figure 1.
 
@@ -322,10 +291,10 @@ Fig2D <- ggplot(growth.summary,aes(x=DM25.k,y=DM0.k,color=Founder,shape=Generati
 
 
 ####### Make Figure 2 using cowplot.
-outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
+Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
 Fig2BCD <- plot_grid(Fig2B,Fig2C,Fig2D, labels = c('B','C', 'D'), ncol = 3)
 Fig2 <- plot_grid(Fig2A, Fig2BCD, labels = c('A', ''), ncol = 1, rel_heights = c(1.8, 1))
-save_plot(outf,Fig2,base_height=7)
+save_plot(Fig2outf,Fig2,base_height=7)
 
 ## significant correlation between growth rate in DM25 and DM0:
 ## Kendall's tau = 0.46, p = 0.0155
@@ -483,14 +452,56 @@ M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence
 M.co.occurrence.plot
 
 ################################################################################
+## analysis of parallel evolution at the same nucleotide.
+## discuss numbers and finding in the text (no figure.).
+
+evolved.mutations <- read.csv(
+    file.path(proj.dir,
+        "results/genome-analysis/evolved_mutations.csv"))
+
+bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
+    summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
+
+parallel.MOB <- filter(bp.parallel.mutations,Mutation=='MOB')
+parallel.DEL <- filter(bp.parallel.mutations,Mutation=='DEL')
+parallel.INS <- filter(bp.parallel.mutations,Mutation=='INS')
+parallel.dN <- filter(bp.parallel.mutations,Mutation=='nonsynonymous')
+parallel.dS <- filter(bp.parallel.mutations,Mutation=='synonymous')
+
+## examine basepair-level parallel evolution in the polymorphism runs.
+
+poly.evolved.mutations <- read.csv(
+    file.path(proj.dir,
+        "results/genome-analysis/poly_evolved_mutations.csv"))
+
+poly.bp.parallel.mutations <- poly.evolved.mutations %>% filter(Frequency < 1) %>%
+    filter(Frequency > 0.1) %>% group_by(Position) %>% summarise(count = n()) %>%
+    filter(count>1) %>% inner_join(poly.evolved.mutations)
+
+poly.parallel.MOB <- filter(poly.bp.parallel.mutations,Mutation=='MOB')
+poly.parallel.DEL <- filter(poly.bp.parallel.mutations,Mutation=='DEL')
+poly.parallel.INS <- filter(poly.bp.parallel.mutations,Mutation=='INS')
+poly.parallel.dN <- filter(poly.bp.parallel.mutations,Mutation=='nonsynonymous')
+poly.parallel.dS <- filter(poly.bp.parallel.mutations,Mutation=='synonymous')
+
+################################################
 ## IS element analysis and visualization.
 
-IS.insertions <- read.csv(
-    file.path(proj.dir,
+IS.insertions <- read.csv(file.path(proj.dir,
               "results/genome-analysis/IS_insertions.csv")) %>%
     arrange(genome_start)
 
-parallel.IS.insertions <- group_by(IS.insertions,genome_start) %>%
+IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element,frame=Environment)) +
+    facet_grid(Environment~.) +
+    geom_histogram(bins=400) +
+    guides(fill=FALSE) +
+    ylab("Count") +
+    xlab("Position") +
+    theme_tufte(base_family="Helvetica")
+
+## 81/213 IS insertions recur at the same locations! 38%!
+parallel.IS.insertions <- IS.insertions %>%
+    group_by(genome_start) %>%
     filter(n()>1)
 
 parallel.IS.summary <- summarize(parallel.IS.insertions,
@@ -505,52 +516,19 @@ parallel.IS.summary <- summarize(parallel.IS.insertions,
                              genes_inactivated)) %>%
     mutate(annotation=ifelse(is.na(annotation),'none',annotation))
 
-## 81/213 IS insertions recur at the same locations! 38%!
-
-IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element)) +
-    geom_histogram(bins=1000000) +
-##    guides(color=FALSE) +
-    theme_classic()
-
-ggsave("../results/figures/IS-insertions.pdf",IS.plot)
-
 ## plot parallel IS insertions and their annotation.
-IS.plot2 <- ggplot(parallel.IS.summary,aes(x=genome_start,
+parallel.IS.plot <- ggplot(parallel.IS.summary,aes(x=genome_start,
                                            y=count,
                                            color=IS_element,
                                            label=annotation)) +
     geom_point() +
+    guides(color=FALSE) +
     theme_classic() +
-    geom_text_repel()
-
-ggsave("../results/figures/parallel-IS-insertions.pdf",IS.plot2)
-
-## plot genomic distribution of IS elements in LCA (including REL606).
-LCA.IS.insertions <- read.csv(
-    file.path(proj.dir,
-              "results/genome-analysis/LCA_IS_insertions.csv")) %>%
-    arrange(genome_start)
-
-LCA.IS.plot <- ggplot(LCA.IS.insertions,aes(x=genome_start,fill=IS_element)) +
-    geom_histogram(bins=1000) +
-    theme_classic()
-
-## compare the eCDFs of IS elements over the length of the genome
-## in the LCA and in the evolved populations.
-## they are not strikingly similar or dissimilar.
-IS.insertion.CDF.plot <- ggplot(LCA.IS.insertions,aes(x=genome_start)) +
-    stat_ecdf(color='red') + theme_classic() + stat_ecdf(inherit.aes=FALSE,data=IS.insertions,mapping=aes(x=genome_start),color='black')
-
-## p-val: 0.1033. So neither similar nor dissimilar given the data.
-ks.test(IS.insertions$genome_start,LCA.IS.insertions$genome_start)
-
-## However-- by Heewook Lee et al. (2016) it is possible that IS elements
-## cluster in the genome if I look purely by distance.
-## For now, I'm not doing this analysis because it's not a priority.
+    ylab("Count") +
+    xlab("Position") +
+    geom_text_repel(fontface = "italic")
 
 ########
-
-## POSSIBLE TODO:
 ## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
 ## in comparison to the rate of increase of IS-elements in Ara-3.
 
@@ -561,65 +539,38 @@ LTEE.MAE.IS.insertions <- read.csv(
 
 LTEE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='LTEE')
 MAE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='MAE')
-
-## handle duplicate due to ancestral mutations by counting the total
-## unique rows per generation, and subtracting the total from the
-## previous generation timepoint.
-## NOTE: since I'm looking at all clones at a timepoint, there's some
-## chance of overcounting by including mutations off the LoD.
-## worry about this later...
-
-
 Ara.minus.3.IS150 <- filter(LTEE.IS150,Population=='Ara-3')
 
-gen.vec <- sort(unique(Ara.minus.3.IS150$Generation))
-Ara.minus.3.IS150.total.vec <- c()
-
-## NOTE: This code is broken! total.count is NOT monotonically increasing!
-## due to IS elements off the line of descent, probably.
-## don't plot rate of increase for Ara-3 from LTEE for time being.
-
-##for (i in 1:length(gen.vec)) {
-##    cur.gen <- gen.vec[i]
-##    cur.IS150 <- Ara.minus.3.IS150 %>%
-##        filter(Generation==cur.gen) %>%
-##        select(-Clone) %>% distinct() %>%
-##        group_by(Generation) %>% summarize(total.count=n())
-##    cur.total <- cur.IS150$total.count
-##    if (i == 1) {
-##        Ara.minus.3.IS150.total.vec <- c(cur.total)
-##    } else { ## subtract the number in the previous generation.
-##        updated.total <- cur.total - Ara.minus.3.IS150.total.vec[i-1]
-##        Ara.minus.3.IS150.total.vec <- c(Ara.minus.3.IS150.total.vec, updated.total)
-##    }
-##}
-
-## This dataframe does not have results that make sense.. skip for now.
-
-##Ara.minus.3.IS150.over.time <- data.frame(Generation=gen.vec,
-##                                          Environment=rep('LTEE',length(gen.vec)),
-##                                          Population=rep('Ara-3',length(gen.vec)),
-##                                          total.count=Ara.minus.3.IS150.total.vec)
-
-MAE.IS150.over.time <- group_by(MAE.IS150,Generation,Environment,Population) %>%
+Ara.minus.3.IS150.by.clone <- group_by(Ara.minus.3.IS150,Clone,Generation,Environment,Population) %>%
     summarize(total.count=n())
 
-DM0.DM25.over.time <- group_by(IS.insertions,Generation,Environment,Population) %>%
+MAE.IS150.over.time <- group_by(MAE.IS150,Clone,Generation,Environment,Population) %>%
     summarize(total.count=n())
 
-IS150.rate.df <- rbind(MAE.IS150.over.time,DM0.DM25.over.time)
+DM0.DM25.over.time <- group_by(IS.insertions,Clone,Generation,Environment,Population) %>%
+    summarize(total.count=n())
+
+IS150.rate.df <- rbind(MAE.IS150.over.time,DM0.DM25.over.time,Ara.minus.3.IS150.by.clone)
 
 # The colorblind-friendly palette with black:
 cbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 IS150.rate.plot <- ggplot(IS150.rate.df,
                           aes(x=Generation,y=total.count,color=Environment)) +
-    theme_classic() + scale_colour_manual(values=cbPalette) +
+    theme_classic() +
+    scale_colour_manual(values=cbPalette) +
     ylab('IS150 insertions') +
-    geom_jitter(width=50)
+    geom_jitter(width=50) +
+    guides(color=FALSE)
 
-ggsave(file="../results/figures/IS150-rate.pdf", IS150.rate.plot)
+########
+## Combine the IS plots with cowplot to make Figure 4.
+Fig4outf <- file.path(proj.dir,"results/figures/Fig4.pdf")
+Fig4 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
+                  labels = c('A', 'B', 'C'), ncol=1)
+save_plot(Fig4outf,Fig4,base_height=10,base_aspect_ratio=0.8)
 
+########
 ## Conduct the following test for parallel evolution of IS-insertions:
 ## Assume all IS insertions occur in the set union(A,B), with
 ## probability = empirical mass distribution over LTEE/MAE/DM0/DM25.
@@ -678,18 +629,18 @@ null.parallel.hits <- function(total.hit.pos,empirical.parallel=11,replicates=10
     max.hit.df.col <- data.frame('max.hit'=max.hit.vec)
     past.threshold <- nrow(filter(max.hit.df.col,max.hit>=empirical.parallel))
     return(past.threshold/replicates)
-    }
+}
 
 ## empirical p-value for 11 hits is on the order of 0.0001.
 null.parallel.hits(total.hit.pos,replicates=10000)
-##null.parallel.hits(total.hit.pos,replicates=100000)
+null.parallel.hits(total.hit.pos,replicates=100000)
 
 ## empirical p-value for 8 hits is on the order of 0.01.
-##null.parallel.hits(total.hit.pos,empirical.parallel=8)
+null.parallel.hits(total.hit.pos,empirical.parallel=8)
 
 ################################################################################
-## Figure 7: Fitness and growth effects of plasmid-borne maeA expression.
-Fig7.analysis <- function(data, samplesize=6, days.competition=1,rev=FALSE) {
+## Figure 8: Fitness and growth effects of plasmid-borne maeA expression.
+Fig8.analysis <- function(data, samplesize=6, days.competition=1,rev=FALSE) {
     ## by diluting stationary phase culture 1:100 on day 0, there is another
     ## factor of 100 that multiplies the day 0 plating dilution factor.
     data$D.0 <- 100*data$D.0
@@ -715,39 +666,39 @@ results <- data.frame(Fitness=c(my.mean),Left=left.error,Right=right.error)
 return(results)
 }
 
-fig7.data <- read.csv("../data/rohan-formatted/DM0_Fitness2.csv",header=TRUE)
+fig8.data <- read.csv("../data/rohan-formatted/DM0_Fitness2.csv",header=TRUE)
 ## these data come from one day competitions that Tanush ran.
-res1 <- filter(fig7.data,Red.Pop=='ZDB151_with_maeA') %>% Fig7.analysis()
-res2 <- filter(fig7.data,Red.Pop=='ZDB67_with_maeA') %>% Fig7.analysis(rev=TRUE)
-res3 <- filter(fig7.data,Red.Pop=='ZDB152_with_maeA') %>% Fig7.analysis()
-res4 <- filter(fig7.data,Red.Pop=='ZDB68_with_maeA') %>% Fig7.analysis(rev=TRUE)
+res1 <- filter(fig8.data,Red.Pop=='ZDB151_with_maeA') %>% Fig8.analysis()
+res2 <- filter(fig8.data,Red.Pop=='ZDB67_with_maeA') %>% Fig8.analysis(rev=TRUE)
+res3 <- filter(fig8.data,Red.Pop=='ZDB152_with_maeA') %>% Fig8.analysis()
+res4 <- filter(fig8.data,Red.Pop=='ZDB68_with_maeA') %>% Fig8.analysis(rev=TRUE)
 
 ## beautiful! All confints overlap with each other, showing no maeA fitness effect
 ## does not depend on Ara polarity or genetic background.
 
 ## let's combine data from the switched polarity competitions (since Ara marker is neutral)
-d1 <- filter(fig7.data,Red.Pop=='ZDB151_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-d2 <- filter(fig7.data,Red.Pop=='ZDB67_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d1 <- filter(fig8.data,Red.Pop=='ZDB151_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d2 <- filter(fig8.data,Red.Pop=='ZDB67_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
 ## now switch column labels.
 d2X <- rename(d2,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
 ZDB151.data <- rbind(d1,d2X)
 
-d3 <- filter(fig7.data,Red.Pop=='ZDB152_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-d4 <- filter(fig7.data,Red.Pop=='ZDB68_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d3 <- filter(fig8.data,Red.Pop=='ZDB152_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d4 <- filter(fig8.data,Red.Pop=='ZDB68_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
 ## switch column labels.
 d4X <- rename(d4,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
 ZDB152.data <- rbind(d3,d4X)
 
-fres1 <- Fig7.analysis(ZDB151.data,samplesize=6)
-fres2 <- Fig7.analysis(ZDB152.data,samplesize=6)
-fig7.plot.data <- rbind(fres1,fres2)
+fres1 <- Fig8.analysis(ZDB151.data,samplesize=6)
+fres2 <- Fig8.analysis(ZDB152.data,samplesize=6)
+fig8.plot.data <- rbind(fres1,fres2)
 #' Correct the strain names here.
-fig7.plot.data$Strain <- c('CZB151','CZB152')
+fig8.plot.data$Strain <- c('CZB151','CZB152')
 
 ## Make Figure 7.
-fig7.output <- "../results/figures/Fig7.pdf"
+fig8.output <- "../results/figures/Fig8.pdf"
 
-plot.Figure7 <- function (results, output.file) {
+plot.Fig8 <- function (results, output.file) {
     the.plot <- ggplot(results,aes(x=Strain,y=Fitness)) +
         geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
         geom_line() +
@@ -758,7 +709,7 @@ plot.Figure7 <- function (results, output.file) {
     ggsave(the.plot, file=output.file,width=4,height=4)
 }
 
-plot.Figure7(fig7.plot.data,fig7.output)
+plot.Fig8(fig8.plot.data,fig8.output)
 
 ########################################################
 
