@@ -213,26 +213,28 @@ plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
         mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
         mutate(log.pval=log(bonferroni.corrected.pval)) %>%
         mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
-        transform(Population = PopulationLabel) %>% filter(!is.na(Population))
-        ## order the genes by start to get axes correct on heatmap.
-    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
+        transform(Population = PopulationLabel) %>% filter(!(Genome==ParentClone))
 
+    ## order the genes by start to get axes correct on heatmap.
+    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
+    ## reverse the order of genomes to make axes consistent with Fig5B.
+    labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome)
+    labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome,
+                                            levels=rev(levels(labeled.annotated.amps$Genome)))
 
     heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=log2.copy.number.mean,frame=Environment)) +
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
         geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
-        xlab("log2 copy number of amplified genes") +
-        labs(fill = "log2(mean copy number)") +
-        scale_fill_viridis(name="") +
+        xlab("Position") +
+        scale_fill_viridis(name="",option="plasma") +
         facet_wrap(~Environment,nrow=2, scales = "free_y") +
         theme_tufte(base_family='Helvetica') +
         theme(axis.ticks=element_blank()) +
         theme(axis.text.x=element_blank()) +
         theme(legend.text=element_text(size=6)) +
-        theme(legend.position="bottom") +
-        theme(legend.key.size=unit(0.2, "cm")) +
-        theme(legend.key.width=unit(1, "cm"))
+        guides(fill=FALSE)
+
     return(heatmap)
 }
 
@@ -240,33 +242,30 @@ plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
 ## in the DM0 and DM25 treatments.
 plot.Fig5B.stackedbar <- function(amps,clone.labels) {
 
-amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
-    left_join(clone.labels, by=c("Genome" = "Name")) %>% select(-Population) %>%
-    transform(Population=PopulationLabel) %>% filter(!is.na(Population))
+    amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
+        mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
+        left_join(clone.labels, by=c("Genome" = "Name")) %>% select(-Population) %>%
+        transform(Population=PopulationLabel) %>% filter(!(Genome==ParentClone))
 
-
-genome.length <- 4629812
-
-stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=left.boundary)) +
-    geom_bar(stat="identity") +
-    scale_fill_viridis(name="") +
-    facet_grid(~Environment, scales = "free") +
-    theme_tufte(base_family='Helvetica') +
-    theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
-    theme(axis.text.y=element_text(size=12)) +
-    theme(panel.border=element_blank()) +
-    theme(plot.title=element_text(hjust=0)) +
-    theme(strip.text=element_text(hjust=0,size=12)) +
-    theme(panel.spacing.x=unit(1, "cm")) +
-    theme(panel.spacing.y=unit(0.5, "cm")) +
-    theme(legend.title=element_text(size=6)) +
-    theme(legend.title.align=1) +
-    theme(legend.text=element_text(size=6)) +
-    theme(legend.position="bottom") +
-    theme(legend.key.size=unit(0.2, "cm")) +
-    theme(legend.key.width=unit(1, "cm")) +
-    ylim(0,550000) +
-    ylab("Total amplification length")
+    stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=log2.copy.number.mean)) +
+        geom_bar(stat="identity") +
+        scale_fill_viridis(name=expression("log"[2]*"(copy number)"),option="plasma") +
+        facet_grid(~Environment, scales = "free") +
+        theme_tufte(base_family='Helvetica') +
+        theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
+        theme(axis.text.y=element_text(size=12)) +
+        theme(panel.border=element_blank()) +
+        theme(plot.title=element_text(hjust=0)) +
+        theme(strip.text=element_text(hjust=0,size=12)) +
+        theme(panel.spacing.x=unit(1, "cm")) +
+        theme(panel.spacing.y=unit(0.5, "cm")) +
+        theme(legend.title=element_text(size=6)) +
+        theme(legend.title.align=1) +
+        theme(legend.text=element_text(size=6)) +
+        theme(legend.position="bottom") +
+        theme(legend.key.size=unit(0.2, "cm")) +
+        theme(legend.key.width=unit(1, "cm")) +
+        ylab("Total amplification length")
 
     return(stacked)
 }
@@ -317,17 +316,16 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 
 
 #' Make a heatmap plot with facet grid on DM0 versus DM25.
-#' color the matrix based on gene location.
-
-heatmap2 <- plot.Fig5A.heatmap(annotated.amps,clone.labels)
-ggsave(heatmap2,filename=file.path(outdir,"figures/Fig5A.pdf"),height=5,width=7)
-
+#' color the matrix based on log2(copy number).
+Fig5A <- plot.Fig5A.heatmap(annotated.amps,clone.labels)
 #' Make a stacked bar plot, with facet grid on DM0 versus DM25.
-#' color the stacked bars based on the left boundary
-#' of the amplification.
+#' color the stacked bars based on log2(copy number) for consistency.
+Fig5B <- plot.Fig5B.stackedbar(amps,clone.labels)
 
-stacked2 <- plot.Fig5B.stackedbar(amps,clone.labels)
-ggsave(stacked2,filename=file.path(outdir,"figures/Fig5B.pdf"))
+#' Make and save the final Figure 5.
+Fig5outf <- file.path(projdir,"results/figures/Fig5.pdf")
+Fig5 <- plot_grid(Fig5A, Fig5B, labels = c('A', 'B'), ncol = 1, rel_heights = c(1.1, 1))
+save_plot(Fig5outf,Fig5,base_height=7)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
