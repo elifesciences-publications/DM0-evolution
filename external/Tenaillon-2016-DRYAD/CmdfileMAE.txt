@@ -1,0 +1,5 @@
+genome:	REL606.gff3
+genomedata:	oli.MAE.final_masked.no_IS_adjacent.tab	#oli.LTEE.final_masked.no_IS_adjacent.tab for LTEE, oli.MAE.final_masked.no_IS_adjacent.tab for MAE
+genomeinfo:	MAE_Mutator_info.txt	#LTEE_Mutator_info.txt for LTEE, MAE_Mutator_info.txt for MAE
+mutator:	0	#0 all clones, 1 only mutator clones, 2 only non mutator cones
+Outputfiles_Suffix:	MAE	# none for all (just a tabulation, MAE for MAE, Mutator for Mutator

@@ -24,6 +24,7 @@ from collections import Counter
 import sys
 from pprint import pprint
 from math import ceil
+from tqdm import trange
 
 parser = argparse.ArgumentParser(description="Read in gd files, assign mutations to genes, perform statistics where applicable.")
 parser.add_argument("-n", "--number", type=int, default=10, help="number of randomizations to perform for statistical models. Set to 0 to skip some tests")
@@ -292,12 +293,8 @@ def dice(master_dict, excluded_genes):
     if args.number < 1: ## 0 or fewer comparisons. no point in running.
         return
 
-    for _ in range(args.number):  # repeat number of times
-        print(_,args.number)
-        ## watch out for a modulus by 0 error for N = 10!
-        if _ % ceil(args.number * 0.05) == 0:
-            print((int(_ / float(args.number) * 100)), "% complete")  # print progress
-
+    ## loop with progress bar.
+    for _ in trange(args.number):        
         random_sample_list = random.sample(list(master_dict["Total"]), len(master_dict["Total"]))
         random_start = 0
         for treatment in shuffled_treatments:
