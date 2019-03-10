@@ -303,6 +303,16 @@ cor.test(x=final.growth.summary$DM25.r,y=final.growth.summary$DM0.r,method="kend
 ## Kendall's tau = -0.028, p = 0.9226
 cor.test(x=final.growth.summary$DM25.k,y=final.growth.summary$DM0.k,method="kendall")
 
+## POSSIBLE TODO IF GIVEN GROWTH RATE DATA FOR CLONES:
+## Based on FBA modeling, it seems that maeA side-activity is essential to generate
+## NADH during fermentation. Is there a relationship between maeA copy number and
+## growth rate?
+## Test this hypothesis by comparing growth results to maeA amplifications
+## from the copy number analysis.
+## These result also have dctA amplifications,
+## so do a linear regression on both, with some random effects as well (representing other mutations).
+##copy.number.results <- read.csv(file.path(proj.dir,"results/copy_number_table.csv"))
+
 ################################################################################
 ## Figure 3: matrix plots showing similarity and divergence between
 ## genomes evolved in different environments. Also, co-occurrence
@@ -483,6 +493,11 @@ poly.parallel.DEL <- filter(poly.bp.parallel.mutations,Mutation=='DEL')
 poly.parallel.INS <- filter(poly.bp.parallel.mutations,Mutation=='INS')
 poly.parallel.dN <- filter(poly.bp.parallel.mutations,Mutation=='nonsynonymous')
 poly.parallel.dS <- filter(poly.bp.parallel.mutations,Mutation=='synonymous')
+
+## no consensus calls in citT, but extensive parallelism in polymorphic calls
+## in citT.
+citT.mutations <- filter(evolved.mutations,Gene=='citT')
+citT.poly.mutations <- filter(poly.evolved.mutations,Gene=='citT')
 
 ################################################
 ## IS element analysis and visualization.
@@ -695,7 +710,7 @@ fig8.plot.data <- rbind(fres1,fres2)
 #' Correct the strain names here.
 fig8.plot.data$Strain <- c('CZB151','CZB152')
 
-## Make Figure 7.
+## Make Figure 8.
 fig8.output <- "../results/figures/Fig8.pdf"
 
 plot.Fig8 <- function (results, output.file) {

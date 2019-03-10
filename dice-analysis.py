@@ -23,6 +23,8 @@ parser.add_argument("-p", "--promoter", type=int, default=0, help="length of pro
 parser.add_argument("-e", "--excluded_mutations", help="gd file with list of mutations to exclude. Helpful for avoiding using gdtools subtract")
 parser.add_argument("--pvalue", type=float, default=0.05, help="p value significance cut off")
 parser.add_argument("-pw", "--pairwise", help="perform pairwise dice comparisons among all treatments", action="store_true")
+parser.add_argument("-m", "--matrixfile", help='name of file to save matrix of valid mutations in genomes')
+parser.add_argument("--dN_only", help='only non-synonymous mutations will be analyzed',action="store_true")
 args = parser.parse_args()
 '''
 
@@ -33,18 +35,21 @@ from subprocess import run
 import pandas as pd
 
 class CallDICE:
-    def __init__(self, gd_dir, genbank_ref, mutmatrixfile, control_treatment='', excluded=None):
-        self.number = 1000#0 #1000000 ## do one million for final submission.
+    def __init__(self, gd_dir, genbank_ref, mutmatrixfile, control_treatment='', excluded=None,dN_only=False):
+        self.number = 10000 #1000000 ## do one million for final submission.
         self.promoter_length = 150
         self.genbank_ref = genbank_ref
         self.control_treatment = control_treatment
         self.samples = gd_dir
         self.mutmatrixfile = mutmatrixfile
         self.excluded = excluded
+        self.dN_only = dN_only
         self.args = ['python', './citrate_dice.py', '-pw', '-n', str(self.number),
                      '-p', str(self.promoter_length), '-dt', '-s', self.samples, '-g', self.genbank_ref, '-ct', self.control_treatment, '--matrixfile', self.mutmatrixfile]
         if self.excluded is not None:
             self.args = self.args + ['-e', self.excluded]
+        if self.dN_only:
+            self.args = self.args + ['--dN_only']
 
     def call(self):
         return run(self.args)
@@ -57,6 +62,7 @@ def main():
     projdir = join(homedir,"BoxSync/DM0-evolution")
     analysis_dir = join(projdir,"results/genome-analysis")
 
+    ## include both ZDBp874 and ZDBp875 -- so exclude the one mutation they have in common.
     exclude_ZDBp874_875_intersection = join(analysis_dir,"ZDBp-874-875-intersection.gd")
 
     do_environment = True
@@ -67,12 +73,13 @@ def main():
         gddir = join(analysis_dir,"genotype-comparison")
         ctl_treat = 'CZB151'
 
+    print("********************************** DM0/DM25 Dice analysis **********************************")
     DiceRun = CallDICE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/DM0-DM25-comparison-mut-matrix.csv', ctl_treat, exclude_ZDBp874_875_intersection)
     print(DiceRun)
     DiceRun.call()
 
     ## For comparison, run citrate_dice.py on the LTEE to make a matrix for Fig. 1C.
-
+    print("********************************** LTEE Dice analysis for valid mutations **********************************")
     ltee_gddir = join(projdir,"genomes/annotated-LTEE-50K-diffs")
     LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
     print(LTEE_DiceRun)
@@ -80,9 +87,26 @@ def main():
 
     ## run citrate_dice.py on just the 50K Ara-3 clone to get valid mutations for
     ## the Recapitulation Index analysis.
-
+    print("********************************** 50K Ara-3 clone run for valid mutations  **********************************")
     ara_minus3_gddir = join(projdir,"genomes/curated-diffs")
     ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/ara3_mut_matrix.csv')
     ara_minus3_DiceRun.call()
 
+    ## just analyse dN in the DM0/DM25 treatments.
+    print("********************************** DM0/DM25 Dice analysis: dN only **********************************")
+    dNDiceRun = CallDICE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/dN-DM0-DM25-comparison-mut-matrix.csv', ctl_treat, exclude_ZDBp874_875_intersection, dN_only=True)
+    print(dNDiceRun)
+    dNDiceRun.call()
+
+    ##  dN in the LTEE.
+    print("********************************** LTEE Dice analysis for valid dN **********************************")
+    dN_LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/dN-LTEE-mut_matrix.csv','Ara+', dN_only=True)
+    print(dN_LTEE_DiceRun)
+    dN_LTEE_DiceRun.call()
+
+    ## run 50K Ara-3 clone to get valid dN for the Recapitulation Index analysis.
+    print("********************************** 50K Ara-3 clone for valid dN  **********************************")
+    dN_ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/dN-ara3_mut_matrix.csv', dN_only=True)
+    dN_ara_minus3_DiceRun.call()
+    
 main()

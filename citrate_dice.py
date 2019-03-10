@@ -37,6 +37,7 @@ parser.add_argument("-e", "--excluded_mutations", help="gd file with list of mut
 parser.add_argument("--pvalue", type=float, default=0.05, help="p value significance cut off")
 parser.add_argument("-pw", "--pairwise", help="perform pairwise dice comparisons among all treatments", action="store_true")
 parser.add_argument("-m", "--matrixfile", help='name of file to save matrix of valid mutations in genomes')
+parser.add_argument("--dN_only", help='only non-synonymous mutations will be analyzed',action="store_true")
 args = parser.parse_args()
 
 
@@ -94,7 +95,7 @@ def treatment_read_in():
     return temp_dict
 
 
-def mutation_gene_assigment(mutation_list, exclusion_list):
+def mutation_gene_assigment(mutation_list, exclusion_list,only_dN=False):
     """Pass in 2 arguments, list of list of mutations (strings split by tabs), and a list of genomic regions to exclude, by default this is regions flagged as repetitive"""
     intergenic_and_multi_gene = []
     valid_mutations = []
@@ -128,7 +129,13 @@ def mutation_gene_assigment(mutation_list, exclusion_list):
                     else:
                         valid_mutations.append(new_line)
                     valid_mut = True
+                    break
 
+        ## if only_dN is set to true, then only dN are valid.
+        if only_dN:
+            if 'snp_type=nonsynonymous' not in mutation:
+                valid_mut = False
+                    
         if not valid_mut:  # mutation not assigned to gene
             promoter_distance_comparison = []
             for feature in GenomeSeq.features:  # loop each mutation through whole genome with promoter comparisons
@@ -619,15 +626,15 @@ def write_mutation_matrix(master_dict,valid_mutated_genes,outfile):
 
 def main():
     repeat_list_of_lists = repeat_id()
-    master_dict = None  # initialize to avoid warning based on ifs
+    master_dict = None  ## initialize to avoid warning based on ifs
 
     #Treatment read in
-    if args.directory_treatments:  # In future may have multiple ways to read treatments_and_samples in
+    if args.directory_treatments:  ## In future may have multiple ways to read treatments_and_samples in
         master_dict = treatment_read_in()
         for treatment in master_dict:
             for sample in master_dict[treatment]:
-                x = mutation_gene_assigment(master_dict[treatment][sample]['raw_mutations'], repeat_list_of_lists)
-                for mutationlist in x:  # assign valid_mutations, and intergenic_and_multi_gene mutations to master dict
+                x = mutation_gene_assigment(master_dict[treatment][sample]['raw_mutations'], repeat_list_of_lists, args.dN_only)
+                for mutationlist in x:  ## assign valid_mutations, and intergenic_and_multi_gene mutations to master dict
                     master_dict[treatment][sample][mutationlist] = x[mutationlist]
                 master_dict[treatment][sample]['total_mutations'] = master_dict[treatment][sample]['valid_mutations'] + master_dict[treatment][sample]['intergenic_or_multi-gene']
     assert master_dict is not None, "master_dict has not been populated. This should never trigger given assertion that args.dictionary_treatments must be supplied"
@@ -650,7 +657,7 @@ def main():
     write_mutation_matrix(master_dict,valid_mutated_genes,outfile)
 
 
-        #  general mutation statistics; print statements within functions
+    ##  general mutation statistics; print statements within functions
     print(master_dict.keys())
     general_mutation_stats(master_dict)
     types_of_mutations(master_dict)
@@ -658,14 +665,14 @@ def main():
     kruskal_wallis_tests(master_dict)
 
 
-    dice(master_dict, [])  # initial dice calculation done without excluding significant genes
+    dice(master_dict, [])  ## initial dice calculation done without excluding significant genes
 
     print("\nGene centric mutation information:\nFisher exact p-value testing if clustering within treatment greater than expected by chance.\nOnly p values less than %s listed." % args.pvalue)
 
 
     print(''.join([f'{x:{10}}' for x in map(str,["Gene"] + [x for x in master_dict if not x == "Total"] + ["Total", "p Value"])]))
     excluded_genes = []  # list of genes to exclude from repeat dice
-    #  iterate through genes, sorted in descending order based on total number of mutations
+    ##  iterate through genes, sorted in descending order based on total number of mutations
     for cur_gene in sorted(valid_mutated_genes, key=lambda k: len(valid_mutated_genes[k]), reverse=True):
         printable = [cur_gene]
         for treatment in [x for x in master_dict if not x == "Total"]:
@@ -684,8 +691,10 @@ def main():
             total_genome_samples = len(master_dict['Total'])
             num_genomes_in_most_mutated_treatment = len(master_dict[most_mutated_treatment])
 
-            ## 1 is subtracted from s_c1 because first mutation can't be assigned
-            ## (see discussion of Fisher's exact test in Deatherage 2017).
+            ''' 
+            1 is subtracted from s_c1 because first mutation can't be assigned
+            (see discussion of Fisher's exact test in Deatherage 2017). 
+            '''
             s_c1 = most_mutated_count - 1
             f_c1 = num_genomes_in_most_mutated_treatment - most_mutated_count
             s_c2 = total_hit_genomes - most_mutated_count
