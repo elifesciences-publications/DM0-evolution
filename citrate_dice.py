@@ -124,21 +124,25 @@ def mutation_gene_assigment(mutation_list, exclusion_list,only_dN=False):
             if feature.type == 'gene':
                 if feature.location._start.position <= mut_start and mut_stop <= feature.location._end.position:
                     new_line = mutation_line(feature, mutation)
-                    if re.findall("^synonymous", str(new_line[3])):
+                    if 'snp_type=synonymous' in mutation:
                         intergenic_and_multi_gene.append(new_line)
+                        valid_mut = False
+                        break
+                    ## if only_dN, then only dN are valid.
+                    elif only_dN and 'snp_type=nonsynonymous' not in mutation:
+                        intergenic_and_multi_gene.append(new_line)
+                        valid_mut = False
+                        break
                     else:
                         valid_mutations.append(new_line)
-                    valid_mut = True
-                    break
+                        valid_mut = True
+                        break
 
-        ## if only_dN is set to true, then only dN are valid.
-        if only_dN:
-            if 'snp_type=nonsynonymous' not in mutation:
-                valid_mut = False
-                    
-        if not valid_mut:  # mutation not assigned to gene
+        ## mutation not assigned to gene; only run if not only_dN
+        if not valid_mut and not only_dN:
             promoter_distance_comparison = []
-            for feature in GenomeSeq.features:  # loop each mutation through whole genome with promoter comparisons
+            ## loop each mutation through whole genome with promoter comparisons
+            for feature in GenomeSeq.features:
                 if feature.type == 'gene':
                     start_loc = feature.location._start.position
                     end_loc = feature.location._end.position
@@ -214,6 +218,8 @@ def mutation_line(feature, mutation):
 def dice_calc(x, y):
     """calculates dice coefficients 2 lists of mutated gene names (x, y)"""
     x_and_y = [gene for gene in x if gene in y]
+    if len(x) <= 0 or len(y) <=0:
+        return -1
     dice_value = (2.0 * len(x_and_y)) / (len(x) + len(y))
     return dice_value
 
@@ -293,7 +299,7 @@ def dice(master_dict, excluded_genes):
         return
 
     ## loop with progress bar.
-    for _ in trange(args.number):        
+    for _ in trange(args.number):
         random_sample_list = random.sample(list(master_dict["Total"]), len(master_dict["Total"]))
         random_start = 0
         for treatment in shuffled_treatments:
@@ -687,9 +693,9 @@ def main():
             total_genome_samples = len(master_dict['Total'])
             num_genomes_in_most_mutated_treatment = len(master_dict[most_mutated_treatment])
 
-            ''' 
+            '''
             1 is subtracted from s_c1 because first mutation can't be assigned
-            (see discussion of Fisher's exact test in Deatherage 2017). 
+            (see discussion of Fisher's exact test in Deatherage 2017).
             '''
             s_c1 = most_mutated_count - 1
             f_c1 = num_genomes_in_most_mutated_treatment - most_mutated_count
