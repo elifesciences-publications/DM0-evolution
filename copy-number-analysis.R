@@ -322,6 +322,9 @@ Fig5A <- plot.Fig5A.heatmap(annotated.amps,clone.labels)
 #' color the stacked bars based on log2(copy number) for consistency.
 Fig5B <- plot.Fig5B.stackedbar(amps,clone.labels)
 
+save_plot(file.path(projdir,"results/figures/Fig5A.pdf"),Fig5A,base_aspect_ratio=1.5)
+save_plot(file.path(projdir,"results/figures/Fig5B.pdf"),Fig5B,base_aspect_ratio=1.5)
+
 #' Make and save the final Figure 5.
 Fig5outf <- file.path(projdir,"results/figures/Fig5.pdf")
 Fig5 <- plot_grid(Fig5A, Fig5B, labels = c('A', 'B'), ncol = 1, rel_heights = c(1.1, 1))

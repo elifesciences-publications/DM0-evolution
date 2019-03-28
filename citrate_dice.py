@@ -5,7 +5,7 @@ Gene centric counts and statistics.
 Requires biopython
 @author: Rohan Maddamsetti and Daniel Deatherage.
 
-Command line used in the TEE analysis:
+Command line used in Daniel's original TEE analysis:
 python TEE.py -n 1000000 -p 150 -dt -s annotated_gd/ -g ../REL606.gbk -e annotated_gd/REL1207.gd -ct 37c
 
 """
@@ -23,7 +23,6 @@ from scipy.stats import mannwhitneyu, wilcoxon, kruskal, binom_test, fisher_exac
 from collections import Counter
 import sys
 from pprint import pprint
-from math import ceil
 from tqdm import trange
 
 parser = argparse.ArgumentParser(description="Read in gd files, assign mutations to genes, perform statistics where applicable.")

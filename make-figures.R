@@ -27,6 +27,10 @@ pop.clone.labels <- read.csv(
     file.path(proj.dir,
         "data/rohan-formatted/populations-and-clones.csv"))
 
+evolved.mutations <- read.csv(
+    file.path(proj.dir,
+        "results/genome-analysis/evolved_mutations.csv"))
+
 ###############################################
 ## Figure 1.
 
@@ -92,9 +96,9 @@ plot.Fig2A <- function(growth.df) {
         theme_classic() +
         #theme_tufte(base_family='Helvetica') +
         #theme(axis.ticks=element_blank()) +
-        geom_point(data=filter(growth.df,Name==Founder),size=0.5,color="black") +
+        geom_point(data=filter(growth.df,Name==Founder),size=0.5,color="grey80") +
         guides(color=FALSE) +
-        ylab(expression('log'[2]*'(OD420)'))
+        ylab(expression('log'[2]*'(1 + OD420)'))
     return(fig2A)
 }
 
@@ -103,10 +107,9 @@ labeled.growth.data <- left_join(growth.data,pop.clone.labels,by="Name")
 
 final.growth.data <- Fig2A.analysis(labeled.growth.data)
 Fig2A <- plot.Fig2A(final.growth.data)
-
+save_plot(file.path(proj.dir,"results/figures/Fig2A.pdf"),Fig2A)
 #####################################
-## use growthcurver package to fit K and r to growth data.
-## TODO: I could modify code to estimate lag time.
+## use growthcurver package to fit K and r and derive t0 from growth data.
 
 ## This function splits the growth plate data by Well and Experiment,
 ## Where Experiment is either 'DM0-growth' or 'DM25-growth'.
@@ -158,22 +161,27 @@ map.reduce.growth.curve <- function(labeled.plate.data) {
 
 growth.curve.fits <- map.reduce.growth.curve(labeled.growth.data)
 
+## lag time t0 (that is, the midpoint of the sigmoid curve) can be
+## derived by equating two equivalent parametrizations of the logistic
+## growth curve (growthcurver documentation vs. wikipedia).
+## A bit of algebra shows that t0 = log((K-N0)/N0)/r.
 growth.curve.fit.summary <- growth.curve.fits %>% filter(Name != 'Blank') %>%
     group_by(Experiment,Name) %>% summarize(r.avg = mean(r),
                                             k.avg=mean(k),
                                             n0.avg=mean(n0),
                                             Environment=unique(Environment),
                                             Generation=unique(Generation),
-                                            Founder=unique(Founder))
+                                            Founder=unique(Founder)) %>%
+    mutate(t0=log((k.avg-n0.avg)/n0.avg)/r.avg)
 
 
 DM0.growth.summary <- filter(growth.curve.fit.summary,Experiment=='DM0-growth') %>%
-    rename(DM0.r = r.avg,DM0.k = k.avg,DM0.n0=n0.avg) %>%
+    rename(DM0.r = r.avg,DM0.k = k.avg,DM0.n0=n0.avg,DM0.t0=t0) %>%
     ungroup(Experiment) %>% select(-Experiment) %>%
     mutate(Generation=as.factor(Generation))
 
 DM25.growth.summary <- filter(growth.curve.fit.summary,Experiment=='DM25-growth') %>%
-    rename(DM25.r = r.avg,DM25.k = k.avg, DM25.n0=n0.avg) %>%
+    rename(DM25.r = r.avg,DM25.k = k.avg, DM25.n0=n0.avg,DM25.t0=t0) %>%
     ungroup(Experiment) %>% select(-Experiment) %>%
     mutate(Generation=as.factor(Generation))
 
@@ -187,26 +195,32 @@ growth.summary <- inner_join(DM0.growth.summary,DM25.growth.summary)
 calc.growth.log.ratios <- function(growth.summary) {
 
     ## Since the data is small, go ahead and use a for loop
-    ## to make vectors corresponding to ancestral R and K
+    ## to make vectors corresponding to ancestral R, K, t0
     ## in DM0 and DM25.
     anc.DM0.k <- rep(-1,nrow(growth.summary))
     anc.DM0.r <- rep(-1,nrow(growth.summary))
+    anc.DM0.t0 <- rep(-1,nrow(growth.summary))
     anc.DM25.r <- rep(-1,nrow(growth.summary))
     anc.DM25.k <- rep(-1,nrow(growth.summary))
+    anc.DM25.t0 <- rep(-1,nrow(growth.summary))
     for (index in 1:nrow(growth.summary)) {
         my.row <- growth.summary[index, ]
         my.anc <- filter(growth.summary,Name==my.row$Founder)
         anc.DM0.k[index] <- my.anc$DM0.k
         anc.DM0.r[index] <- my.anc$DM0.r
+        anc.DM0.t0[index] <- my.anc$DM0.t0
         anc.DM25.k[index] <- my.anc$DM25.k
         anc.DM25.r[index] <- my.anc$DM25.r
+        anc.DM25.t0[index] <- my.anc$DM25.t0
     }
 
     growth.summary2 <- growth.summary %>%
         mutate(log.DM0.k.ratio=log(DM0.k/anc.DM0.k)) %>%
         mutate(log.DM0.r.ratio=log(DM0.r/anc.DM0.r)) %>%
+        mutate(log.DM0.t0.ratio=log(DM0.t0/anc.DM0.t0)) %>%
         mutate(log.DM25.k.ratio=log(DM25.k/anc.DM25.k)) %>%
-        mutate(log.DM25.r.ratio=log(DM25.r/anc.DM25.r))
+        mutate(log.DM25.r.ratio=log(DM25.r/anc.DM25.r)) %>%
+        mutate(log.DM25.t0.ratio=log(DM25.t0/anc.DM25.t0))
     return(growth.summary2)
 }
 
@@ -229,13 +243,17 @@ calc.bootstrap.conf.int <- function(vec) {
 
 log.DM0.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.r.ratio)
 log.DM0.k.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.k.ratio)
+log.DM0.t0.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.t0.ratio)
 log.DM25.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.ratio)
 log.DM25.k.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.k.ratio)
+log.DM25.t0.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t0.ratio)
 
 mean.log.DM0.r.ratio <- mean(evolved.growth.summary$log.DM0.r.ratio)
 mean.log.DM0.k.ratio <- mean(evolved.growth.summary$log.DM0.k.ratio)
+mean.log.DM0.t0.ratio <- mean(evolved.growth.summary$log.DM0.t0.ratio)
 mean.log.DM25.r.ratio <- mean(evolved.growth.summary$log.DM25.r.ratio)
 mean.log.DM25.k.ratio <- mean(evolved.growth.summary$log.DM25.k.ratio)
+mean.log.DM25.t0.ratio <- mean(evolved.growth.summary$log.DM25.t0.ratio)
 
 ## significant increases in growth rate, no significant change in growth yield.
 ## Make a figure of these confidence intervals (Figure 2D).
@@ -243,19 +261,27 @@ mean.log.DM25.k.ratio <- mean(evolved.growth.summary$log.DM25.k.ratio)
 bootstrap.results <- data.frame(Parameter=c("DM0 r",
                                             "DM25 r",
                                             "DM0 K",
-                                            "DM25 K"),
+                                            "DM25 K",
+                                            "DM0 t0",
+                                            "DM25 t0 "),
                                 Estimate = c(mean.log.DM0.r.ratio,
                                              mean.log.DM25.r.ratio,
                                              mean.log.DM0.k.ratio,
-                                             mean.log.DM25.k.ratio),
+                                             mean.log.DM25.k.ratio,
+                                             mean.log.DM0.t0.ratio,
+                                             mean.log.DM25.t0.ratio),
                                 Left = c(log.DM0.r.ratio.conf.int[1],
                                          log.DM25.r.ratio.conf.int[1],
                                          log.DM0.k.ratio.conf.int[1],
-                                         log.DM25.k.ratio.conf.int[1]),
+                                         log.DM25.k.ratio.conf.int[1],
+                                         log.DM0.t0.ratio.conf.int[1],
+                                         log.DM25.t0.ratio.conf.int[1]),
                                 Right = c(log.DM0.r.ratio.conf.int[2],
                                           log.DM25.r.ratio.conf.int[2],
                                           log.DM0.k.ratio.conf.int[2],
-                                          log.DM25.k.ratio.conf.int[2]))
+                                          log.DM25.k.ratio.conf.int[2],
+                                          log.DM0.t0.ratio.conf.int[2],
+                                          log.DM25.t0.ratio.conf.int[2]))
 
 plot.Fig2B <- function (results) {
     the.plot <- ggplot(results,aes(x=Parameter,y=Estimate)) +
@@ -270,6 +296,7 @@ plot.Fig2B <- function (results) {
 }
 
 Fig2B <- plot.Fig2B(bootstrap.results)
+save_plot(file.path(proj.dir,"results/figures/Fig2B.pdf"),Fig2B)
 
 Fig2C <- ggplot(growth.summary,aes(x=DM25.r,y=DM0.r,color=Founder,shape=Generation)) +
     geom_point() +
@@ -280,6 +307,8 @@ Fig2C <- ggplot(growth.summary,aes(x=DM25.r,y=DM0.r,color=Founder,shape=Generati
     coord_fixed() +
     guides(color=FALSE,shape=FALSE)
 
+save_plot(file.path(proj.dir,"results/figures/Fig2C.pdf"),Fig2C)
+
 Fig2D <- ggplot(growth.summary,aes(x=DM25.k,y=DM0.k,color=Founder,shape=Generation)) +
     geom_point() +
     theme_classic() +
@@ -289,6 +318,7 @@ Fig2D <- ggplot(growth.summary,aes(x=DM25.k,y=DM0.k,color=Founder,shape=Generati
     coord_fixed() +
     guides(color=FALSE,shape=FALSE)
 
+save_plot(file.path(proj.dir,"results/figures/Fig2D.pdf"),Fig2D)
 
 ####### Make Figure 2 using cowplot.
 Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
@@ -314,13 +344,19 @@ cor.test(x=final.growth.summary$DM25.k,y=final.growth.summary$DM0.k,method="kend
 ##copy.number.results <- read.csv(file.path(proj.dir,"results/copy_number_table.csv"))
 
 ################################################################################
-## Figure 3: matrix plots showing similarity and divergence between
-## genomes evolved in different environments. Also, co-occurrence
-## and LDA analysis.
-
 ## Figure 3: make a matrix plot of genes with mutations in two or more clones.
+
+## IMPORTANT TODO: refactor code so that I can make figures using just the dN results
+## or with all valid mutation in the dice_analysis easily.
+
+#' all valid mutations
 raw.matrix <- read.csv(file.path(proj.dir,
         "results/DM0-DM25-comparison-mut-matrix.csv"))
+
+#' just non-synonymous mutations
+#' WARNING: THERE IS SOME BUG HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#raw.matrix <- read.csv(file.path(proj.dir,
+#        "results/dN-DM0-DM25-comparison-mut-matrix.csv"))
 
 ## fix the names of the samples.
 names(raw.matrix) <- map_chr(
@@ -342,10 +378,19 @@ fig1C.counts <- summarize(DM0.DM25.matrix.data,total.count=sum(mutation.count)) 
 
 ## Now: add LTEE mutation matrix as well.
 ## filter on genes mutated in the DM0 and DM25 matrix data.
+
+#' all valid mutations
+##ltee.matrix <- read.csv(
+##    file.path(
+##        proj.dir,
+##"results/LTEE-mut_matrix.csv"))
+
 ltee.matrix <- read.csv(
     file.path(
         proj.dir,
-        "results/LTEE-mut_matrix.csv"))
+"results/dN-LTEE-mut_matrix.csv"))
+
+
 ## fix the names of the samples.
 names(ltee.matrix) <- map_chr(
     names(ltee.matrix),
@@ -433,8 +478,10 @@ matrix.figure <- ggplot(matrix.data,aes(x=Name,
     scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
                                  "#fb8072", "#80b1d3", "#fdb462"))
 
-matrix.outfile <- "../results/figures/Fig3.pdf"
-ggsave(matrix.figure, file=matrix.outfile,width=7,height=15)
+##matrix.outfile <- "../results/figures/Fig3.pdf"
+dNmatrix.outfile <- "../results/figures/Fig3B.pdf"
+##ggsave(matrix.figure, file=matrix.outfile,width=7,height=15)
+ggsave(matrix.figure, file=dNmatrix.outfile,width=7,height=15)
 
 ## make a mutation co-occurrence matrix.
 ## nice to have, but I don't see anything interesting.
@@ -458,16 +505,17 @@ M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.s
 M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) +
     geom_tile(color='White') +
     scale_fill_viridis(option="magma",direction=-1) +
-    theme(axis.text.x = element_text(angle=90,vjust=-0.1))
+    theme(axis.text.x = element_text(angle=90,vjust=-0.1)) +
+    guides(fill=FALSE)
 M.co.occurrence.plot
+
+ggsave(file.path(proj.dir,"results/figures/co_occurrence.pdf"),
+         M.co.occurrence.plot,width=12,height=12)
+
 
 ################################################################################
 ## analysis of parallel evolution at the same nucleotide.
 ## discuss numbers and finding in the text (no figure.).
-
-evolved.mutations <- read.csv(
-    file.path(proj.dir,
-        "results/genome-analysis/evolved_mutations.csv"))
 
 bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
     summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
@@ -514,6 +562,10 @@ IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element,frame=Environ
     xlab("Position") +
     theme_tufte(base_family="Helvetica")
 
+save_plot(file.path(proj.dir,"results/figures/Fig4B.pdf"),
+         IS.plot,base_aspect_ratio=1.5)
+
+
 ## 81/213 IS insertions recur at the same locations! 38%!
 parallel.IS.insertions <- IS.insertions %>%
     group_by(genome_start) %>%
@@ -542,6 +594,9 @@ parallel.IS.plot <- ggplot(parallel.IS.summary,aes(x=genome_start,
     ylab("Count") +
     xlab("Position") +
     geom_text_repel(fontface = "italic")
+
+save_plot(file.path(proj.dir,"results/figures/Fig4A.pdf"),
+         parallel.IS.plot,base_aspect_ratio=1.5)
 
 ########
 ## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
@@ -577,6 +632,10 @@ IS150.rate.plot <- ggplot(IS150.rate.df,
     ylab('IS150 insertions') +
     geom_jitter(width=50) +
     guides(color=FALSE)
+
+save_plot(file.path(proj.dir,"results/figures/Fig4C.pdf"),
+         IS150.rate.plot,base_aspect_ratio=1.5)
+
 
 ########
 ## Combine the IS plots with cowplot to make Figure 4.

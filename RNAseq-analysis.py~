@@ -1,0 +1,82 @@
+#!/usr/bin/env python
+
+''' 
+
+RNAseq-analysis.py by Rohan Maddamsetti. 
+
+This script does two tasks.
+
+1) make FASTA file of all ORFs in REL606.
+
+2) concatenates RNAseq fastq files by genome and biological replicate.
+
+NOTE: this will run on my office computer-- not on my laptop.
+
+'''
+
+from os.path import join, expanduser, exists
+from os import makedirs
+from Bio import SeqIO
+
+def generateORF_fasta(ref_file,outf):
+
+    with open(outf,'w') as outfh:
+        rec = SeqIO.read(open(ref_file),"genbank")
+        for feat in rec.features:
+            ## only consider CDS for now.
+            if feat.type != 'CDS':
+                continue
+            
+            locus_tag = 'NA'
+            gene = 'NA'
+            Note = 'NA'
+            location = str(feat.location)
+            ORF_seq = feat.location.extract(rec).seq
+            try:
+                locus_tag = feat.qualifiers['locus_tag'][0]
+            except KeyError:
+                print('warning: locus_tag missing')
+            try:
+                gene = feat.qualifiers['gene'][0]
+            except KeyError:
+                print('warning: gene name missing')
+            try:
+                note = feat.qualifiers['Note'][0]
+            except KeyError:
+                print('warning: note missing')
+                
+            outfh.write(">locus_tag=%s|gene=%s|Note=%s|Location=%s\n%s\n" % (
+                locus_tag,
+                gene,
+                note,
+                location,
+                ORF_seq
+            ))
+
+def generate_kallisto_quant_inputs(RNAseqdir,samples_f):
+    pass
+
+            
+def main():
+    homedir = expanduser("~")
+    projdir = join(homedir,"BoxSync/DM0-evolution")
+    analysis_dir = join(projdir,"results/RNAseq-analysis")
+
+    if not exists(analysis_dir):
+        makedirs(analysis_dir)
+    
+    LCAref = join(projdir,'genomes/curated-diffs/LCA.gbk')
+    ORF_file = join(analysis_dir,"LCA_ORFs.fasta")
+
+    ## this is surprisingly slow. Only run if the file doesn't exist.
+    if not exists(ORF_file):
+        generateORF_fasta(LCAref,ORF_file)
+
+    ## this next directory is on the HPC and my office computer.
+    raw_RNAseq_dir = join(homedir,"Documents/DM0-evolution-data/Kenyon-RNAseq")
+    RNAseq_samples_f = join(projdir,"data/rohan-formatted/Kenyon-RNAseq-samples.csv")
+
+    generate_kallisto_quant_inputs(raw_RNAseq_dir,RNAseq_samples_f)
+    
+
+main()

@@ -111,21 +111,43 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
         mutations in the ancestral strains.'''
     evol_genomes = [x for x in pathdict.keys() if x.startswith('ZDBp')]
     evol_pop_clone_labels = pop_clone_labels[pop_clone_labels['Name'].isin(evol_genomes)]
-    for evol in evol_genomes:
-        anc = evol_pop_clone_labels[evol_pop_clone_labels['Name']==evol].ParentClone.item()
-        evol_gd = join(pathdict[evol],"output/evidence/annotated.gd")
+    ## take the union over genomes sampled at the same timepoint in the same population.
+    grouped_evol_labels = evol_pop_clone_labels.groupby(['PopulationLabel'])
+    for poplabel, group_df in grouped_evol_labels:
+        ## if more than one genome sampled from the population
+        if group_df.shape[0] > 1:
+            ## then gdtools UNION those mutations.
+            gds_in_group = [x for x in group_df['Name']]
+            union_gds = [join(pathdict[x],'output/evidence/annotated.gd') for x in gds_in_group]
+            for x in union_gds:
+                assert isfile(x)
+            evolname = '_'.join(gds_in_group + ['UNION'])
+            union_outf = evolname + '.gd'
+            union_tempf = join(resultsdir,"temp_"+union_outf)
+            CallGDtools('UNION', union_tempf, union_gds).call()
+            ## set the output of gdtools UNION to be input for gdtools SUBTRACT.
+            evol_gd = union_tempf
+            ## do the whole rigamole. TODO: get rid of code duplication.
+        else:
+            evolname = group_df.Name.unique().item()
+            evol_gd = join(pathdict[evolname],"output/evidence/annotated.gd")
+
+        anc = group_df.ParentClone.unique().item()
         anc_gd = join(pathdict[anc],"output/evidence/annotated.gd")
-        assert isfile(evol_gd)
+        assert isfile(evol_gd), print(evol_gd)
         assert isfile(anc_gd)
         infiles = [evol_gd, anc_gd]
-        outname = evol+"_minus_"+anc+".gd"
-        my_founder = evol_pop_clone_labels[evol_pop_clone_labels['Name']==evol].Founder.item()
-        my_ara_status = evol_pop_clone_labels[evol_pop_clone_labels['Name']==evol].AraStatus.item()
-        my_environment = evol_pop_clone_labels[evol_pop_clone_labels['Name']==evol].Environment.item()
+        outname = evolname+"_minus_"+anc+".gd"
+        my_founder = group_df.Founder.unique().item()
+        my_ara_status = group_df.AraStatus.unique().item()
+        my_environment = group_df.Environment.unique().item()
         outdir = join(resultsdir,my_founder,my_ara_status,my_environment)
         tempf = join(outdir,"temp_"+outname)
         outf = join(outdir,outname)
         CallGDtools('SUBTRACT',tempf,infiles).call()
+
+        if group_df.shape[0] > 1: ## erase temporary unionfile.
+            run("rm "+union_tempf,shell=True,executable='/bin/bash')
 
         ''' Now remove all mutation calls in:
         rrlA (23S ribosomal RNA)
@@ -161,6 +183,12 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf,polymorphism=F
             infh = open(full_f, 'r', encoding='utf-8')
             name = f.split('_')[0]
             my_row = evol_pop_clone_labels[evol_pop_clone_labels.Name == name].iloc[0]
+            ## handle case of UNION of genomes from one pop.
+            ## note that the first genome in 'name' is still useful for lookups.
+            if 'UNION' in f:
+                fullname = f.split('_UNION')[0]
+            else:
+                fullname = name
             env = my_row['Environment']
             population = my_row['PopulationLabel']
             gd = genomediff.GenomeDiff.read(infh)
@@ -176,9 +204,9 @@ def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf,polymorphism=F
                 else:
                     muttype = rec.type
                 if polymorphism:
-                    outfh.write(','.join([name, muttype, gene, pos, freq, env, population])+"\n")
+                    outfh.write(','.join([fullname, muttype, gene, pos, freq, env, population])+"\n")
                 else:
-                    outfh.write(','.join([name, muttype, gene, pos, env, population])+"\n")
+                    outfh.write(','.join([fullname, muttype, gene, pos, env, population])+"\n")
 
 def make_IS_insertion_tbl(evol_pop_clone_labels,inputdir, outf):
 
@@ -191,6 +219,12 @@ def make_IS_insertion_tbl(evol_pop_clone_labels,inputdir, outf):
             infh = open(full_f, 'r', encoding='utf-8')
             name = f.split('_')[0]
             my_row = evol_pop_clone_labels[evol_pop_clone_labels.Name == name].iloc[0]
+            ## handle case of UNION of genomes from one pop.
+            ## note that the first genome in 'name' is still useful for lookups.
+            if 'UNION' in f:
+                fullname = f.split('_UNION')[0]
+            else:
+                fullname = name
             env = my_row['Environment']
             population = my_row['PopulationLabel']
             generation = my_row['Generation']
@@ -210,7 +244,7 @@ def make_IS_insertion_tbl(evol_pop_clone_labels,inputdir, outf):
                     gene_pos = rec.gene_position
                 except AttributeError:
                     gene_pos = 'NA'
-                outfh.write(','.join([name,
+                outfh.write(','.join([fullname,
                                       rec.repeat_name,
                                       str(rec.position_start),
                                       str(rec.position_end),
@@ -379,7 +413,7 @@ def main():
     ''' make a table of IS-insertions, genome, and start and end locations.
         in the evolved and subtracted clones.'''
     IS_table_outf = join(resultsdir,"IS_insertions.csv")
-    make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
+    ##make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
 
     ''' make a table of IS elements in LCA (including REL606).'''
     LCA_table_outf = join(resultsdir,"LCA_IS_insertions.csv")
@@ -399,6 +433,6 @@ def main():
     LTEE and MAE clones. '''
 
     LTEE_MAE_IS_outf = join(resultsdir, "LTEE_MAE_IS150_insertions.csv")
-    make_LTEE_MAE_IS150_tbl(annotated_LTEE_MAE_dir, LTEE_MAE_IS_outf)
+    ##make_LTEE_MAE_IS150_tbl(annotated_LTEE_MAE_dir, LTEE_MAE_IS_outf)
 
 main()

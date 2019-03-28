@@ -1,0 +1,19 @@
+Building DAG of jobs...
+Using shell: /bin/bash
+Provided cores: 1
+Rules claiming more threads will be scaled down.
+Job counts:
+	count	jobs
+	1	kallisto_index
+	1
+
+[Tue Mar 26 17:34:44 2019]
+rule kallisto_index:
+    input: ../results/RNAseq-analysis/LCA_ORFs.fasta
+    output: ../results/RNAseq-analysis/LCA_ORFs.idx
+    jobid: 0
+
+[Tue Mar 26 17:34:51 2019]
+Finished job 0.
+1 of 1 steps (100%) done
+Complete log: /Users/rmaddams/Box Sync/DM0-evolution/src/.snakemake/log/2019-03-26T173444.233295.snakemake.log

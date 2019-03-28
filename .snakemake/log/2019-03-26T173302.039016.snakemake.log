@@ -1,0 +1,28 @@
+Building DAG of jobs...
+Using shell: /bin/bash
+Provided cores: 1
+Rules claiming more threads will be scaled down.
+Job counts:
+	count	jobs
+	1	kallisto_index
+	1
+
+[Tue Mar 26 17:33:02 2019]
+rule kallisto_index:
+    input: ../results/RNAseq-analysis/LCA_ORFs.fasta
+    output: ../results/RNAseq-analysis/LCA_ORFs.idx
+    jobid: 0
+
+[Tue Mar 26 17:33:02 2019]
+Error in rule kallisto_index:
+    jobid: 0
+    output: ../results/RNAseq-analysis/LCA_ORFs.idx
+
+RuleException:
+CalledProcessError in line 7 of /Users/rmaddams/Box Sync/DM0-evolution/src/Snakefile:
+Command 'set -euo pipefail;  kallisto index -i ../results/RNAseq-analysis/LCA_ORFs.idx ../results/RNAseq-analysis/LCA_ORFs.fasta' returned non-zero exit status 1.
+  File "/Users/rmaddams/Box Sync/DM0-evolution/src/Snakefile", line 7, in __rule_kallisto_index
+  File "/anaconda3/lib/python3.6/concurrent/futures/thread.py", line 56, in run
+Shutting down, this might take some time.
+Exiting because a job execution failed. Look above for error message
+Complete log: /Users/rmaddams/Box Sync/DM0-evolution/src/.snakemake/log/2019-03-26T173302.039016.snakemake.log
