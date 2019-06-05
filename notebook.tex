@@ -281,168 +281,351 @@
 
     
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}33}]:} \PY{k+kn}{import} \PY{n+nn}{cobra}
-         \PY{k+kn}{from} \PY{n+nn}{cobra}\PY{n+nn}{.}\PY{n+nn}{medium} \PY{k}{import} \PY{n}{minimal\PYZus{}medium}
-         
-         \PY{k+kn}{import} \PY{n+nn}{pandas} \PY{k}{as} \PY{n+nn}{pd}
-         
-         \PY{k+kn}{from} \PY{n+nn}{escher} \PY{k}{import} \PY{n}{Builder}
-         \PY{k+kn}{import} \PY{n+nn}{escher}\PY{n+nn}{.}\PY{n+nn}{server}
-         \PY{k+kn}{import} \PY{n+nn}{json}
-         \PY{k+kn}{import} \PY{n+nn}{os}
-         \PY{k+kn}{from} \PY{n+nn}{IPython}\PY{n+nn}{.}\PY{n+nn}{display} \PY{k}{import} \PY{n}{HTML}
+{\color{incolor}In [{\color{incolor}1}]:} \PY{k+kn}{import} \PY{n+nn}{cobra}
+        \PY{k+kn}{from} \PY{n+nn}{cobra}\PY{n+nn}{.}\PY{n+nn}{medium} \PY{k}{import} \PY{n}{minimal\PYZus{}medium}
+        \PY{k+kn}{from} \PY{n+nn}{cobra}\PY{n+nn}{.}\PY{n+nn}{flux\PYZus{}analysis} \PY{k}{import} \PY{p}{(}
+            \PY{n}{single\PYZus{}gene\PYZus{}deletion}\PY{p}{,} \PY{n}{single\PYZus{}reaction\PYZus{}deletion}\PY{p}{,} \PY{n}{double\PYZus{}gene\PYZus{}deletion}\PY{p}{,}
+            \PY{n}{double\PYZus{}reaction\PYZus{}deletion}\PY{p}{)}
+        
+        \PY{k+kn}{import} \PY{n+nn}{numpy} \PY{k}{as} \PY{n+nn}{np}
+        \PY{k+kn}{import} \PY{n+nn}{pandas} \PY{k}{as} \PY{n+nn}{pd}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}34}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{}load the base model for REL606.\PYZsq{}\PYZsq{}\PYZsq{}}
-         \PY{n}{base\PYZus{}model} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{io}\PY{o}{.}\PY{n}{read\PYZus{}sbml\PYZus{}model}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{../metabolic\PYZhy{}modeling/iECB\PYZus{}1328.xml.gz}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
-         
-         \PY{n}{max\PYZus{}growth} \PY{o}{=} \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{slim\PYZus{}optimize}\PY{p}{(}\PY{p}{)}
-         \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{minimal\PYZus{}medium}\PY{p}{(}\PY{n}{base\PYZus{}model}\PY{p}{,} \PY{n}{max\PYZus{}growth}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}2}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{}load the base model for REL606.\PYZsq{}\PYZsq{}\PYZsq{}}
+        \PY{n}{base\PYZus{}model} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{io}\PY{o}{.}\PY{n}{read\PYZus{}sbml\PYZus{}model}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{../metabolic\PYZhy{}modeling/iECB\PYZus{}1328.xml.gz}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+        \PY{n}{max\PYZus{}growth} \PY{o}{=} \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{slim\PYZus{}optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{minimal\PYZus{}medium}\PY{p}{(}\PY{n}{base\PYZus{}model}\PY{p}{,} \PY{n}{max\PYZus{}growth}\PY{p}{)}
+        
+        \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} set glucose to 1.0. This is to set relative molarity of citrate and glucose in the media properly,}
+        \PY{l+s+sd}{so that growth yields of Cit\PYZhy{} on DM25 and Cit+ on DM0 and DM25 are \PYZdq{}apples to apples\PYZdq{}. \PYZsq{}\PYZsq{}\PYZsq{}}
+        \PY{n}{citminus\PYZus{}medium} \PY{o}{=} \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+        \PY{n}{citminus\PYZus{}medium}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{1.0}
+        \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{citminus\PYZus{}medium}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}79}]:} \PY{n}{glucose\PYZus{}model} \PY{o}{=} \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model} \PY{o}{=} \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
-         \PY{c+c1}{\PYZsh{}\PYZsh{} set glucose to zero, and citrate to 10.0.}
-         \PY{n}{DM0} \PY{o}{=} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
-         \PY{n}{DM0}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{0.0}
-         \PY{n}{DM0}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{10.0}
-         \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM0}
-         
-         \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{in} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
-         \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{not} \PY{o+ow}{in} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
-         \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{not} \PY{o+ow}{in} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{medium}
-         \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{in} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+{\color{incolor}In [{\color{incolor}3}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} add this reaction to maeA: nad[c] + oaa[c] \PYZhy{}\PYZgt{}pyr[c] + nadh[c].}
+        \PY{l+s+sd}{    This reaction is the difference between base\PYZus{}model and maeA\PYZus{}model.\PYZsq{}\PYZsq{}\PYZsq{}}
+        
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{Reaction}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{MAEA}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{o}{.}\PY{n}{name} \PY{o}{=} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{maeA\PYZus{}side\PYZus{}rxn }\PY{l+s+s1}{\PYZsq{}}
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{o}{.}\PY{n}{subsystem} \PY{o}{=} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{Anaplerotic Reactions}\PY{l+s+s1}{\PYZsq{}}
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{o}{.}\PY{n}{lower\PYZus{}bound} \PY{o}{=} \PY{l+m+mf}{0.}  \PY{c+c1}{\PYZsh{} This is the default}
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{o}{.}\PY{n}{upper\PYZus{}bound} \PY{o}{=} \PY{l+m+mf}{1000.}  \PY{c+c1}{\PYZsh{} This is the default}
+        
+        \PY{n}{maeA\PYZus{}model} \PY{o}{=} \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+        \PY{n}{maeA\PYZus{}model}\PY{o}{.}\PY{n}{add\PYZus{}reaction}\PY{p}{(}\PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{p}{)}
+        
+        \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} cite: }
+        \PY{l+s+sd}{https://www.uniprot.org/uniprot/C3TAB2}
+        \PY{l+s+sd}{https://en.wikipedia.org/wiki/Malate\PYZus{}dehydrogenase\PYZus{}(oxaloacetate\PYZhy{}decarboxylating)}
+        \PY{l+s+sd}{https://enzyme.expasy.org/EC/1.1.1.38}
+        
+        
+        \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{}}
+        
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{o}{.}\PY{n}{add\PYZus{}metabolites}\PY{p}{(}\PY{p}{\PYZob{}}
+            \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{oaa\PYZus{}c}\PY{l+s+s1}{\PYZsq{}}\PY{p}{:} \PY{o}{\PYZhy{}}\PY{l+m+mf}{1.0}\PY{p}{,}
+            \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{pyr\PYZus{}c}\PY{l+s+s1}{\PYZsq{}}\PY{p}{:} \PY{l+m+mf}{1.0}\PY{p}{,}
+            \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{co2\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{:} \PY{l+m+mf}{1.0}\PY{p}{,}
+        \PY{p}{\PYZcb{}}\PY{p}{)}
+        
+        \PY{n}{maeA\PYZus{}side\PYZus{}reaction}\PY{o}{.}\PY{n}{reaction}
+\end{Verbatim}
+
+
+\begin{Verbatim}[commandchars=\\\{\}]
+{\color{outcolor}Out[{\color{outcolor}3}]:} 'oaa\_c --> co2\_e + pyr\_c'
+\end{Verbatim}
+            
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}4}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} TODO: USE CITROBACTER AS A CONTROL}
+        \PY{l+s+sd}{    PROBLEM: KBase and BiGG database IDs are not compatible!}
+        \PY{l+s+sd}{    Have to figure out how to do the mapping.. so skip this for now. }
+        \PY{l+s+sd}{    load the curated Citrobacter model (Cuepas et al. 2016)}
+        \PY{l+s+sd}{    use this model as a positive control to compare flux distribution.\PYZsq{}\PYZsq{}\PYZsq{}}
+        \PY{n}{citrobacter\PYZus{}model} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{io}\PY{o}{.}\PY{n}{read\PYZus{}sbml\PYZus{}model}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{../metabolic\PYZhy{}modeling/C.sedlakii\PYZus{}MAP\PYZus{}gapfill.sbml}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+        \PY{n}{citro\PYZus{}max\PYZus{}growth} \PY{o}{=} \PY{n}{citrobacter\PYZus{}model}\PY{o}{.}\PY{n}{slim\PYZus{}optimize}\PY{p}{(}\PY{p}{)}
+        \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} give citrobacter the same media as base\PYZsq{}\PYZsq{}\PYZsq{}}
+        \PY{n}{base\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+        \PY{c+c1}{\PYZsh{}citrobacter\PYZus{}model.medium = minimal\PYZus{}medium(base\PYZus{}model, max\PYZus{}growth)}
+\end{Verbatim}
+
+
+\begin{Verbatim}[commandchars=\\\{\}]
+{\color{outcolor}Out[{\color{outcolor}4}]:} \{'EX\_ca2\_e': 0.005113800273256523,
+         'EX\_cl\_e': 0.005113800273256523,
+         'EX\_cobalt2\_e': 2.4561960966649965e-05,
+         'EX\_cu2\_e': 0.000696577213014193,
+         'EX\_fe2\_e': 0.015779586200559713,
+         'EX\_glc\_\_D\_e': 1.0,
+         'EX\_k\_e': 0.19177291387853226,
+         'EX\_mg2\_e': 0.008523000455427539,
+         'EX\_mn2\_e': 0.0006788926011182051,
+         'EX\_mobd\_e': 0.00012673971858791382,
+         'EX\_nh4\_e': 10.611576699826303,
+         'EX\_ni2\_e': 0.0003173405356891175,
+         'EX\_o2\_e': 17.57432917781992,
+         'EX\_pi\_e': 0.9477291587688313,
+         'EX\_so4\_e': 0.24779088701595114,
+         'EX\_zn2\_e': 0.0003350251475851055\}
+\end{Verbatim}
+            
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}5}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} NOTE: This code uses BiGG model IDs (BiGG namespace).\PYZsq{}\PYZsq{}\PYZsq{}}
+        \PY{k}{def} \PY{n+nf}{generate\PYZus{}models}\PY{p}{(}\PY{n}{basemodel}\PY{p}{)}\PY{p}{:}
+            \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} Cit\PYZhy{} model growing on glucose (no citrate flux)\PYZsq{}\PYZsq{}\PYZsq{}}
+            \PY{n}{glucose\PYZus{}model} \PY{o}{=} \PY{n}{basemodel}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+            \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} Cit+ model on DM0 with citrate flux\PYZsq{}\PYZsq{}\PYZsq{}}
+            \PY{n}{DM0citrate\PYZus{}model} \PY{o}{=} \PY{n}{basemodel}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+            \PY{c+c1}{\PYZsh{}\PYZsh{} set glucose to zero, and citrate to 10.0.}
+            \PY{n}{DM0} \PY{o}{=} \PY{n}{DM0citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{n}{DM0}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{0.0}
+            \PY{n}{DM0}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{10.0}
+            \PY{n}{DM0citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM0}
+        
+            \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{in} \PY{n}{DM0citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{not} \PY{o+ow}{in} \PY{n}{DM0citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{in} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{k}{assert} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}} \PY{o+ow}{not} \PY{o+ow}{in} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+        
+            \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} Cit+ model on DM25 with citrate flux\PYZsq{}\PYZsq{}\PYZsq{}}
+            \PY{n}{DM25citrate\PYZus{}model} \PY{o}{=} \PY{n}{DM0citrate\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+            \PY{n}{DM25} \PY{o}{=} \PY{n}{DM25citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{n}{DM25}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{1.0}
+            \PY{n}{DM25}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{10.0}
+            \PY{n}{DM25citrate\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM25}
+        
+            \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} now make the fermentation (no O2 influx) models.\PYZsq{}\PYZsq{}\PYZsq{}}
+            \PY{n}{glucose\PYZus{}fermentation\PYZus{}model} \PY{o}{=} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+            \PY{n}{noO2\PYZus{}media} \PY{o}{=} \PY{n}{glucose\PYZus{}fermentation\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{n}{noO2\PYZus{}media}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}o2\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{0.0}
+            \PY{n}{glucose\PYZus{}fermentation\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{noO2\PYZus{}media}
+            
+            \PY{n}{DM0citrate\PYZus{}fermentation\PYZus{}model} \PY{o}{=} \PY{n}{DM0citrate\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+            \PY{n}{DM0\PYZus{}noO2\PYZus{}media} \PY{o}{=} \PY{n}{DM0citrate\PYZus{}fermentation\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{n}{DM0\PYZus{}noO2\PYZus{}media}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}o2\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{0.0}
+            \PY{n}{DM0citrate\PYZus{}fermentation\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM0\PYZus{}noO2\PYZus{}media}
+            
+            \PY{n}{DM25citrate\PYZus{}fermentation\PYZus{}model} \PY{o}{=} \PY{n}{DM25citrate\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+            \PY{n}{DM25\PYZus{}noO2\PYZus{}media} \PY{o}{=} \PY{n}{DM25citrate\PYZus{}fermentation\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+            \PY{n}{DM25\PYZus{}noO2\PYZus{}media}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}o2\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{l+m+mf}{0.0}
+            \PY{n}{DM25citrate\PYZus{}fermentation\PYZus{}model}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM25\PYZus{}noO2\PYZus{}media}
+            
+            
+            \PY{k}{return} \PY{p}{(}\PY{n}{glucose\PYZus{}model}\PY{p}{,} \PY{n}{DM0citrate\PYZus{}model}\PY{p}{,} \PY{n}{DM25citrate\PYZus{}model}\PY{p}{,}\PY{n}{glucose\PYZus{}fermentation\PYZus{}model}\PY{p}{,} \PY{n}{DM0citrate\PYZus{}fermentation\PYZus{}model}\PY{p}{,} \PY{n}{DM25citrate\PYZus{}fermentation\PYZus{}model}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}80}]:} \PY{n}{glucose\PYZus{}fba\PYZus{}solution} \PY{o}{=} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}fba\PYZus{}solution} \PY{o}{=} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}6}]:} \PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{p}{,} \PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{p}{,} \PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{p}{,}\PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}model}\PY{p}{,} \PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model}\PY{p}{,} \PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model} \PY{o}{=} \PY{n}{generate\PYZus{}models}\PY{p}{(}\PY{n}{base\PYZus{}model}\PY{p}{)}
+        
+        \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{p}{,} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{p}{,} \PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{p}{,}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}model}\PY{p}{,} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model}\PY{p}{,} \PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model} \PY{o}{=} \PY{n}{generate\PYZus{}models}\PY{p}{(}\PY{n}{maeA\PYZus{}model}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}81}]:} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}7}]:} \PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}solution} \PY{o}{=} \PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution} \PY{o}{=} \PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution} \PY{o}{=} \PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        
+        \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-IN FLUXES          OUT FLUXES    OBJECTIVES
------------------  ------------  ----------------------
-o2\_e    11.4       for\_e  25.6   BIOMASS\_Ec\_i{\ldots}  0.482
-cit\_e   10         co2\_e  14.7
-nh4\_e    5.2       h2o\_e   7.37
-pi\_e     0.465
-so4\_e    0.121
-k\_e      0.094
-fe2\_e    0.00774
-mg2\_e    0.00418
-cl\_e     0.00251
-ca2\_e    0.00251
-cu2\_e    0.000341
-mn2\_e    0.000333
-zn2\_e    0.000164
-ni2\_e    0.000156
-mobd\_e   6.21e-05
+{\color{incolor}In [{\color{incolor}8}]:} \PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}solution} \PY{o}{=} \PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}solution} \PY{o}{=} \PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}solution} \PY{o}{=} \PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        
+        \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+        \PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+cobra/util/solver.py:416 \textcolor{ansi-red-intense}{\textbf{UserWarning}}: solver status is 'infeasible'
 
     \end{Verbatim}
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}83}]:} \PY{n}{DM0\PYZus{}pfba\PYZus{}solution} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{flux\PYZus{}analysis}\PY{o}{.}\PY{n}{pfba}\PY{p}{(}\PY{n}{citrate\PYZus{}model}\PY{p}{)}
-         \PY{n}{DM25\PYZus{}pfba\PYZus{}solution} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{flux\PYZus{}analysis}\PY{o}{.}\PY{n}{pfba}\PY{p}{(}\PY{n}{glucose\PYZus{}model}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}9}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} all fermentation solutions are dead.\PYZsq{}\PYZsq{}\PYZsq{}}
+        \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}ferment\PYZus{}solution}\PY{o}{.}\PY{n}{objective\PYZus{}value}\PY{p}{)}
+        \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}solution}\PY{o}{.}\PY{n}{objective\PYZus{}value}\PY{p}{)}
+        \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}ferment\PYZus{}solution}\PY{o}{.}\PY{n}{objective\PYZus{}value}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}110}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} now add the OAD side reaction of maeA (sfcA) to the model.\PYZsq{}\PYZsq{}\PYZsq{}}
-          \PY{n}{citrate\PYZus{}model2} \PY{o}{=} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
-          
-          \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} existing oxaloacetate decarboxylation reaction \PYZhy{}\PYZhy{} is this the maeA side reaction under selection in DM0?}
-          
-          \PY{l+s+sd}{\PYZob{}}
-          \PY{l+s+sd}{\PYZdq{}id\PYZdq{}:\PYZdq{}OAADC\PYZdq{},}
-          \PY{l+s+sd}{\PYZdq{}name\PYZdq{}:\PYZdq{}Oxaloacetate decarboxylase\PYZdq{},}
-          \PY{l+s+sd}{\PYZdq{}metabolites\PYZdq{}:\PYZob{}}
-          \PY{l+s+sd}{\PYZdq{}co2\PYZus{}c\PYZdq{}:1.0,}
-          \PY{l+s+sd}{\PYZdq{}h\PYZus{}c\PYZdq{}:\PYZhy{}1.0,}
-          \PY{l+s+sd}{\PYZdq{}oaa\PYZus{}c\PYZdq{}:\PYZhy{}1.0,}
-          \PY{l+s+sd}{\PYZdq{}pyr\PYZus{}c\PYZdq{}:1.0}
-          \PY{l+s+sd}{\PYZcb{},}
-          \PY{l+s+sd}{\PYZdq{}lower\PYZus{}bound\PYZdq{}:0.0,}
-          \PY{l+s+sd}{\PYZdq{}upper\PYZus{}bound\PYZdq{}:1000.0,}
-          \PY{l+s+sd}{\PYZdq{}gene\PYZus{}reaction\PYZus{}rule\PYZdq{}:\PYZdq{}ECB\PYZus{}01821\PYZdq{},}
-          \PY{l+s+sd}{\PYZdq{}subsystem\PYZdq{}:\PYZdq{}Pyruvate Metabolism\PYZdq{},}
-          \PY{l+s+sd}{\PYZdq{}notes\PYZdq{}:\PYZob{}}
-          \PY{l+s+sd}{\PYZdq{}original\PYZus{}bigg\PYZus{}ids\PYZdq{}:[}
-          \PY{l+s+sd}{\PYZdq{}OAADC\PYZdq{}}
-          \PY{l+s+sd}{]}
-          \PY{l+s+sd}{\PYZcb{}\PYZsq{}\PYZsq{}\PYZsq{}}
-\end{Verbatim}
+0.0
+0.0
+7.550017039170328e-30
 
+    \end{Verbatim}
 
-\begin{Verbatim}[commandchars=\\\{\}]
-{\color{outcolor}Out[{\color{outcolor}110}]:} '\{\textbackslash{}n"id":"OAADC",\textbackslash{}n"name":"Oxaloacetate decarboxylase",\textbackslash{}n"metabolites":\{\textbackslash{}n"co2\_c":1.0,\textbackslash{}n"h\_c":-1.0,\textbackslash{}n"oaa\_c":-1.0,\textbackslash{}n"pyr\_c":1.0\textbackslash{}n\},\textbackslash{}n"lower\_bound":0.0,\textbackslash{}n"upper\_bound":1000.0,\textbackslash{}n"gene\_reaction\_rule":"ECB\_01821",\textbackslash{}n"subsystem":"Pyruvate Metabolism",\textbackslash{}n"notes":\{\textbackslash{}n"original\_bigg\_ids":[\textbackslash{}n"OAADC"\textbackslash{}n]\textbackslash{}n\}'
-\end{Verbatim}
-            
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}90}]:} \PY{n}{old\PYZus{}oad\PYZus{}decarboxylation} \PY{o}{=} \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{reactions}\PY{o}{.}\PY{n}{get\PYZus{}by\PYZus{}id}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{OAADC}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
-         \PY{n}{oad\PYZus{}decarboxylation} \PY{o}{=} \PY{n}{old\PYZus{}oad\PYZus{}decarboxylation}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
-         \PY{n}{oad\PYZus{}decarboxylation}\PY{o}{.}\PY{n}{gene\PYZus{}reaction\PYZus{}rule} \PY{o}{=} \PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{( ECB\PYZus{}01821 or ECB\PYZus{}01437 )}\PY{l+s+s1}{\PYZsq{}}
-         \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{remove\PYZus{}reactions}\PY{p}{(}\PY{p}{[}\PY{n}{old\PYZus{}oad\PYZus{}decarboxylation}\PY{p}{]}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{add\PYZus{}reaction}\PY{p}{(}\PY{n}{oad\PYZus{}decarboxylation}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{reactions}\PY{o}{.}\PY{n}{get\PYZus{}by\PYZus{}id}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{OAADC}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
-\end{Verbatim}
-
-
-\begin{Verbatim}[commandchars=\\\{\}]
-{\color{outcolor}Out[{\color{outcolor}90}]:} <Reaction OAADC at 0x13126d66d8>
-\end{Verbatim}
-            
-    \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}96}]:} \PY{n}{citrate\PYZus{}fba\PYZus{}solution2} \PY{o}{=} \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
-         \PY{n}{DM0\PYZus{}pfba\PYZus{}solution2} \PY{o}{=} \PY{n}{cobra}\PY{o}{.}\PY{n}{flux\PYZus{}analysis}\PY{o}{.}\PY{n}{pfba}\PY{p}{(}\PY{n}{citrate\PYZus{}model2}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}10}]:} \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{o}{.}\PY{n}{objective\PYZus{}value}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{o}{.}\PY{n}{objective\PYZus{}value}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{o}{.}\PY{n}{objective\PYZus{}value}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}97}]:} \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{mal\PYZus{}\PYZus{}L\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{oaa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model2}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
+0.08648808133366338
+0.5774694918498211
+0.6877045311129086
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}11}]:} \PY{k}{def} \PY{n+nf}{print\PYZus{}metabolites}\PY{p}{(}\PY{n}{mymodel}\PY{p}{)}\PY{p}{:}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{cit\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{acon\PYZus{}C\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{icit\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{mal\PYZus{}\PYZus{}L\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+             \PY{n+nb}{print}\PY{p}{(}\PY{n}{mymodel}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{oaa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-PRODUCING REACTIONS -- L-Malate (mal\_\_L\_c)
-------------------------------------------
-\%       FLUX  RXN ID    REACTION
-----  ------  --------  ---------------------------------------------
-100\%   13.2   FUM       fum\_c + h2o\_c <=> mal\_\_L\_c
+{\color{incolor}In [{\color{incolor}12}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} no predicted flux through Citrate Lyase.\PYZsq{}\PYZsq{}\PYZsq{}}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{CITL}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{CITL}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{CITL}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+\end{Verbatim}
 
-CONSUMING REACTIONS -- L-Malate (mal\_\_L\_c)
-------------------------------------------
-\%       FLUX  RXN ID    REACTION
-----  ------  --------  ---------------------------------------------
-47\%     6.19  ME2       mal\_\_L\_c + nadp\_c --> co2\_c + nadph\_c + pyr\_c
-45\%     5.99  MDH       mal\_\_L\_c + nad\_c <=> h\_c + nadh\_c + oaa\_c
-8\%      1.05  DMALRED   fad\_c + mal\_\_L\_c --> fadh2\_c + oaa\_c
-PRODUCING REACTIONS -- Oxaloacetate (oaa\_c)
--------------------------------------------
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+0.0
+0.0
+0.0
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}13}]:} \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME1}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME1}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME1}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+0.0
+0.0
+0.0
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}14}]:} \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME2}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME2}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME2}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+0.0
+6.187856834140581
+6.791459892307894
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}15}]:} \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME1}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME1}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME1}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+0.0
+0.0
+0.0
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}16}]:} \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME2}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME2}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{ME2}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+0.0
+6.187856834140581
+6.791459892307894
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}17}]:} \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{MAEA}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{MAEA}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}solution}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{MAEA}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+0.0
+19.600451438519187
+16.223185320804287
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}22}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} look at pyruvate in the old models\PYZsq{}\PYZsq{}\PYZsq{}}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+PRODUCING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
 \%      FLUX  RXN ID    REACTION
----  ------  --------  -----------------------------------------------
-85\%    5.99  MDH       mal\_\_L\_c + nad\_c <=> h\_c + nadh\_c + oaa\_c
-15\%    1.05  DMALRED   fad\_c + mal\_\_L\_c --> fadh2\_c + oaa\_c
+---  ------  --------  --------------------------------------------------
+80\%  1       GLCptspp  glc\_\_D\_p + pep\_c --> g6p\_c + pyr\_c
+19\%  0.244   PYK       adp\_c + h\_c + pep\_c --> atp\_c + pyr\_c
+1\%   0.0133  CYSTL     cyst\_\_L\_c + h2o\_c --> hcys\_\_L\_c + nh4\_c + pyr\_c
 
-CONSUMING REACTIONS -- Oxaloacetate (oaa\_c)
--------------------------------------------
+CONSUMING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
 \%      FLUX  RXN ID    REACTION
----  ------  --------  -----------------------------------------------
-46\%    3.24  CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
-34\%    2.39  PPCK      atp\_c + oaa\_c --> adp\_c + co2\_c + pep\_c
-20\%    1.41  ASPTA     akg\_c + asp\_\_L\_c <=> glu\_\_L\_c + oaa\_c
+---  ------  --------  --------------------------------------------------
+79\%  0.989   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+12\%  0.151   ACLS      h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
+4\%   0.0503  ALATA\_L   akg\_c + ala\_\_L\_c <=> glu\_\_L\_c + pyr\_c
+3\%   0.0321  DHDPS     aspsa\_c + pyr\_c --> 23dhdp\_c + 2.0 h2o\_c + h\_c
+2\%   0.0251  ACHBS     2obut\_c + h\_c + pyr\_c --> 2ahbut\_c + co2\_c
+None
+************************
+PRODUCING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
+\%      FLUX  RXN ID      REACTION
+---  ------  ----------  --------------------------------------------------
+74\%  19.4    POR5        coa\_c + 2.0 flxso\_c + pyr\_c <=> accoa\_c + co2\_c{\ldots}
+26\%   6.79   ME2         mal\_\_L\_c + nadp\_c --> co2\_c + nadph\_c + pyr\_c
+
+CONSUMING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
+\%      FLUX  RXN ID      REACTION
+---  ------  ----------  --------------------------------------------------
+94\%  24.5    PFL         coa\_c + pyr\_c --> accoa\_c + for\_c
+4\%    1.04   ACLS        h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
+1\%    0.347  VPAMTr\_{\ldots}  3mob\_c + ala\_\_L\_c <=> pyr\_c + val\_\_L\_c
+None
+************************
 PRODUCING REACTIONS -- Pyruvate (pyr\_c)
 ---------------------------------------
 \%      FLUX  RXN ID    REACTION
@@ -457,113 +640,344 @@ CONSUMING REACTIONS -- Pyruvate (pyr\_c)
 95\%  25.6    PFL       coa\_c + pyr\_c --> accoa\_c + for\_c
 3\%    0.842  ACLS      h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
 2\%    0.484  ALATA\_L   akg\_c + ala\_\_L\_c <=> glu\_\_L\_c + pyr\_c
+None
 
     \end{Verbatim}
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}98}]:} \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{mal\PYZus{}\PYZus{}L\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{oaa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
-         \PY{n}{citrate\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}18}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} look at pyruvate in the models\PYZsq{}\PYZsq{}\PYZsq{}}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-PRODUCING REACTIONS -- L-Malate (mal\_\_L\_c)
-------------------------------------------
-\%       FLUX  RXN ID    REACTION
-----  ------  --------  ---------------------------------------------
-100\%   13.2   FUM       fum\_c + h2o\_c <=> mal\_\_L\_c
-
-CONSUMING REACTIONS -- L-Malate (mal\_\_L\_c)
-------------------------------------------
-\%       FLUX  RXN ID    REACTION
-----  ------  --------  ---------------------------------------------
-47\%     6.19  ME2       mal\_\_L\_c + nadp\_c --> co2\_c + nadph\_c + pyr\_c
-45\%     5.99  MDH       mal\_\_L\_c + nad\_c <=> h\_c + nadh\_c + oaa\_c
-8\%      1.05  DMALRED   fad\_c + mal\_\_L\_c --> fadh2\_c + oaa\_c
-PRODUCING REACTIONS -- Oxaloacetate (oaa\_c)
--------------------------------------------
-\%      FLUX  RXN ID    REACTION
----  ------  --------  -----------------------------------------------
-85\%    5.99  MDH       mal\_\_L\_c + nad\_c <=> h\_c + nadh\_c + oaa\_c
-15\%    1.05  DMALRED   fad\_c + mal\_\_L\_c --> fadh2\_c + oaa\_c
-
-CONSUMING REACTIONS -- Oxaloacetate (oaa\_c)
--------------------------------------------
-\%      FLUX  RXN ID    REACTION
----  ------  --------  -----------------------------------------------
-46\%    3.24  CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
-34\%    2.39  PPCK      atp\_c + oaa\_c --> adp\_c + co2\_c + pep\_c
-20\%    1.41  ASPTA     akg\_c + asp\_\_L\_c <=> glu\_\_L\_c + oaa\_c
 PRODUCING REACTIONS -- Pyruvate (pyr\_c)
 ---------------------------------------
 \%      FLUX  RXN ID    REACTION
 ---  ------  --------  --------------------------------------------------
-77\%  20.8    POR5      coa\_c + 2.0 flxso\_c + pyr\_c <=> accoa\_c + co2\_c{\ldots}
-23\%   6.19   ME2       mal\_\_L\_c + nadp\_c --> co2\_c + nadph\_c + pyr\_c
+80\%  1       GLCptspp  glc\_\_D\_p + pep\_c --> g6p\_c + pyr\_c
+19\%  0.244   PYK       adp\_c + h\_c + pep\_c --> atp\_c + pyr\_c
+1\%   0.0133  CYSTL     cyst\_\_L\_c + h2o\_c --> hcys\_\_L\_c + nh4\_c + pyr\_c
 
 CONSUMING REACTIONS -- Pyruvate (pyr\_c)
 ---------------------------------------
 \%      FLUX  RXN ID    REACTION
 ---  ------  --------  --------------------------------------------------
-95\%  25.6    PFL       coa\_c + pyr\_c --> accoa\_c + for\_c
-3\%    0.842  ACLS      h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
-1\%    0.28   ALATA\_L   akg\_c + ala\_\_L\_c <=> glu\_\_L\_c + pyr\_c
+79\%  0.989   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+12\%  0.151   ACLS      h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
+4\%   0.0503  ALATA\_L   akg\_c + ala\_\_L\_c <=> glu\_\_L\_c + pyr\_c
+3\%   0.0321  DHDPS     aspsa\_c + pyr\_c --> 23dhdp\_c + 2.0 h2o\_c + h\_c
+2\%   0.0251  ACHBS     2obut\_c + h\_c + pyr\_c --> 2ahbut\_c + co2\_c
+None
+************************
+PRODUCING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
+\%       FLUX  RXN ID      REACTION
+----  ------  ----------  --------------------------------------------------
+100\%  16.2    MAEA        oaa\_c --> co2\_e + pyr\_c
+
+CONSUMING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
+\%       FLUX  RXN ID      REACTION
+----  ------  ----------  --------------------------------------------------
+46\%    7.53   PFL         coa\_c + pyr\_c --> accoa\_c + for\_c
+30\%    4.89   PDH         coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+11\%    1.77   PPS         atp\_c + h2o\_c + pyr\_c --> amp\_c + 2.0 h\_c + pep{\ldots}
+7\%     1.2    ACLS        h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
+2\%     0.4    VPAMTr\_{\ldots}  3mob\_c + ala\_\_L\_c <=> pyr\_c + val\_\_L\_c
+2\%     0.255  DHDPS       aspsa\_c + pyr\_c --> 23dhdp\_c + 2.0 h2o\_c + h\_c
+1\%     0.2    ACHBS       2obut\_c + h\_c + pyr\_c --> 2ahbut\_c + co2\_c
+None
+************************
+PRODUCING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
+\%      FLUX  RXN ID      REACTION
+---  ------  ----------  --------------------------------------------------
+99\%  19.6    MAEA        oaa\_c --> co2\_e + pyr\_c
+1\%    0.244  VPAMTr\_{\ldots}  3mob\_c + ala\_\_L\_c <=> pyr\_c + val\_\_L\_c
+
+CONSUMING REACTIONS -- Pyruvate (pyr\_c)
+---------------------------------------
+\%      FLUX  RXN ID      REACTION
+---  ------  ----------  --------------------------------------------------
+50\%   9.91   PDH         coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+26\%   5.16   PFL         coa\_c + pyr\_c --> accoa\_c + for\_c
+14\%   2.83   PPS         atp\_c + h2o\_c + pyr\_c --> amp\_c + 2.0 h\_c + pep{\ldots}
+5\%    1.01   ACLS        h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
+3\%    0.58   ALATA\_L     akg\_c + ala\_\_L\_c <=> glu\_\_L\_c + pyr\_c
+1\%    0.214  DHDPS       aspsa\_c + pyr\_c --> 23dhdp\_c + 2.0 h2o\_c + h\_c
+None
 
     \end{Verbatim}
 
     \begin{Verbatim}[commandchars=\\\{\}]
-{\color{incolor}In [{\color{incolor}99}]:} \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{mal\PYZus{}\PYZus{}L\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
-         \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{oaa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
-         \PY{n}{glucose\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{pyr\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}
+{\color{incolor}In [{\color{incolor}19}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} let us look for reactions which increase flux in response to higher glucose input,}
+         \PY{l+s+sd}{    but decrease flux in response to higher citrate input, or vice\PYZhy{}versa.}
+         \PY{l+s+sd}{    These would be candidate reactions for antagonistic pleiotropy.\PYZsq{}\PYZsq{}\PYZsq{}}
+         
+         \PY{c+c1}{\PYZsh{}\PYZsh{} increment glucose or citrate influx from 10.0 to 11.0.}
+         \PY{c+c1}{\PYZsh{}\PYZsh{} note that result is somewhat sensitive to +/\PYZhy{} epsilon: MAEA is pleiotropic for \PYZhy{}e but not +e.}
+         \PY{n}{epsilon} \PY{o}{=} \PY{l+m+mf}{0.01}
+         
+         \PY{n}{glucose\PYZus{}model\PYZus{}dx} \PY{o}{=} \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+         \PY{n}{citrate\PYZus{}model\PYZus{}dy} \PY{o}{=} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{copy}\PY{p}{(}\PY{p}{)}
+         \PY{n}{DM25\PYZus{}dx} \PY{o}{=} \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+         \PY{n}{DM0\PYZus{}dy} \PY{o}{=} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{medium}
+         \PY{n}{DM25\PYZus{}dx}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{n}{DM25\PYZus{}dx}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}glc\PYZus{}\PYZus{}D\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{\PYZhy{}} \PY{n}{epsilon}
+         \PY{n}{DM0\PYZus{}dy}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{n}{DM0\PYZus{}dy}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{EX\PYZus{}cit\PYZus{}e}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{\PYZhy{}} \PY{n}{epsilon}
+         \PY{n}{glucose\PYZus{}model\PYZus{}dx}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM25\PYZus{}dx}
+         \PY{n}{citrate\PYZus{}model\PYZus{}dy}\PY{o}{.}\PY{n}{medium} \PY{o}{=} \PY{n}{DM0\PYZus{}dy}
+         \PY{n}{glucose\PYZus{}dx\PYZus{}solution} \PY{o}{=} \PY{n}{glucose\PYZus{}model\PYZus{}dx}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+         \PY{n}{citrate\PYZus{}dy\PYZus{}solution} \PY{o}{=} \PY{n}{citrate\PYZus{}model\PYZus{}dy}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+         
+         \PY{n}{citrate\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+         \PY{n}{glucose\PYZus{}solution} \PY{o}{=} \PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{optimize}\PY{p}{(}\PY{p}{)}
+         
+         \PY{n}{dCdy} \PY{o}{=} \PY{n}{citrate\PYZus{}dy\PYZus{}solution}\PY{o}{.}\PY{n}{fluxes} \PY{o}{\PYZhy{}} \PY{n}{citrate\PYZus{}solution}\PY{o}{.}\PY{n}{fluxes}
+         \PY{n}{dGdx} \PY{o}{=} \PY{n}{glucose\PYZus{}dx\PYZus{}solution}\PY{o}{.}\PY{n}{fluxes} \PY{o}{\PYZhy{}} \PY{n}{glucose\PYZus{}solution}\PY{o}{.}\PY{n}{fluxes}
+         
+         \PY{n}{flux\PYZus{}derivative} \PY{o}{=} \PY{n}{pd}\PY{o}{.}\PY{n}{DataFrame}\PY{p}{(}\PY{p}{\PYZob{}}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dCdy}\PY{l+s+s1}{\PYZsq{}}\PY{p}{:}\PY{n}{dCdy}\PY{p}{,}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dGdx}\PY{l+s+s1}{\PYZsq{}}\PY{p}{:}\PY{n}{dGdx}\PY{p}{\PYZcb{}}\PY{p}{)}
+         \PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{vec\PYZus{}norm}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{n}{np}\PY{o}{.}\PY{n}{sqrt}\PY{p}{(}\PY{n}{np}\PY{o}{.}\PY{n}{square}\PY{p}{(}\PY{n}{flux\PYZus{}derivative}\PY{p}{)}\PY{o}{.}\PY{n}{sum}\PY{p}{(}\PY{n}{axis}\PY{o}{=}\PY{l+m+mi}{1}\PY{p}{)}\PY{p}{)}
+         \PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{product}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{=} \PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dCdy}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{o}{*}\PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dGdx}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}
 \end{Verbatim}
 
 
     \begin{Verbatim}[commandchars=\\\{\}]
-PRODUCING REACTIONS -- L-Malate (mal\_\_L\_c)
-------------------------------------------
-\%       FLUX  RXN ID    REACTION
-----  ------  --------  -----------------------------------------
-100\%    4.82  FUM       fum\_c + h2o\_c <=> mal\_\_L\_c
+{\color{incolor}In [{\color{incolor}20}]:} \PY{n}{flux\PYZus{}derivative2} \PY{o}{=} \PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{vec\PYZus{}norm}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]} \PY{o}{\PYZgt{}} \PY{n}{epsilon}\PY{p}{]}
+\end{Verbatim}
 
-CONSUMING REACTIONS -- L-Malate (mal\_\_L\_c)
-------------------------------------------
-\%       FLUX  RXN ID    REACTION
-----  ------  --------  -----------------------------------------
-55\%     2.68  MDH       mal\_\_L\_c + nad\_c <=> h\_c + nadh\_c + oaa\_c
-45\%     2.15  DMALRED   fad\_c + mal\_\_L\_c --> fadh2\_c + oaa\_c
-PRODUCING REACTIONS -- Oxaloacetate (oaa\_c)
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}21}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} this result shows no tradeoff between glucose and citrate, neglecting the costs of gene expression.}
+         \PY{l+s+sd}{    what if I fix oxaloacetate decarboxylation at some value? Perhaps some tradeoff. But gene regulation could}
+         \PY{l+s+sd}{    alleviate the tradeoff.\PYZsq{}\PYZsq{}\PYZsq{}}
+         
+         \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} my initial thinking/result was that maeA flux is sensitive to changes in glucose and citrate.}
+         \PY{l+s+sd}{    But this finding does not seem to hold up\PYZhy{}\PYZhy{} this idea is cool so I keep the code, but \PYZdq{}result\PYZdq{}}
+         \PY{l+s+sd}{    will not be presented.\PYZsq{}\PYZsq{}\PYZsq{}}
+         
+         \PY{n}{dGdx\PYZus{}norm} \PY{o}{=} \PY{n}{np}\PY{o}{.}\PY{n}{sqrt}\PY{p}{(}\PY{n}{np}\PY{o}{.}\PY{n}{square}\PY{p}{(}\PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dGdx}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}\PY{o}{.}\PY{n}{sum}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n}{dCdy\PYZus{}norm} \PY{o}{=} \PY{n}{np}\PY{o}{.}\PY{n}{sqrt}\PY{p}{(}\PY{n}{np}\PY{o}{.}\PY{n}{square}\PY{p}{(}\PY{n}{flux\PYZus{}derivative}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dCdy}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}\PY{o}{.}\PY{n}{sum}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n}{theta} \PY{o}{=} \PY{n}{np}\PY{o}{.}\PY{n}{arccos}\PY{p}{(}\PY{n}{flux\PYZus{}derivative2}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dCdy}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{o}{.}\PY{n}{dot}\PY{p}{(}\PY{n}{flux\PYZus{}derivative2}\PY{p}{[}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{dGdx}\PY{l+s+s1}{\PYZsq{}}\PY{p}{]}\PY{p}{)}\PY{o}{/}\PY{p}{(}\PY{n}{dGdx\PYZus{}norm}\PY{o}{*}\PY{n}{dCdy\PYZus{}norm}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{theta}\PY{p}{)}
+         \PY{n}{flux\PYZus{}derivative2}\PY{o}{.}\PY{n}{sort\PYZus{}values}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{vec\PYZus{}norm}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}\PY{o}{.}\PY{n}{round}\PY{p}{(}\PY{l+m+mi}{2}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+1.5273503961756658
+
+    \end{Verbatim}
+
+\begin{Verbatim}[commandchars=\\\{\}]
+{\color{outcolor}Out[{\color{outcolor}21}]:}               dCdy  dGdx  vec\_norm  product
+         EX\_glc\_\_D\_e   0.00  0.01      0.01     0.00
+         GLCtex\_copy1  0.00 -0.01      0.01    -0.00
+         GLCptspp      0.00 -0.01      0.01    -0.00
+         ICL          -0.01  0.00      0.01    -0.00
+         MALS         -0.01 -0.00      0.01     0.00
+         PDH          -0.01 -0.01      0.01     0.00
+         EX\_nh4\_e      0.01  0.01      0.01     0.00
+         NH4tpp       -0.01 -0.01      0.01     0.00
+         NH4tex       -0.01 -0.01      0.01     0.00
+         FUM          -0.01 -0.00      0.01     0.00
+         ACONTa       -0.01 -0.00      0.01     0.00
+         ACONTb       -0.01 -0.00      0.01     0.00
+         PGM          -0.00  0.01      0.01    -0.00
+         ENO           0.00 -0.01      0.01    -0.00
+         PGK          -0.00  0.02      0.02    -0.00
+         GAPD          0.00 -0.02      0.02    -0.00
+         MAEA         -0.02  0.00      0.02    -0.00
+         MDH          -0.02 -0.00      0.02     0.00
+         CO2tpp        0.01  0.02      0.02     0.00
+         CO2tex        0.01  0.02      0.02     0.00
+         EX\_o2\_e       0.02  0.02      0.02     0.00
+         O2tex        -0.02 -0.02      0.02     0.00
+         O2tpp        -0.02 -0.02      0.02     0.00
+         EX\_co2\_e     -0.03 -0.02      0.04     0.00
+         NADH16pp     -0.02 -0.03      0.04     0.00
+         CYTBO3\_4pp   -0.03 -0.03      0.05     0.00
+         H2Otex        0.03  0.05      0.05     0.00
+         EX\_h2o\_e     -0.03 -0.05      0.05     0.00
+         H2Otpp        0.03  0.05      0.05     0.00
+         ATPS4rpp     -0.05 -0.05      0.07     0.00
+         SUCDi         0.18 -0.00      0.18    -0.00
+         DHORDfum      0.19  0.00      0.19     0.00
+         DHORD2       -0.19 -0.00      0.19     0.00
+         SUCOAS        0.30  0.00      0.30     0.00
+         ACCOAL       -0.30  0.00      0.30    -0.00
+         PPCSCT       -0.30  0.00      0.30    -0.00
+         VALTA        -0.58  0.00      0.58    -0.00
+         VPAMTr\_copy1 -0.58  0.00      0.58    -0.00
+         ALATA\_L       0.58  0.00      0.58     0.00
+         NDPK1         4.68 -0.00      4.68    -0.00
+         ADK3          4.68  0.00      4.68     0.00
+         PRPPS         4.68  0.00      4.68     0.01
+         R15BPK       -4.68 -0.00      4.68     0.01
+         R1PK         -4.68 -0.00      4.68     0.01
+         PPM           4.68  0.00      4.68     0.01
+\end{Verbatim}
+            
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}24}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} look at acetyl\PYZhy{}CoA in the old models\PYZsq{}\PYZsq{}\PYZsq{}}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{old\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+PRODUCING REACTIONS -- Acetyl-CoA (accoa\_c)
 -------------------------------------------
 \%      FLUX  RXN ID    REACTION
----  ------  --------  -----------------------------------------------
-38\%    2.91  PPC       co2\_c + h2o\_c + pep\_c --> h\_c + oaa\_c + pi\_c
-35\%    2.68  MDH       mal\_\_L\_c + nad\_c <=> h\_c + nadh\_c + oaa\_c
-28\%    2.15  DMALRED   fad\_c + mal\_\_L\_c --> fadh2\_c + oaa\_c
+---  ------  --------  --------------------------------------------------
+95\%  0.989   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+5\%   0.0504  ACS       ac\_c + atp\_c + coa\_c --> accoa\_c + amp\_c + ppi\_c
 
-CONSUMING REACTIONS -- Oxaloacetate (oaa\_c)
+CONSUMING REACTIONS -- Acetyl-CoA (accoa\_c)
 -------------------------------------------
 \%      FLUX  RXN ID    REACTION
----  ------  --------  -----------------------------------------------
-63\%    4.86  CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
-37\%    2.88  ASPTA     akg\_c + asp\_\_L\_c <=> glu\_\_L\_c + oaa\_c
-PRODUCING REACTIONS -- Pyruvate (pyr\_c)
----------------------------------------
+---  ------  --------  --------------------------------------------------
+69\%  0.715   CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
+6\%   0.0616  ACACT1r   2.0 accoa\_c <=> aacoa\_c + coa\_c
+4\%   0.039   IPPS      3mob\_c + accoa\_c + h2o\_c --> 3c3hmp\_c + coa\_c +{\ldots}
+3\%   0.0308  ACACT3r   accoa\_c + hxcoa\_c <=> 3oocoa\_c + coa\_c
+3\%   0.0308  ACACT4r   accoa\_c + occoa\_c <=> 3odcoa\_c + coa\_c
+3\%   0.0308  ACACT5r   accoa\_c + dcacoa\_c <=> 3oddcoa\_c + coa\_c
+3\%   0.0308  ACACT2r   accoa\_c + btcoa\_c <=> 3ohcoa\_c + coa\_c
+2\%   0.0256  ACGS      accoa\_c + glu\_\_L\_c --> acglu\_c + coa\_c + h\_c
+2\%   0.024   ACACT6r   accoa\_c + ddcacoa\_c <=> 3otdcoa\_c + coa\_c
+2\%   0.024   ACACT7r   accoa\_c + tdcoa\_c <=> 3ohdcoa\_c + coa\_c
+2\%   0.0214  SERAT     accoa\_c + ser\_\_L\_c <=> acser\_c + coa\_c
+None
+************************
+PRODUCING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
 \%      FLUX  RXN ID    REACTION
 ---  ------  --------  --------------------------------------------------
-91\%  10      GLCptspp  glc\_\_D\_p + pep\_c --> g6p\_c + pyr\_c
-8\%    0.864  PYK       adp\_c + h\_c + pep\_c --> atp\_c + pyr\_c
-1\%    0.151  CYSTL     cyst\_\_L\_c + h2o\_c --> hcys\_\_L\_c + nh4\_c + pyr\_c
+99\%  24.5    PFL       coa\_c + pyr\_c --> accoa\_c + for\_c
+1\%    0.348  PTAr      accoa\_c + pi\_c <=> actp\_c + coa\_c
 
-CONSUMING REACTIONS -- Pyruvate (pyr\_c)
----------------------------------------
+CONSUMING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
 \%      FLUX  RXN ID    REACTION
 ---  ------  --------  --------------------------------------------------
-72\%   7.97   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
-16\%   1.72   ACLS      h\_c + 2.0 pyr\_c --> alac\_\_S\_c + co2\_c
-5\%    0.571  ALATA\_L   akg\_c + ala\_\_L\_c <=> glu\_\_L\_c + pyr\_c
-3\%    0.364  DHDPS     aspsa\_c + pyr\_c --> 23dhdp\_c + 2.0 h2o\_c + h\_c
-3\%    0.285  ACHBS     2obut\_c + h\_c + pyr\_c --> 2ahbut\_c + co2\_c
-1\%    0.107  POR5      coa\_c + 2.0 flxso\_c + pyr\_c <=> accoa\_c + co2\_c{\ldots}
+78\%  19.4    POR5      coa\_c + 2.0 flxso\_c + pyr\_c <=> accoa\_c + co2\_c{\ldots}
+13\%   3.14   CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
+2\%    0.425  ACACT1r   2.0 accoa\_c <=> aacoa\_c + coa\_c
+1\%    0.269  IPPS      3mob\_c + accoa\_c + h2o\_c --> 3c3hmp\_c + coa\_c +{\ldots}
+None
+************************
+PRODUCING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+99\%  25.6    PFL       coa\_c + pyr\_c --> accoa\_c + for\_c
+1\%    0.281  ACS       ac\_c + atp\_c + coa\_c --> accoa\_c + amp\_c + ppi\_c
+
+CONSUMING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+80\%  20.8    POR5      coa\_c + 2.0 flxso\_c + pyr\_c <=> accoa\_c + co2\_c{\ldots}
+13\%   3.24   CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
+1\%    0.343  ACACT1r   2.0 accoa\_c <=> aacoa\_c + coa\_c
+None
+
+    \end{Verbatim}
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+{\color{incolor}In [{\color{incolor}25}]:} \PY{l+s+sd}{\PYZsq{}\PYZsq{}\PYZsq{} look at acetyl\PYZhy{}CoA in the models\PYZsq{}\PYZsq{}\PYZsq{}}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}cit\PYZus{}minus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM25\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{l+s+s1}{\PYZsq{}}\PY{l+s+s1}{************************}\PY{l+s+s1}{\PYZsq{}}\PY{p}{)}
+         \PY{n+nb}{print}\PY{p}{(}\PY{n}{new\PYZus{}DM0\PYZus{}cit\PYZus{}plus\PYZus{}model}\PY{o}{.}\PY{n}{metabolites}\PY{o}{.}\PY{n}{accoa\PYZus{}c}\PY{o}{.}\PY{n}{summary}\PY{p}{(}\PY{p}{)}\PY{p}{)}
+\end{Verbatim}
+
+
+    \begin{Verbatim}[commandchars=\\\{\}]
+PRODUCING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+95\%  0.989   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+5\%   0.0504  ACS       ac\_c + atp\_c + coa\_c --> accoa\_c + amp\_c + ppi\_c
+
+CONSUMING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+69\%  0.715   CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
+6\%   0.0616  ACACT1r   2.0 accoa\_c <=> aacoa\_c + coa\_c
+4\%   0.039   IPPS      3mob\_c + accoa\_c + h2o\_c --> 3c3hmp\_c + coa\_c +{\ldots}
+3\%   0.0308  ACACT3r   accoa\_c + hxcoa\_c <=> 3oocoa\_c + coa\_c
+3\%   0.0308  ACACT4r   accoa\_c + occoa\_c <=> 3odcoa\_c + coa\_c
+3\%   0.0308  ACACT5r   accoa\_c + dcacoa\_c <=> 3oddcoa\_c + coa\_c
+3\%   0.0308  ACACT2r   accoa\_c + btcoa\_c <=> 3ohcoa\_c + coa\_c
+2\%   0.0256  ACGS      accoa\_c + glu\_\_L\_c --> acglu\_c + coa\_c + h\_c
+2\%   0.024   ACACT6r   accoa\_c + ddcacoa\_c <=> 3otdcoa\_c + coa\_c
+2\%   0.024   ACACT7r   accoa\_c + tdcoa\_c <=> 3ohdcoa\_c + coa\_c
+2\%   0.0214  SERAT     accoa\_c + ser\_\_L\_c <=> acser\_c + coa\_c
+None
+************************
+PRODUCING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+59\%   7.53   PFL       coa\_c + pyr\_c --> accoa\_c + for\_c
+38\%   4.89   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+3\%    0.401  ACS       ac\_c + atp\_c + coa\_c --> accoa\_c + amp\_c + ppi\_c
+
+CONSUMING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+64\%   8.26   MALS      accoa\_c + glx\_c + h2o\_c --> coa\_c + h\_c + mal\_\_L\_c
+16\%   1.99   CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
+4\%    0.489  ACACT1r   2.0 accoa\_c <=> aacoa\_c + coa\_c
+2\%    0.31   IPPS      3mob\_c + accoa\_c + h2o\_c --> 3c3hmp\_c + coa\_c +{\ldots}
+2\%    0.245  ACACT2r   accoa\_c + btcoa\_c <=> 3ohcoa\_c + coa\_c
+2\%    0.245  ACACT3r   accoa\_c + hxcoa\_c <=> 3oocoa\_c + coa\_c
+2\%    0.245  ACACT4r   accoa\_c + occoa\_c <=> 3odcoa\_c + coa\_c
+2\%    0.245  ACACT5r   accoa\_c + dcacoa\_c <=> 3oddcoa\_c + coa\_c
+2\%    0.203  ACGS      accoa\_c + glu\_\_L\_c --> acglu\_c + coa\_c + h\_c
+1\%    0.191  ACACT6r   accoa\_c + ddcacoa\_c <=> 3otdcoa\_c + coa\_c
+1\%    0.191  ACACT7r   accoa\_c + tdcoa\_c <=> 3ohdcoa\_c + coa\_c
+1\%    0.17   SERAT     accoa\_c + ser\_\_L\_c <=> acser\_c + coa\_c
+None
+************************
+PRODUCING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+64\%   9.91   PDH       coa\_c + nad\_c + pyr\_c --> accoa\_c + co2\_c + nadh\_c
+33\%   5.16   PFL       coa\_c + pyr\_c --> accoa\_c + for\_c
+2\%    0.336  ACS       ac\_c + atp\_c + coa\_c --> accoa\_c + amp\_c + ppi\_c
+
+CONSUMING REACTIONS -- Acetyl-CoA (accoa\_c)
+-------------------------------------------
+\%      FLUX  RXN ID    REACTION
+---  ------  --------  --------------------------------------------------
+73\%  11.3    MALS      accoa\_c + glx\_c + h2o\_c --> coa\_c + h\_c + mal\_\_L\_c
+13\%   1.93   CS        accoa\_c + h2o\_c + oaa\_c --> cit\_c + coa\_c + h\_c
+3\%    0.411  ACACT1r   2.0 accoa\_c <=> aacoa\_c + coa\_c
+2\%    0.26   IPPS      3mob\_c + accoa\_c + h2o\_c --> 3c3hmp\_c + coa\_c +{\ldots}
+1\%    0.206  ACACT2r   accoa\_c + btcoa\_c <=> 3ohcoa\_c + coa\_c
+1\%    0.206  ACACT3r   accoa\_c + hxcoa\_c <=> 3oocoa\_c + coa\_c
+1\%    0.206  ACACT4r   accoa\_c + occoa\_c <=> 3odcoa\_c + coa\_c
+1\%    0.206  ACACT5r   accoa\_c + dcacoa\_c <=> 3oddcoa\_c + coa\_c
+1\%    0.171  ACGS      accoa\_c + glu\_\_L\_c --> acglu\_c + coa\_c + h\_c
+1\%    0.161  ACACT6r   accoa\_c + ddcacoa\_c <=> 3otdcoa\_c + coa\_c
+1\%    0.161  ACACT7r   accoa\_c + tdcoa\_c <=> 3ohdcoa\_c + coa\_c
+1\%    0.143  SERAT     accoa\_c + ser\_\_L\_c <=> acser\_c + coa\_c
+None
 
     \end{Verbatim}
 

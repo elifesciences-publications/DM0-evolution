@@ -1,5 +1,5 @@
 '''
-plot-growth-Fig3.py by Rohan Maddamsetti.
+prep-growth-data.py by Rohan Maddamsetti.
 
 This script loads the well labels, and the raw time series data
 from the plate reader.
@@ -11,12 +11,8 @@ Then write the growth curve experiment data into one table
 in the results directory. Data in this table will be used by make-figures.R.
 '''
 
-from math import log2
 from os.path import join
 import pandas as pd
-import numpy as np
-import matplotlib as plt
-import seaborn as sns
 
 def read_plate_labels(f):
     ''' return a tidy pandas dataframe with the well layout.'''
@@ -59,19 +55,19 @@ def read_growth_data(f):
             cols['OD420'].append(float(OD420[i]))
     return pd.DataFrame(cols)
 
-def main():
-    proj_dir = "/Users/Rohandinho/Dropbox (HMS)/DM0-evolution/"
+def prep_growth_data(plate_layout_file, raw_DM0_growth_file, raw_DM25_growth_file, outf):
+    proj_dir = "/Users/Rohandinho/BoxSync/active-projects/DM0-evolution/"
     data_dir = "data/rohan-formatted/"
 
-    wellfile = join(proj_dir,data_dir,"growth-plate-layout.csv")
+    wellfile = join(proj_dir,data_dir, plate_layout_file)
     plate_labels = read_plate_labels(wellfile)
 
-    raw_DM0_data = join(proj_dir,data_dir,"DM0-evolved-DM0-growth-4-18-13.csv")
+    raw_DM0_data = join(proj_dir,data_dir, raw_DM0_growth_file)
     tidy_DM0_data = read_growth_data(raw_DM0_data)
     ## label the samples using plate_labels.
     tidy_DM0_data = pd.merge(tidy_DM0_data,plate_labels,how='outer',on='Well')
 
-    raw_DM25_data = join(proj_dir,data_dir,"DM0-evolved-DM25-growth-4-15-13.csv")
+    raw_DM25_data = join(proj_dir,data_dir, raw_DM25_growth_file)
     tidy_DM25_data = read_growth_data(raw_DM25_data)
     ## label the samples. using plate_labels.
     tidy_DM25_data = pd.merge(tidy_DM25_data,plate_labels,how='outer',on='Well')
@@ -82,7 +78,22 @@ def main():
 
     full_table = pd.concat([tidy_DM0_data,tidy_DM25_data])
     ## now write to results directory.
-    outfile = join(proj_dir,"results/","growth-data-for-fig3.csv")
+    outfile = join(proj_dir,"results/", outf)
     full_table.to_csv(outfile)
+
+
+def main():
+
+    ## DM0-evolved population data
+    prep_growth_data("DM0-evolved-pop-growth-plate-layout.csv",
+                     "DM0-evolved-pop-DM0-growth-4-18-13.csv",
+                     "DM0-evolved-pop-DM25-growth-4-15-13.csv",
+                     "DM0-evolved-pop-growth.csv")
+
+    ## DM0-evolved clone data
+    prep_growth_data("DM0-evolved-clone-growth-plate-layout.csv",
+                     "DM0-evolved-clone-DM0-growth-5-17-19.csv",
+                     "DM0-evolved-clone-DM25-growth-5-15-19.csv",
+                     "DM0-evolved-clone-growth.csv")
 
 main()

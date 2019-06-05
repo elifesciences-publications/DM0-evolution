@@ -1,7 +1,11 @@
+rule prep_growth_data:
+     shell:
+	'python prep-growth-data.py'
+
 rule kallisto_index:
     input:
         '../results/RNAseq-analysis/LCA_ORFs.fasta'
-    output: 
+    output:
         '../results/RNAseq-analysis/LCA_ORFs.idx'
     shell:
         'kallisto index --make-unique -i {output} {input}'
