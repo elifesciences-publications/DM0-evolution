@@ -56,8 +56,80 @@ ggsave(fig1C.stacked, file=fig1C.output,width=7,height=7)
 
 ##############################################################
 ## Figure 2: growth curve analysis, showing evolution of
-## growth rate and yield in DM0.
+## growth rate and time lags in DM0, and associated growth
+## parameters when grown in DM25.
 
+######################################################################
+## let's examine REL606 growth in DM25 to estimate OD420.
+## We need these data to provide an empirical basis for the intervals
+## chosen to estimate r.glucose and r.citrate in later code.
+
+## IMPORTANT NOTE: Double-check the provenance of these data with Zack.
+## This file indicates that this is 96 hour data, but appears to go
+## for 166 hours (one week)??
+REL606.DM25.growth.data <- read.csv(
+    file.path(proj.dir, "data/rohan-formatted/REL606-DM25-96-hours.csv")) %>%
+    mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
+    rowwise() %>%
+    ## average the replicate blanks.
+    mutate(Blank = lift_vd(mean)(DM25.1,DM25.2,DM25.3,DM25.4,DM25.5,DM25.6)) %>%
+    select(-DM25.1,-DM25.2,-DM25.3,-DM25.4,-DM25.5,-DM25.6) %>%
+    ## subtract Blank from well readings.
+    mutate(REL606.1 = REL606.1 - Blank) %>%
+    mutate(REL606.2 = REL606.2 - Blank) %>%
+    mutate(REL606.3 = REL606.3 - Blank) %>%
+    mutate(REL606.4 = REL606.4 - Blank) %>%
+    mutate(REL606.5 = REL606.5 - Blank) %>%
+    ## zero out negative values.
+    mutate_at(vars(REL606.1:REL606.5),function(x)ifelse(x<0,0,x)) %>%
+    select(-Blank) %>%
+    gather("Replicate","OD420",-Hours,-Time) %>%
+    mutate(Name='REL606') %>%
+    mutate(log.OD420=log(OD420)) %>%
+## Note: the blanks get messed up several days in. Contamination??
+    filter(Hours<24)
+
+plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
+
+    glu.interval.high <- 0.02
+    glu.interval.low <- 0.01
+    glu.ceiling <- 0.05
+
+    if (logscale) {
+        fig <- ggplot(REL606.df,
+                      aes(x=Hours,
+                          y=log.OD420)) +
+            ylab('log(OD420)') +
+            geom_hline(yintercept=log(glu.ceiling),linetype='dashed',color='cyan') +
+            geom_hline(yintercept=log(glu.interval.high),linetype='dashed',color='red') +
+            geom_hline(yintercept=log(glu.interval.low),linetype='dashed',color='red')
+
+    } else {
+        fig <- ggplot(REL606.df,
+                      aes(x=Hours,
+                          y=OD420)) +
+            ylab('OD420') +
+            geom_hline(yintercept=glu.ceiling,linetype='dashed',color='cyan') +
+            geom_hline(yintercept=glu.interval.high,linetype='dashed',color='red') +
+            geom_hline(yintercept=glu.interval.low,linetype='dashed',color='red')
+
+    }
+    title.string <- "REL606 in DM25"
+
+    fig <- fig +
+        geom_point(size=0.1, alpha=0.1) +
+    theme_classic() +
+        guides(color=FALSE) +
+        ggtitle(title.string) +
+        theme(plot.title = element_text(size = 12, face = "bold"))
+
+    return(fig)
+}
+
+REL606.plot <- plot.REL606.DM25.growth(REL606.DM25.growth.data, logscale=FALSE)
+log.REL606.plot <- plot.REL606.DM25.growth(filter(REL606.DM25.growth.data,Hours<24), logscale=TRUE)
+
+######################################################################
 ## TODO: similar analysis, but with DM25-evolved genomes
 ## (don't have these data in hand).
 
@@ -66,7 +138,8 @@ prep.growth.df <- function(growth.df) {
     ## 1) average blank measurement at every time point.
     ## 2) subtract average blank measurement from each time point.
     ## 3) log transform the data.
-
+    ## 4) smooth the log-transformed data using a low-pass filter and
+    ## take first and second derivatives.
     blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
         summarise(blank.time.avg = mean(OD420))
     growth.df <- left_join(growth.df, blanks) %>%
@@ -91,24 +164,34 @@ prep.growth.df <- function(growth.df) {
         mutate(d.OD420 = log.OD420 - lag(log.OD420, default = 0)) %>%
         ## calculate the second derivative of log(OD420).
         mutate(d2.OD420 = d.OD420 - lag(d.OD420, default = 0)) %>%
+        ## add a new column to plot breakpoint.
+        ## '16' is the value for shape=before.Breakpoint to plot a
+        ## dot by default.
+        mutate(before.Breakpoint=16) %>%
         ungroup()
     return(growth.df)
 }
 
-
-plot.single.growthcurve <- function(growth.by.founder, ev.name, fdr, logscale=FALSE) {
-    plot.growth.data <- filter(growth.by.founder, Name %in% c(fdr, ev.name))
+plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FALSE) {
 
     if (logscale) {
         fig <- ggplot(plot.growth.data,
                       aes(x=Hours,
                           y=log.OD420,
-                          color=Name))
+                          shape=before.Breakpoint,
+                          color=Name)) +
+            ylab('log(OD420)') +
+            geom_hline(yintercept=log(0.12),linetype='dashed',color='red') +
+            geom_hline(yintercept=log(0.05),linetype='dashed',color='red')
     } else {
         fig <- ggplot(plot.growth.data,
                       aes(x=Hours,
                           y=OD420,
-                          color=Name))
+                          shape=before.Breakpoint,
+                          color=Name)) +
+            ylab('OD420') +
+            geom_hline(yintercept=0.12,linetype='dashed',color='red') +
+            geom_hline(yintercept=0.05,linetype='dashed',color='red')
     }
 
     ## title for the plot.
@@ -120,7 +203,7 @@ plot.single.growthcurve <- function(growth.by.founder, ev.name, fdr, logscale=FA
         title.string <- ev.pop
     }
 
-    ## make Cit- strain stick out.
+    ## make Cit- strain stand out.
     if (ev.name == 'ZDBp874') {
         ev.color <- "#E69F00"
     } else {
@@ -128,6 +211,7 @@ plot.single.growthcurve <- function(growth.by.founder, ev.name, fdr, logscale=FA
     }
 
     fig <- fig +
+        scale_shape_identity() + ## needed for before.Breakpoint to contain numbers.
         geom_point(data=filter(plot.growth.data, Name==fdr),
                    size=0.1, color="#999999", alpha=0.1) +
         geom_point(data=filter(plot.growth.data,Name==ev.name),
@@ -135,10 +219,8 @@ plot.single.growthcurve <- function(growth.by.founder, ev.name, fdr, logscale=FA
         facet_grid(Experiment ~ Founder) +
         theme_classic() +
         guides(color=FALSE) +
-        ylab('OD420') +
         ggtitle(title.string) +
         theme(plot.title = element_text(size = 12, face = "bold")) +
-        ##theme(strip.background = element_blank()) +
         theme(strip.text.x = element_blank())
 
     return(fig)
@@ -161,7 +243,8 @@ plot.growthcurve.figure <- function(growth.df,logscale=FALSE) {
         evolved.names <- unique(filter(growth.by.founder, Name != fdr)$Name)
 
         for (ev.name in evolved.names) {
-            fig <- plot.single.growthcurve(growth.by.founder, ev.name, fdr, logscale)
+            plot.growth.data <- filter(growth.by.founder, Name %in% c(fdr, ev.name))
+            fig <- plot.single.growthcurve(plot.growth.data, ev.name, fdr, logscale)
             ## append fig to the list of plots.
             list.of.plots[[i]] <- fig
             i <- i + 1
@@ -173,23 +256,91 @@ plot.growthcurve.figure <- function(growth.df,logscale=FALSE) {
 }
 
 #' This function plots first or second derivatives of growth curves on log scale.
-plot.d <- function(growth.df,d2=FALSE) {
+plot.d.log.growthcurve <- function(plot.growth.data, ev.name, fdr, d2=FALSE) {
+
     if (d2) {
-        fig <- ggplot(growth.df, aes(x=Hours, y=d2.OD420, color=Name))
+        fig <- ggplot(plot.growth.data, aes(x=Hours,
+                                            y=d2.OD420,
+                                            shape=before.Breakpoint,
+                                            color=Name)) +
+            ylab('d2/d2t OD420')
     } else {
-        fig <- ggplot(growth.df, aes(x=Hours, y=d.OD420, color=Name))
+        fig <- ggplot(plot.growth.data, aes(x=Hours,
+                                            y=d.OD420,
+                                            shape=before.Breakpoint,
+                                            color=Name)) +
+            ylab('d/dt OD420')
     }
     fig <- fig +
+        scale_shape_identity() + ## needed for before.Breakpoint to contain numbers.
         geom_point(size=0.5) +
         facet_grid(Experiment ~ Founder) +
         theme_classic() +
-        geom_point(data=filter(growth.df,Name==Founder),size=0.5,color="grey80") +
-        ylab('diff OD420') +
+        geom_point(data=filter(plot.growth.data, Name==Founder),size=0.5,color="grey80") +
         geom_hline(yintercept=0)
+
+    ## title for the plot.
+    ev.pop <- unique(filter(plot.growth.data, Name==ev.name)$PopulationLabel)
+    sample.type <- unique(filter(plot.growth.data,Name==ev.name)$SampleType)
+    if (sample.type == 'Clone') {
+        title.string <- paste0(ev.pop,': ', ev.name)
+    } else {
+        title.string <- ev.pop
+    }
+
+    ## make Cit- strain stick out.
+    if (ev.name == 'ZDBp874') {
+        ev.color <- "#E69F00"
+    } else {
+        ev.color <- "#009E73"
+    }
+
+    fig <- fig +
+        geom_point(data=filter(plot.growth.data, Name==fdr),
+                   size=0.1, color="#999999", alpha=0.1) +
+        geom_point(data=filter(plot.growth.data,Name==ev.name),
+                   size=0.1, color=ev.color, alpha=0.1) +
+        facet_grid(Experiment ~ Founder) +
+        theme_classic() +
+        guides(color=FALSE) +
+        ggtitle(title.string) +
+        theme(plot.title = element_text(size = 12, face = "bold")) +
+        theme(strip.text.x = element_blank())
+
     return(fig)
 }
 
-calc.growth.rates <- function(final.growth.df,DM25=TRUE) {
+## NOTE: derivatives are ALWAYS calculated on log OD420.
+plot.log.growthcurve.derivatives <- function(growth.df, d2=FALSE) {
+
+    list.of.plots <- vector("list", 12) ## we will have 12 plots.
+    i <- 1 ## index for list.
+
+    ## recode Experiment column for plotting clarity.
+    growth.df <- mutate(growth.df,
+                        Experiment=recode_factor(Experiment,
+                                                 `DM0-growth`='DM0',
+                                                 `DM25-growth`='DM25'))
+
+    for (fdr in unique(growth.df$Founder)) {
+
+        growth.by.founder <- filter(growth.df,Founder == fdr)
+        evolved.names <- unique(filter(growth.by.founder, Name != fdr)$Name)
+
+        for (ev.name in evolved.names) {
+            plot.growth.data <- filter(growth.by.founder, Name %in% c(fdr, ev.name))
+            fig <- plot.d.log.growthcurve(plot.growth.data, ev.name, fdr, d2)
+            ## append fig to the list of plots.
+            list.of.plots[[i]] <- fig
+            i <- i + 1
+        }
+    }
+    ## use cowplot to plot.
+    my.plot <- plot_grid(plotlist=list.of.plots, ncol=4)
+    return(my.plot)
+}
+
+old.calc.growth.rates <- function(final.growth.df,DM25=TRUE) {
 
     if (DM25) {
         exp <- 'DM25-growth'
@@ -280,16 +431,125 @@ calc.growth.rates <- function(final.growth.df,DM25=TRUE) {
     return(growth.rate.summary)
 }
 
-## harmonic mean for rates.
-## After doing the math, arithmetic mean is better
-## than harmonic mean (since I'm averaging over fixed time, NOT fixed growth).
-harmonic.mean <- function(x) {
-    x <- x[!(x <= 0)] ## filter for non-negative values.
-    ifelse(length(x) < 1,
-           return(0),
-           return(1/mean(1/x,na.rm=TRUE)))
+## This is a simpler version of the code.
+## Rather than finding a change point based on noisy estimates
+## of the second derivative, just use two different
+## intervals for estimating r.glucose and r.citrate,
+## based on the REL606 growth curves in DM25.
+## This should hopefully provide more reliable estimates.
+calc.growth.rates <- function(final.growth.df) {
+
+    summarize.well.growth <- function(well.df) {
+
+        glu.min.index <- min(which(well.df$OD420 > 0.01))
+        glu.max.index <- min(which(well.df$OD420 > 0.02))
+
+        cit.min.index <- min(which(well.df$OD420 > 0.05))
+        cit.max.index <- min(which(well.df$OD420 > 0.1))
+        ## to compare time lags, measure point when OD420 hits 0.01.
+        t.OD.hit.0.01 <- well.df[glu.min.index,]$Hours
+
+        if ((glu.max.index <= nrow(well.df)) & (glu.min.index<glu.max.index)) {
+            glucose.data <- well.df[glu.min.index:glu.max.index,]
+        } else {
+            glucose.data <- NULL
+        }
+
+        if ((cit.max.index <= nrow(well.df)) & (cit.min.index<cit.max.index)) {
+            citrate.data <- well.df[cit.min.index:cit.max.index,]
+        } else { ## if OD never hits 0.1, then don't measure r.citrate.
+            citrate.data <- NULL
+        }
+
+        ## can't measure growth on glucose if there's no glucose!
+        if (unique(well.df$Experiment) == 'DM0-growth'){
+            glucose.data <- NULL
+        }
+
+        get.max.growth.rate <- function(subdata) {
+            ## find max growth rate for glucose or citrate data.
+            ## rolling regression of width 6.
+            ## if less than 6 timepoints, return NA (unreliable estimate).
+            w = 6
+            if (is.null(subdata)) return(NA)
+            if (nrow(subdata) < 6) return(NA)
+            rel.subdata <- select(subdata,c('log.OD420','Hours'))
+            g.rate <- coef(lm(log.OD420 ~ Hours, data=rel.subdata))[2]
+            return(g.rate)
+        }
+
+        summarized.df <- data.frame(Name = unique(well.df$Name),
+                                    Experiment = unique(well.df$Experiment),
+                                    Environment = unique(well.df$Environment),
+                                    Founder = unique(well.df$Founder),
+                                    SampleType = unique(well.df$SampleType),
+                                    r.citrate = get.max.growth.rate(citrate.data),
+                                    r.glucose = get.max.growth.rate(glucose.data),
+                                    t.lag = t.OD.hit.0.01)
+
+        return(summarized.df)
+    }
+
+    growth.rate.summary <- final.growth.df %>%
+        droplevels() %>% ## otherwise runs and dies on empty subsets!
+        ## Split on both growth conditions (DM25 or DM0) and Well.
+        split(list(.$Experiment,.$Well)) %>%
+        map_dfr(.f=summarize.well.growth)
+    return(growth.rate.summary)
 }
 
+
+########################################################################
+### The goal here is to plot the domain of the curves
+### PER EXPERIMENTAL CONDITIONS AND PER WELL
+### that is used to calculate growth rates.
+### We want to plot the data that goes into my rate analysis code.
+### Also plot before/after breakpoint.
+
+geom_hline(data=filter(plot.growth.data,Experiment=='DM25'),yintercept=log(interval.high),linetype='dashed',color='red') +
+    geom_hline(data=filter(plot.growth.data,Experiment=='DM25'),yintercept=log(interval.low),linetype='dashed',color='red') +
+
+    interval.high <- 0.023
+interval.low <- 0.01
+
+
+filter.growth.data.on.analysis.domain <- function(growth.rate.df) {
+    ## minimum OD420 > 0.005.
+    ## maximum OD420 < 0.1.
+
+    filter.well.data <- function(well.df) {
+        ## find first index where OD420 > 0.005.
+        min.index <- min(which(well.df$OD420 > 0.005))
+        ## find first index where OD420 > 0.1.
+        max.index <- min(which(well.df$OD420 > 0.1))
+        ## check case that OD420 NEVER goes above 0.1.
+        max.index <- min(max.index, nrow(well.df))
+        if (min.index >= max.index) { ## error case.
+            max.index <- nrow(well.df)
+        }
+
+        if (unique(well.df$Experiment) == 'DM25-growth') {
+            breakpoint.index <- which.min(well.df$d2.OD420)
+            breakpoint.OD = well.df[breakpoint.index,]$OD420
+            ## set before.Breakpoint shape value to a * (8).
+            well.df <- mutate(well.df,
+                              before.Breakpoint= ifelse(OD420 < breakpoint.OD,
+                                                        0, before.Breakpoint))
+        }
+        return(well.df[min.index:max.index,])
+     }
+
+    filtered.df <- growth.rate.df %>%
+        ## ZDBp874 is Cit-, so remove.
+        filter(Name != 'ZDBp874') %>%
+        ## always filter the first hour (to remove edge effects from smoothing)
+        filter(Hours > 1) %>%
+        droplevels() %>% ## don't map/reduce empty subsets
+        split(list(.$Experiment,.$Well)) %>%
+        map_dfr(.f=filter.well.data)
+
+    return(filtered.df)
+}
 
 ##############################################################
 ## Now make plots of growth curves.
@@ -303,17 +563,68 @@ DM0.clone.growth.data <- read.csv(file.path(proj.dir,"results/DM0-evolved-clone-
 labeled.clone.growth.data <- left_join(DM0.clone.growth.data, pop.clone.labels, by="Name")
 final.clone.growth.data <- prep.growth.df(labeled.clone.growth.data)
 
+## plot ZDBp874 data to calibrate citrate interval.
+cit.minus.df <- filter(final.clone.growth.data,Name=='ZDBp874')
+cit.minus.plot1 <- plot.single.growthcurve(Cit.minus.df,'ZDBp874','CZB151', logscale=FALSE)
+
 ## Fig2A. Plot growth curves for DM0-evolved clones.
 ## SUPER COOL! ZDBp874 grows WORSE than ancestor in DM25!!!!
 ## ZDBp871 also grows worse in DM25 than ancestor!
 ## This is really interesting!
 
-Fig2A.plot <- plot.growthcurve.figure(final.clone.growth.data)
+Fig2A.plot <- plot.growthcurve.figure(final.clone.growth.data, logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/Fig2A.pdf"),Fig2A.plot,base_height=7,base_width=11)
 
-Fig2B.plot <- plot.growthcurve.figure(final.pop.growth.data)
+Fig2B.plot <- plot.growthcurve.figure(final.pop.growth.data, logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/Fig2B.pdf"),Fig2B.plot,base_height=7,base_width=11)
 
+## test log-scale plots.
+log.Fig2A.plot <- plot.growthcurve.figure(final.clone.growth.data,logscale=TRUE)
+log.Fig2B.plot <- plot.growthcurve.figure(final.pop.growth.data,logscale=TRUE)
+
+## first derivative plots.
+D.Fig2A.plot <- plot.log.growthcurve.derivatives(final.clone.growth.data,d2=FALSE)
+D.Fig2B.plot <- plot.log.growthcurve.derivatives(final.pop.growth.data,d2=FALSE)
+
+## second derivative plots.
+D2.Fig2A.plot <- plot.log.growthcurve.derivatives(final.clone.growth.data,d2=TRUE)
+D2.Fig2B.plot <- plot.log.growthcurve.derivatives(final.pop.growth.data,d2=TRUE)
+
+## data filtering to plot data included in my data analysis.
+filtered.clone.growth.data <- filter.growth.data.on.analysis.domain(final.clone.growth.data)
+filtered.pop.growth.data <- filter.growth.data.on.analysis.domain(final.pop.growth.data)
+
+## filtered log-scale plots.
+filtered.log.Fig2A.plot <- plot.growthcurve.figure(filtered.clone.growth.data,logscale=TRUE)
+filtered.log.Fig2B.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logscale=TRUE)
+
+## filtered first derivative plots.
+filtered.D.Fig2A.plot <- plot.log.growthcurve.derivatives(filtered.clone.growth.data,d2=FALSE)
+filtered.D.Fig2B.plot <- plot.log.growthcurve.derivatives(filtered.pop.growth.data,d2=FALSE)
+
+## filtered second derivative plots.
+filtered.D2.Fig2A.plot <- plot.log.growthcurve.derivatives(filtered.clone.growth.data,d2=TRUE)
+filtered.D2.Fig2B.plot <- plot.log.growthcurve.derivatives(filtered.pop.growth.data,d2=TRUE)
+
+################################################################################################
+
+## Testing code. This is my NEW implementation to calculate rates.
+
+evolved.clone.growth.summary <- calc.growth.rates(final.clone.growth.data) %>%
+    group_by(Founder, Name, SampleType, Experiment) %>%
+    summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
+              r.citrate=mean(r.citrate,na.rm=TRUE),
+              t.lag=mean(t.lag,na.rm=TRUE)) %>%
+    mutate(Generation=ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500'))
+
+evolved.pop.growth.summary <- calc.growth.rates(final.pop.growth.data) %>%
+    group_by(Founder, Name, SampleType, Experiment) %>%
+    summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
+              r.citrate = mean(r.citrate,na.rm=TRUE),
+              t.lag = mean(t.lag,na.rm=TRUE)) %>%
+    mutate(Generation = ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500'))
+
+##########################
 
 clone.growth.in.DM25.summary <- calc.growth.rates(final.clone.growth.data,DM25=TRUE) %>%
     group_by(Founder, Name, SampleType) %>%
@@ -682,8 +993,7 @@ run.confint.bootstrapping <- function(final.growth.summary) {
                                               log.DM25.t.lag.ratio.conf.int[2]))
     return(bootstrap.results)
 }
-
-#####
+######################################################################
 final.pop.growth.summary <- calc.growth.log.ratios(pop.estimates)
 final.clone.growth.summary <- calc.growth.log.ratios(clone.estimates)
 
