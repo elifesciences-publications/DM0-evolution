@@ -181,17 +181,17 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
                           shape=before.Breakpoint,
                           color=Name)) +
             ylab('log(OD420)') +
-            geom_hline(yintercept=log(0.12),linetype='dashed',color='red') +
-            geom_hline(yintercept=log(0.05),linetype='dashed',color='red')
+            geom_hline(yintercept=log(0.01),linetype='dashed',color='black',size=0.1) +
+            geom_hline(yintercept=log(0.02),linetype='dashed',color='black',size=0.1) +
+            geom_hline(yintercept=log(0.05),linetype='dashed',color='red',size=0.1) +
+            geom_hline(yintercept=log(0.1),linetype='dashed',color='red',size=0.1)
     } else {
         fig <- ggplot(plot.growth.data,
                       aes(x=Hours,
                           y=OD420,
                           shape=before.Breakpoint,
                           color=Name)) +
-            ylab('OD420') +
-            geom_hline(yintercept=0.12,linetype='dashed',color='red') +
-            geom_hline(yintercept=0.05,linetype='dashed',color='red')
+            ylab('OD420')
     }
 
     ## title for the plot.
@@ -340,116 +340,26 @@ plot.log.growthcurve.derivatives <- function(growth.df, d2=FALSE) {
     return(my.plot)
 }
 
-old.calc.growth.rates <- function(final.growth.df,DM25=TRUE) {
-
-    if (DM25) {
-        exp <- 'DM25-growth'
-    } else {
-        exp <- 'DM0-growth'
-    }
-
-    growth.rate.df <- final.growth.df %>%
-        filter(Experiment == exp)
-
-    summarize.well.growth <- function(well.df) {
-
-        cur.data <- well.df %>%
-            ## always filter the first hour (to remove edge effects from smoothing)
-            filter(Hours>1)
-
-        ## find first index where OD420 > 0.005.
-        min.index <- min(which(cur.data$OD420 > 0.005))
-        ## find first index where OD420 > 0.1.
-        max.index <- min(which(cur.data$OD420 > 0.1))
-        ## check case that OD420 NEVER goes above 0.1.
-        max.index <- min(max.index, nrow(cur.data))
-        ## to compare time lags, measure point when OD420 hits 0.1.
-        t.OD.hit.0.1 <- cur.data[max.index,]$Hours
-        if (min.index >= max.index) {
-            ## error case. can happen when there's no growth on citrate.
-            ## set r.citrate to 0 and move along.
-            well.df <- data.frame(Name = unique(cur.data$Name),
-                                  Experiment = unique(cur.data$Experiment),
-                                  Environment = unique(cur.data$Environment),
-                                  Founder = unique(cur.data$Founder),
-                                  SampleType = unique(cur.data$SampleType),
-                                  r.citrate = 0,
-                                  t.lag = NA)
-            return(well.df)
-        }
-        stopifnot(max.index > min.index)
-        ## minimum OD420 > 0.005.
-        ## maximum OD420 < 0.1.
-        cur.data2 <- cur.data[min.index:max.index,]
-
-        if (DM25){
-            breakpoint.index <- which.min(cur.data2$d2.OD420)
-            glucose.data <- cur.data2[1:breakpoint.index,]
-            citrate.data <- cur.data2[breakpoint.index:nrow(cur.data2),]
-        } else {
-            glucose.data <- NULL ## just make sure this doesn't exist in DM0.
-            citrate.data <- cur.data2
-        }
-
-        get.max.growth.rate <- function(subdata) {
-            ## find max growth rate for glucose or citrate data.
-            ## rolling regression of width 6.
-            ## if less than 6 timepoints, return NA (unreliable estimate).
-            w = 6
-            if (nrow(subdata) < 6) return(NA)
-            rel.subdata <- select(subdata,c('log.OD420','Hours'))
-
-            calc.regression <- function(x) {
-                coef(lm(log.OD420 ~ Hours, data = as.data.frame(x)))[2]
-            }
-
-            g.rate <- max(rollapply(zoo(rel.subdata), width = w,
-                                    FUN = calc.regression,
-                                    by.column = FALSE, align = "right"))
-            return(g.rate)
-        }
-
-        well.df <- data.frame(Name = unique(cur.data2$Name),
-            Experiment = unique(cur.data2$Experiment),
-            Environment = unique(cur.data2$Environment),
-            Founder = unique(cur.data2$Founder),
-            SampleType = unique(cur.data2$SampleType),
-            r.citrate = get.max.growth.rate(citrate.data),
-            t.lag = t.OD.hit.0.1)
-
-        if (DM25) {
-            well.df$r.glucose = get.max.growth.rate(glucose.data)
-        }
-
-        return(well.df)
-    }
-
-    growth.rate.summary <- growth.rate.df %>%
-        droplevels() %>% ## otherwise runs and dies on empty subsets!
-        split(.$Well) %>%
-        map_dfr(.f=summarize.well.growth)
-    return(growth.rate.summary)
-}
-
-## This is a simpler version of the code.
+## This is a simpler growth rate calculation code.
 ## Rather than finding a change point based on noisy estimates
 ## of the second derivative, just use two different
 ## intervals for estimating r.glucose and r.citrate,
-## based on the REL606 growth curves in DM25.
+## based on the REL606 growth curves in DM25, the Cit- ZDBp874 growth curve,
+## and the Cit+ clone growth curves.
 ## This should hopefully provide more reliable estimates.
 calc.growth.rates <- function(final.growth.df) {
 
     summarize.well.growth <- function(well.df) {
 
-        glu.min.index <- min(which(well.df$OD420 > 0.01))
-        glu.max.index <- min(which(well.df$OD420 > 0.02))
+        glu.min.index <- min(which(well.df$OD420 > 0.01), nrow(well.df))
+        glu.max.index <- min(which(well.df$OD420 > 0.02), nrow(well.df))
 
-        cit.min.index <- min(which(well.df$OD420 > 0.05))
-        cit.max.index <- min(which(well.df$OD420 > 0.1))
+        cit.min.index <- min(which(well.df$OD420 > 0.05), nrow(well.df))
+        cit.max.index <- min(which(well.df$OD420 > 0.1), nrow(well.df))
         ## to compare time lags, measure point when OD420 hits 0.01.
         t.OD.hit.0.01 <- well.df[glu.min.index,]$Hours
 
-        if ((glu.max.index <= nrow(well.df)) & (glu.min.index<glu.max.index)) {
+        if ((glu.max.index <= nrow(well.df)) & (glu.min.index < glu.max.index)) {
             glucose.data <- well.df[glu.min.index:glu.max.index,]
         } else {
             glucose.data <- NULL
@@ -468,11 +378,9 @@ calc.growth.rates <- function(final.growth.df) {
 
         get.max.growth.rate <- function(subdata) {
             ## find max growth rate for glucose or citrate data.
-            ## rolling regression of width 6.
-            ## if less than 6 timepoints, return NA (unreliable estimate).
-            w = 6
+            ## require at least 5 datapoints to calculate growth rates.
             if (is.null(subdata)) return(NA)
-            if (nrow(subdata) < 6) return(NA)
+            if (nrow(subdata) < 5) return(NA)
             rel.subdata <- select(subdata,c('log.OD420','Hours'))
             g.rate <- coef(lm(log.OD420 ~ Hours, data=rel.subdata))[2]
             return(g.rate)
@@ -608,62 +516,65 @@ filtered.D2.Fig2B.plot <- plot.log.growthcurve.derivatives(filtered.pop.growth.d
 
 ################################################################################################
 
-## Testing code. This is my NEW implementation to calculate rates.
+## Testing calc.growth.rates code. This is my NEW implementation to calculate rates.
 
 evolved.clone.growth.summary <- calc.growth.rates(final.clone.growth.data) %>%
     group_by(Founder, Name, SampleType, Experiment) %>%
     summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
               r.citrate=mean(r.citrate,na.rm=TRUE),
               t.lag=mean(t.lag,na.rm=TRUE)) %>%
-    mutate(Generation=ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500'))
+    mutate(Generation=ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500')) %>%
+    mutate(Dataset='CloneGrowth')
 
 evolved.pop.growth.summary <- calc.growth.rates(final.pop.growth.data) %>%
     group_by(Founder, Name, SampleType, Experiment) %>%
     summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
               r.citrate = mean(r.citrate,na.rm=TRUE),
               t.lag = mean(t.lag,na.rm=TRUE)) %>%
-    mutate(Generation = ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500'))
-
-##########################
-
-clone.growth.in.DM25.summary <- calc.growth.rates(final.clone.growth.data,DM25=TRUE) %>%
-    group_by(Founder, Name, SampleType) %>%
-    summarise(DM25.r.glucose=mean(r.glucose,na.rm=TRUE),
-              DM25.r.citrate=mean(r.citrate,na.rm=TRUE),
-              DM25.t.lag=mean(t.lag,na.rm=TRUE)) %>%
-    mutate(Generation=ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500'))
-
-clone.growth.in.DM0.summary <- calc.growth.rates(final.clone.growth.data,DM25=FALSE) %>%
-    group_by(Founder, Name, SampleType) %>%
-    summarise(DM0.r.citrate=mean(r.citrate,na.rm=TRUE),
-              DM0.t.lag=mean(t.lag,na.rm=TRUE))
-
-evolved.clone.growth.summary <- full_join(clone.growth.in.DM25.summary,
-                                          clone.growth.in.DM0.summary) %>%
-    filter(Name != 'ZDBp874') %>%     ## ZDBp874 is Cit-, so remove.
-    mutate(Dataset='CloneGrowth')
-
-pop.growth.in.DM25.summary <- calc.growth.rates(final.pop.growth.data,DM25=TRUE) %>%
-    group_by(Founder, Name, SampleType) %>%
-    summarise(DM25.r.glucose=mean(r.glucose,na.rm=TRUE),
-              DM25.r.citrate = mean(r.citrate,na.rm=TRUE),
-              DM25.t.lag = mean(t.lag,na.rm=TRUE)) %>%
-        mutate(Generation = ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500'))
-
-pop.growth.in.DM0.summary <- calc.growth.rates(final.pop.growth.data,DM25=FALSE) %>%
-    group_by(Founder, Name, SampleType) %>%
-    summarise(DM0.r.citrate = mean(r.citrate, na.rm=TRUE),
-              DM0.t.lag = mean(t.lag,na.rm=TRUE))
-
-evolved.pop.growth.summary <- full_join(pop.growth.in.DM25.summary,
-                                        pop.growth.in.DM0.summary) %>%
+    mutate(Generation = ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500')) %>%
     mutate(Dataset='PopulationGrowth')
 
-evolved.growth.summary <- full_join(evolved.clone.growth.summary,
-                                    evolved.pop.growth.summary)
+## do some gymnastics to plot rates in different media conditions together.
+DM0.evolved.clone.growth.summary <- filter(evolved.clone.growth.summary,
+                                           Experiment=='DM0-growth') %>%
+    mutate(DM0.r.citrate=r.citrate) %>%
+    mutate(DM0.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment) %>%
+    ungroup()
+
+DM0.evolved.pop.growth.summary <- filter(evolved.pop.growth.summary,
+                                           Experiment=='DM0-growth') %>%
+    mutate(DM0.r.citrate=r.citrate) %>%
+    mutate(DM0.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment) %>%
+    ungroup()
+
+DM25.evolved.clone.growth.summary <- filter(evolved.clone.growth.summary,
+                                           Experiment=='DM25-growth') %>%
+    mutate(DM25.r.citrate=r.citrate) %>%
+    mutate(DM25.r.glucose=r.glucose) %>%
+    mutate(DM25.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment) %>%
+    ungroup()
+
+DM25.evolved.pop.growth.summary <- filter(evolved.pop.growth.summary,
+                                           Experiment=='DM25-growth') %>%
+    mutate(DM25.r.citrate=r.citrate) %>%
+    mutate(DM25.r.glucose=r.glucose) %>%
+    mutate(DM25.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment) %>%
+    ungroup()
+
+evolved.clone.growth.summary2 <- full_join(DM0.evolved.clone.growth.summary,
+                                           DM25.evolved.clone.growth.summary)
+evolved.pop.growth.summary2 <- full_join(DM0.evolved.pop.growth.summary,
+                                           DM25.evolved.pop.growth.summary)
+
+evolved.growth.summary <- full_join(evolved.clone.growth.summary2,
+                                    evolved.pop.growth.summary2)
 
 ## Think more about correlation between growth on citrate and growth on glucose.
-Fig2C <- ggplot(evolved.growth.summary,
+Fig2C <- ggplot(filter(evolved.growth.summary),
                 aes(x=DM25.r.glucose,y=DM25.r.citrate,color=Founder, shape=Generation)) +
     facet_wrap(Founder~Dataset) +
     geom_point() +
@@ -739,9 +650,6 @@ map.reduce.growth.curve <- function(labeled.plate.data) {
     return(gcfit.df)
 }
 
-pop.growth.curve.fits <- map.reduce.growth.curve(labeled.pop.growth.data)
-clone.growth.curve.fits <- map.reduce.growth.curve(labeled.clone.growth.data)
-
 summarize.growthcurver.results <- function(growth.curve.fits) {
     ## lag time t0 (that is, the midpoint of the sigmoid curve) can be
     ## derived by equating two equivalent parametrizations of the logistic
@@ -777,6 +685,9 @@ summarize.growthcurver.results <- function(growth.curve.fits) {
 }
 
 #######
+pop.growth.curve.fits <- map.reduce.growth.curve(labeled.pop.growth.data)
+clone.growth.curve.fits <- map.reduce.growth.curve(labeled.clone.growth.data)
+
 growthcurver.pop.growth.summary <- summarize.growthcurver.results(pop.growth.curve.fits) %>%
     mutate(Dataset='PopulationGrowth')
 growthcurver.clone.growth.summary <- summarize.growthcurver.results(clone.growth.curve.fits) %>%
@@ -800,8 +711,9 @@ Fig2E <- ggplot(growthcurver.growth.summary,
     guides(color=FALSE,shape=FALSE)
 
 ##################### Compare growthcurver estimates to my estimates.
-growth.estimate.comp.df <- full_join(evolved.growth.summary,
-                                     growthcurver.growth.summary) %>%
+growth.estimate.comp.df <- full_join(
+    evolved.growth.summary,
+    growthcurver.growth.summary) %>%
     ungroup()
 
 pop.estimates <- filter(growth.estimate.comp.df,Dataset=='PopulationGrowth')
@@ -831,23 +743,36 @@ DM0.rate.comp.fig <- ggplot(growth.estimate.comp.df,
     ylab("DM0 r citrate") +
     coord_fixed()
 
-## r = 0.22, 0.22, 0.35, 0.35 respectively.
+## r = 0.56, 0.65, 0.24, -0.1 with new estimates.
 cor(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs")
 cor(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.citrate,use="complete.obs")
 cor(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.glucose,use="complete.obs")
 cor(growth.estimate.comp.df$DM25.t0, growth.estimate.comp.df$DM25.t.lag,use="complete.obs")
 
-## r = 0.31, 0.08, 0.37, 0.98 respectively.
+## r = 0.86, 0.88, 0.06, 0.5 with new estimates.
 cor(pop.estimates$DM0.r, pop.estimates$DM0.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.glucose,use="complete.obs")
 cor(pop.estimates$DM25.t0, pop.estimates$DM25.t.lag,use="complete.obs")
 
-## r = 0.27, 0.52, 0.32, 0.21 respectively.
+## r = 0.42, 0.61, 0.27, -0.18 with new estimates.
 cor(clone.estimates$DM0.r, clone.estimates$DM0.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.glucose,use="complete.obs")
 cor(clone.estimates$DM25.t0, clone.estimates$DM25.t.lag,use="complete.obs")
+
+## significant correlation between growth rate in DM25 and DM0 by growthcurver:
+## Kendall's tau = 0.56, p = 0.004 for clones; tau = 0.46, p = 0.015 for pop.
+cor.test(x=clone.estimates$DM25.r,y=clone.estimates$DM0.r,method="kendall")
+cor.test(x=pop.estimates$DM25.r,y=pop.estimates$DM0.r,method="kendall")
+## significant correlation between r citrate in DM25 and DM0 by my estimates.
+cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM0.r.citrate,method="kendall")
+cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM0.r.citrate,method="kendall")
+
+## no correlation between r citrate and r glucose in DM25 by my estimates.
+cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM25.r.glucose,method="kendall")
+cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM25.r.glucose,method="kendall")
+
 
 ######
 ## calculate the log ratio of evolved growth to ancestral growth for rate,
@@ -914,7 +839,7 @@ run.confint.bootstrapping <- function(final.growth.summary) {
     ## See http://www.stat.wisc.edu/~larget/stat302/chap3.pdf
     ## for sample code.
     calc.bootstrap.conf.int <- function(vec) {
-        B <- 10000
+        B <- 100000
         n <- length(vec)
         boot.samples <- matrix(sample(vec, size = B*n, replace = TRUE),B, n)
         boot.statistics <- apply(boot.samples, 1, mean)
@@ -951,8 +876,6 @@ run.confint.bootstrapping <- function(final.growth.summary) {
     log.DM25.t.lag.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t.lag.ratio)
     mean.log.DM25.t.lag.ratio <- mean(evolved.growth.summary$log.DM25.t.lag.ratio)
 
-
-    ## significant increases in growth rate.
     ## Make a figure of these confidence intervals.
 
     bootstrap.results <- data.frame(Parameter=c("DM0 r",
@@ -998,7 +921,10 @@ final.pop.growth.summary <- calc.growth.log.ratios(pop.estimates)
 final.clone.growth.summary <- calc.growth.log.ratios(clone.estimates)
 
 pop.bootstrap.results <- run.confint.bootstrapping(final.pop.growth.summary)
-clone.bootstrap.results <- run.confint.bootstrapping(final.clone.growth.summary)
+## Exclude the Cit- ZDBp874 strain.
+clone.bootstrap.results <- run.confint.bootstrapping(filter(
+    final.clone.growth.summary,Name!='ZDBp874'))
+##clone.bootstrap.results <- run.confint.bootstrapping(final.clone.growth.summary)
 
 plot.Fig2F <- function (results) {
     the.plot <- ggplot(results, aes(x=Parameter,y=Estimate)) +
@@ -1015,19 +941,8 @@ plot.Fig2F <- function (results) {
 Fig2F.pop <- plot.Fig2F(pop.bootstrap.results)
 Fig2F.clone <- plot.Fig2F(clone.bootstrap.results)
 
-save_plot(file.path(proj.dir,"results/figures/Fig2F_clone.pdf"),Fig2F.clone)
 save_plot(file.path(proj.dir,"results/figures/Fig2F_pop.pdf"),Fig2F.pop)
-
-Fig2D <- ggplot(growth.summary,aes(x=DM25.r,y=DM0.r,color=Founder,shape=Generation)) +
-    geom_point() +
-    theme_classic() +
-    xlab("DM25 growth rate") +
-    ylab("DM0 growth rate") +
-    scale_color_manual(values=c("#e41a1c","#377eb8","#4daf4a")) +
-    coord_fixed() +
-    guides(color=FALSE,shape=FALSE)
-
-save_plot(file.path(proj.dir,"results/figures/Fig2D.pdf"),Fig2D)
+save_plot(file.path(proj.dir,"results/figures/Fig2F_clone.pdf"),Fig2F.clone)
 
 ####### Make Figure 2 using cowplot.
 Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
@@ -1035,12 +950,6 @@ Fig2BCD <- plot_grid(Fig2B,Fig2C,Fig2D, labels = c('B','C', 'D'), ncol = 3)
 Fig2 <- plot_grid(Fig2A, Fig2BCD, labels = c('A', ''), ncol = 1, rel_heights = c(1.8, 1))
 save_plot(Fig2outf,Fig2,base_height=7)
 
-## significant correlation between growth rate in DM25 and DM0:
-## Kendall's tau = 0.46, p = 0.0155
-cor.test(x=final.growth.summary$DM25.r,y=final.growth.summary$DM0.r,method="kendall")
-## no correlation in growth yield in DM25 and DM0
-## Kendall's tau = -0.028, p = 0.9226
-cor.test(x=final.growth.summary$DM25.k,y=final.growth.summary$DM0.k,method="kendall")
 
 ################################################################################
 ## Figure 3: make a matrix plot of genes with mutations in two or more clones.
