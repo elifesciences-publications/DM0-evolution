@@ -291,13 +291,29 @@ calc.growth.rates <- function(final.growth.df) {
             glucose.data <- NULL
         }
 
-        get.max.growth.rate <- function(subdata) {
+        get.max.growth.rate <- function(subdata,window=TRUE) {
             ## find max growth rate for glucose or citrate data.
-            ## require at least 5 datapoints to calculate growth rates.
+
             if (is.null(subdata)) return(NA)
-            if (nrow(subdata) < 5) return(NA)
-            rel.subdata <- select(subdata,c('log.OD420','Hours'))
-            g.rate <- coef(lm(log.OD420 ~ Hours, data=rel.subdata))[2]
+            rel.subdata <- select(subdata,c('log.OD420','Hours')) %>%
+                ##Remove rows that contain nans
+                drop_na()
+
+            w <- 5 ## require at least 5 datapoints to calculate growth rates.
+            if (nrow(rel.subdata) < w) return(NA)
+
+            calc.slope <- function(subdf) {
+                coef(lm(log.OD420 ~ Hours, data = as.data.frame(subdf)))[2]
+            }
+
+            if (window) { ## Find the max slope in the interval.
+                g.rate <- max(rollapply(zoo(rel.subdata), width = w,
+                                        FUN = calc.slope,
+                                        by.column = FALSE, align = "right"))
+            }
+            else { ## Calculate slope on the whole interval
+                g.rate <- calc.slope(rel.subdata)
+            }
             return(g.rate)
         }
 
@@ -396,23 +412,57 @@ filtered.log.Fig2B.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logs
 
 ################################################################################################
 
-## Testing calc.growth.rates code. This is my NEW implementation to calculate rates.
-
-evolved.clone.growth.summary <- calc.growth.rates(final.clone.growth.data) %>%
-    group_by(Founder, Name, SampleType, Experiment) %>%
-    summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
-              r.citrate=mean(r.citrate,na.rm=TRUE),
-              t.lag=mean(t.lag,na.rm=TRUE)) %>%
+## Run calc.growth.rates code.
+evolved.clone.growth <- calc.growth.rates(final.clone.growth.data) %>%
     mutate(Generation=ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500')) %>%
     mutate(Dataset='CloneGrowth')
 
-evolved.pop.growth.summary <- calc.growth.rates(final.pop.growth.data) %>%
+evolved.pop.growth <- calc.growth.rates(final.pop.growth.data) %>%
+    mutate(Generation = ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500')) %>%
+    mutate(Dataset='PopulationGrowth')
+
+## do some gymnastics to plot rates in different media conditions together.
+DM0.evolved.clone.growth <- filter(evolved.clone.growth,
+                                   Experiment=='DM0-growth') %>%
+    mutate(DM0.r.citrate=r.citrate) %>%
+    mutate(DM0.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+
+DM25.evolved.clone.growth <- filter(evolved.clone.growth,
+                                    Experiment=='DM25-growth') %>%
+    mutate(DM25.r.citrate=r.citrate) %>%
+    mutate(DM25.r.glucose=r.glucose) %>%
+    mutate(DM25.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+
+DM0.evolved.pop.growth <- filter(evolved.pop.growth,
+                                 Experiment=='DM0-growth') %>%
+    mutate(DM0.r.citrate=r.citrate) %>%
+    mutate(DM0.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+
+DM25.evolved.pop.growth <- filter(evolved.pop.growth,
+                                  Experiment=='DM25-growth') %>%
+    mutate(DM25.r.citrate=r.citrate) %>%
+    mutate(DM25.r.glucose=r.glucose) %>%
+    mutate(DM25.t.lag=t.lag) %>%
+    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+
+
+## Plot growth parameter estimates for each population and clone.
+## I want to distinguish between noise within estimates versus differences between then.
+
+evolved.clone.growth.summary <- evolved.clone.growth %>%
+    group_by(Founder, Name, SampleType, Experiment) %>%
+    summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
+              r.citrate=mean(r.citrate,na.rm=TRUE),
+              t.lag=mean(t.lag,na.rm=TRUE))
+
+evolved.pop.growth.summary <- evolved.pop.growth %>%
     group_by(Founder, Name, SampleType, Experiment) %>%
     summarise(r.glucose=mean(r.glucose,na.rm=TRUE),
               r.citrate = mean(r.citrate,na.rm=TRUE),
-              t.lag = mean(t.lag,na.rm=TRUE)) %>%
-    mutate(Generation = ifelse(Name %in% c('CZB151','CZB152','CZB154'),'0','2500')) %>%
-    mutate(Dataset='PopulationGrowth')
+              t.lag = mean(t.lag,na.rm=TRUE))
 
 ## do some gymnastics to plot rates in different media conditions together.
 DM0.evolved.clone.growth.summary <- filter(evolved.clone.growth.summary,
