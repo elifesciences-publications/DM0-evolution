@@ -188,10 +188,6 @@ prep.growth.df <- function(growth.df) {
         mutate(d.OD420 = log.OD420 - lag(log.OD420, default = 0)) %>%
         ## calculate the second derivative of log(OD420).
         mutate(d2.OD420 = d.OD420 - lag(d.OD420, default = 0)) %>%
-        ## add a new column to plot breakpoint.
-        ## '16' is the value for shape=before.Breakpoint to plot a
-        ## dot by default.
-        mutate(before.Breakpoint=16) %>%
         ungroup()
     return(growth.df)
 }
@@ -202,7 +198,6 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
         fig <- ggplot(plot.growth.data,
                       aes(x=Hours,
                           y=log.OD420,
-                          shape=before.Breakpoint,
                           color=Name)) +
             ylab('log(OD420)') +
             geom_hline(yintercept=log(0.01),linetype='dashed',color='black',size=0.1) +
@@ -213,7 +208,6 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
         fig <- ggplot(plot.growth.data,
                       aes(x=Hours,
                           y=OD420,
-                          shape=before.Breakpoint,
                           color=Name)) +
             ylab('OD420')
     }
@@ -235,7 +229,6 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
     }
 
     fig <- fig +
-        scale_shape_identity() + ## needed for before.Breakpoint to contain numbers.
         geom_point(data=filter(plot.growth.data, Name==fdr),
                    size=0.1, color="#999999", alpha=0.1) +
         geom_point(data=filter(plot.growth.data,Name==ev.name),
@@ -409,23 +402,40 @@ labeled.clone.growth.data <- left_join(DM0.clone.growth.data, pop.clone.labels, 
 final.clone.growth.data <- prep.growth.df(labeled.clone.growth.data)
 
 ## plot ZDBp874 data to calibrate citrate interval.
-cit.minus.df <- filter(final.clone.growth.data,Name=='ZDBp874')
-cit.minus.plot1 <- plot.single.growthcurve(cit.minus.df,'ZDBp874','CZB151', logscale=FALSE)
+ZDBp874.df <- filter(final.clone.growth.data,Name %in% c('ZDBp874','CZB151'))
+ZDBp874.plot <- plot.single.growthcurve(ZDBp874.df,'ZDBp874','CZB151', logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/ZDBp874_growth.pdf"),ZDBp874.plot,base_height=7,base_width=11)
 
-## Fig2A. Plot growth curves for DM0-evolved clones.
+## plot rest of CZB151-descended isolates. Can do good fitness competitions on these.
+ZDBp871.df <- filter(final.clone.growth.data, Name %in% c('ZDBp871','CZB151'))
+ZDBp871.plot <- plot.single.growthcurve(ZDBp871.df,'ZDBp871','CZB151', logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/ZDBp871_growth.pdf"),ZDBp871.plot,base_height=7,base_width=11)
+
+ZDBp889.df <- filter(final.clone.growth.data, Name %in% c('ZDBp889','CZB151'))
+ZDBp889.plot <- plot.single.growthcurve(ZDBp889.df,'ZDBp889','CZB151', logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/ZDBp889_growth.pdf"),ZDBp889.plot,base_height=7,base_width=11)
+
+ZDBp892.df <- filter(final.clone.growth.data, Name %in% c('ZDBp892','CZB151'))
+ZDBp892.plot <- plot.single.growthcurve(ZDBp892.df,'ZDBp892','CZB151', logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/ZDBp892_growth.pdf"),ZDBp892.plot,base_height=7,base_width=11)
+
 ## SUPER COOL! ZDBp874 grows WORSE than ancestor in DM25!!!!
-## ZDBp871 also grows worse in DM25 than ancestor!
+## ZDBp871 and ZDBp889 also grow worse in DM25 than ancestor!
 ## This is really interesting!
 
+## Fig2A. Plot growth curves for DM0-evolved clones.
 Fig2A.plot <- plot.growthcurve.figure(final.clone.growth.data, logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/Fig2A.pdf"),Fig2A.plot,base_height=7,base_width=11)
 
+## Fig2B. Plot growth curves for DM0-evolved populations.
 Fig2B.plot <- plot.growthcurve.figure(final.pop.growth.data, logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/Fig2B.pdf"),Fig2B.plot,base_height=7,base_width=11)
 
-## test log-scale plots.
+## plot log-scale plots.
 log.Fig2A.plot <- plot.growthcurve.figure(final.clone.growth.data,logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/logFig2A.pdf"),log.Fig2A.plot,base_height=7,base_width=11)
 log.Fig2B.plot <- plot.growthcurve.figure(final.pop.growth.data,logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/logFig2B.pdf"),log.Fig2B.plot,base_height=7,base_width=11)
 
 ## data filtering to plot data included in my growth rate estimation.
 filtered.clone.growth.data <- filter.growth.data.on.analysis.domain(final.clone.growth.data)
@@ -808,7 +818,6 @@ cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM0.r.citrate,method="ke
 ## no correlation between r citrate and r glucose in DM25 by my estimates.
 cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM25.r.glucose,method="kendall")
 cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM25.r.glucose,method="kendall")
-
 
 ######
 ## calculate the log ratio of evolved growth to ancestral growth for rate,
