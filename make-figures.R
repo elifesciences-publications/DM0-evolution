@@ -15,12 +15,12 @@ library(lubridate)
 library(assertthat)
 library(tidytext)
 library(Matrix)
-library(zoo) ## for growth curve analysis.
+##library(zoo) ## for growth curve analysis.
 library(growthcurver) ## use growthcurver package to fit r from growth data.
 ## Cite the growthcurver package. https://www.ncbi.nlm.nih.gov/pubmed/27094401
 
 ## bootstrap confidence intervals around the mean.
-## Use the boot package in R to calculate fancy BCA intervals.
+## Use the boot package to calculate fancy BCA intervals.
 calc.bootstrap.conf.int <- function(vec) {
     ## define this type of mean-calculating function to pass to the boot function.
     ## from: https://web.as.uky.edu/statistics/users/pbreheny/621/F12/notes/9-18.pdf
@@ -336,7 +336,8 @@ calc.growth.rates <- function(final.growth.df) {
                                     Founder = unique(well.df$Founder),
                                     r.citrate = get.max.growth.rate(citrate.data),
                                     r.glucose = get.max.growth.rate(glucose.data),
-                                    t.lag = t.OD.hit.cit.min)
+                                    t.lag = t.OD.hit.cit.min,
+                                    stringsAsFactors=FALSE)
 
         return(summarized.df)
     }
@@ -348,7 +349,6 @@ calc.growth.rates <- function(final.growth.df) {
         map_dfr(.f=summarize.well.growth)
     return(growth.rate.summary)
 }
-
 
 ########################################################################
 ### The goal here is to plot the domain of the curves
@@ -413,7 +413,8 @@ map.reduce.growth.curve <- function(final.growth.df) {
                            Environment = unique(well.df$Environment),
                            Sequenced = unique(well.df$Sequenced),
                            r = gcfitv$r,
-                           t_mid = gcfitv$t_mid)
+                           t_mid = gcfitv$t_mid,
+                           stringsAsFactors=FALSE)
         return(my.df)
     }
 
@@ -468,60 +469,8 @@ bootstrap.my.growth.confints <- function(growth) {
                                             DM25.r.citrate.conf.int[2],
                                             DM25.r.glucose.conf.int[2],
                                             DM0.t.lag.conf.int[2],
-                                            DM25.t.lag.conf.int[2]))
-        return(bootstrap.results)
-    }
-
-    confint.df <- growth %>%
-        droplevels() %>% ## don't run on empty subsets
-        split(.$Name) %>%
-        map_dfr(.f=bootstrap.my.growth.parameters)
-
-    return(confint.df)
-}
-
-
-###########
-## This function work on my growth parameter estimates.
-old.bootstrap.my.growth.confints <- function(growth) {
-    ## average values for the same clone or population, over wells of the growth plate.
-
-    bootstrap.my.growth.parameters <- function(df) {
-
-        ## my analysis fits.
-        DM0.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM0.r.citrate)
-        DM25.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM25.r.citrate)
-        DM25.r.glucose.conf.int <- calc.bootstrap.conf.int(df$DM25.r.glucose)
-        DM0.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM0.t.lag)
-        DM25.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM25.t.lag)
-
-        bootstrap.results <- data.frame(Name=rep(unique(df$Name),5),
-                                        Founder=rep(unique(df$Founder),5),
-                                        Generation=rep(unique(df$Generation),5),
-                                        Parameter=c(
-                                            "DM0 r.citrate",
-                                            "DM25 r.citrate",
-                                            "DM25 r.glucose",
-                                            "DM0 t.lag",
-                                            "DM25 t.lag"),
-                                        Estimate = c(
-                                            mean(df$DM0.r.citrate),
-                                            mean(df$DM25.r.citrate),
-                                            mean(df$DM25.r.glucose),
-                                            mean(df$DM0.t.lag),
-                                            mean(df$DM25.t.lag)),
-                                        Left = c(
-                                            DM0.r.citrate.conf.int[1],
-                                            DM25.r.citrate.conf.int[1],
-                                            DM25.r.glucose.conf.int[1],
-                                            DM0.t.lag.conf.int[1],
-                                            DM25.t.lag.conf.int[1]),
-                                        Right = c(
-                                            DM0.r.citrate.conf.int[2],
-                                            DM25.r.citrate.conf.int[2],
-                                            DM25.r.glucose.conf.int[2],
-                                            DM0.t.lag.conf.int[2],
-                                            DM25.t.lag.conf.int[2]))
+                                            DM25.t.lag.conf.int[2]),
+                                        stringsAsFactors=FALSE)
         return(bootstrap.results)
     }
 
@@ -567,7 +516,8 @@ bootstrap.growthcurver.confints <- function(growth.fits) {
                                             DM25.r.conf.int[2],
                                             DM0.t_mid.conf.int[2],
                                             DM25.t_mid.conf.int[2]
-                                            ))
+                                            ),
+                                        stringsAsFactors=FALSE)
         return(bootstrap.results)
     }
 
@@ -579,18 +529,16 @@ bootstrap.growthcurver.confints <- function(growth.fits) {
     return(confint.df)
 }
 
-plot.growth.confints <- function (results) {
-    the.plot <- ggplot(results, aes(x=Name,y=Estimate,color=Founder,shape=Generation)) +
-        facet_wrap(Parameter ~ .,scales="free") +
-        scale_shape_identity() +
-        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
-        geom_line(size=1) +
-        geom_point(size=2) +
+plot.growth.confints <- function (plot.df, confints.df) {
+    ggplot(plot.df, aes(x = Name,y = Estimate,color = Founder)) +
+        geom_point(size=0.5) +
         ylab("Estimate") +
         xlab("Growth parameter") +
-        scale_color_manual(values=cbbPalette) +
-        theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
-    return(the.plot)
+        scale_color_manual(values = cbbPalette) +
+        facet_wrap( . ~ Parameter, scales="free") +
+    geom_errorbar(data = confints.df, aes(ymin=Left,ymax=Right), width=1, size=0.5) +
+    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
+
 }
 
 ######
@@ -704,89 +652,54 @@ pop.confint.plot <- plot.growth.confints(pop.growth.confint.df)
 pop.growthcurver.confint.df <- bootstrap.growthcurver.confints(evolved.pop.growth.curve.fits)
 pop.growthcurver.confint.plot <- plot.growth.confints(pop.growthcurver.confint.df)
 
-################## !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-### Experimental plotting code: plot  estimates with confidence interval of mean.
-### plot fancy confints here.
+##################
+## plot estimates with confidence interval of mean.
 
+## calculate fancy CIs.
 evolved.clone.growth.CI <- bootstrap.my.growth.confints(evolved.clone.growth)
 
 evolved.clone.growth.plot.df <- evolved.clone.growth %>%
     gather(key="Parameter",value="Estimate",
            DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
 
-my.clone.growth.plot1 <- ggplot(evolved.clone.growth.plot.df,
-                                aes(x=Name,y=Estimate,color=Founder)) +
-    geom_point(size=0.5) +
-    ylab("Estimate") +
-    xlab("Growth parameter") +
-    scale_color_manual(values=cbbPalette) +
-    facet_wrap(. ~ Parameter, scales="free") +
-    geom_errorbar(data=evolved.clone.growth.CI,aes(ymin=Left,ymax=Right),width=1, size=0.5) +
-    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
-
-my.clone.growth.plot1
+clone.growth.plot <- plot.growth.confints(evolved.clone.growth.plot.df,
+                                              evolved.clone.growth.CI)
+clone.growth.plot
 
 evolved.clone.growthcurver.plot.df <- evolved.clone.growth.curve.fits %>%
     gather(key="Parameter",value="Estimate",
-           DM0.r,DM25.r,DM0.t_mid,DM25.t_mid) %>%
-    filter(Name != 'ZDBp874')
+           DM0.r,DM25.r,DM0.t_mid,DM25.t_mid) ##%>%
+    ##filter(Name != 'ZDBp874')
 
+## Do the same for the growthcurver fits. Note different confint function needed.
+evolved.clone.growthcurver.CI <- bootstrap.growthcurver.confints(evolved.clone.growth.curve.fits)
 
-my.clone.growthcurver.plot <- ggplot(evolved.clone.growthcurver.plot.df, aes(x=Name,y=Estimate,color=Founder)) +
-    facet_wrap(. ~ Parameter, scales="free") +
-    ##geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
-    ##geom_line(size=1) +
-    geom_point(size=2) +
-    ylab("Estimate") +
-    xlab("Growth parameter") +
-    scale_color_manual(values=cbbPalette) +
-    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
-
+my.clone.growthcurver.plot <- plot.growth.confints(evolved.clone.growthcurver.plot.df,
+                                                   evolved.clone.growthcurver.CI)
 my.clone.growthcurver.plot
 
+#### Do the same for the population data.
+evolved.pop.growth.CI <- bootstrap.my.growth.confints(evolved.pop.growth)
 
-
-
-
-
-
-
-evolved.pop.growth.df2 <- evolved.pop.growth %>%
+evolved.pop.growth.plot.df <- evolved.pop.growth %>%
     gather(key="Parameter",value="Estimate",
            DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
 
 
-my.pop.growth.plot <- ggplot(evolved.pop.growth.df2, aes(x=Name,y=Estimate,color=Founder)) +
-    facet_wrap(. ~ Parameter, scales="free") +
-    ##geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
-    ##geom_line(size=1) +
-    geom_point(size=2) +
-    ylab("Estimate") +
-    xlab("Growth parameter") +
-    scale_color_manual(values=cbbPalette) +
-    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
-
+my.pop.growth.plot <- plot.growth.confints(evolved.pop.growth.plot.df,
+                                           evolved.pop.growth.CI)
 my.pop.growth.plot
 
-evolved.pop.growthcurver.df2 <- evolved.pop.growth.curve.fits %>%
+## Now pop growthcurver fits.
+evolved.pop.growthcurver.CI <- bootstrap.growthcurver.confints(evolved.pop.growth.curve.fits)
+
+evolved.pop.growthcurver.plot.df <- evolved.pop.growth.curve.fits %>%
     gather(key="Parameter",value="Estimate",
            DM0.r,DM25.r,DM0.t_mid,DM25.t_mid)
 
-
-my.pop.growthcurver.plot <- ggplot(evolved.pop.growthcurver.df2, aes(x=Name,y=Estimate,color=Founder)) +
-    facet_wrap(. ~ Parameter, scales="free") +
-    ##geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
-    ##geom_line(size=1) +
-    geom_point(size=2) +
-    ylab("Estimate") +
-    xlab("Growth parameter") +
-    scale_color_manual(values=cbbPalette) +
-    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
-
+my.pop.growthcurver.plot <- plot.growth.confints(evolved.pop.growthcurver.plot.df,
+                                                 evolved.pop.growthcurver.CI)
 my.pop.growthcurver.plot
-
-
-
 
 #######################################
 ## Now, plot growth curves.
@@ -1130,7 +1043,8 @@ run.ratio.confint.bootstrapping <- function(final.growth.summary) {
                                               log.DM0.t_mid.ratio.conf.int[2],
                                               log.DM25.t_mid.ratio.conf.int[2],
                                               log.DM0.t.lag.ratio.conf.int[2],
-                                              log.DM25.t.lag.ratio.conf.int[2]))
+                                              log.DM25.t.lag.ratio.conf.int[2]),
+                                    stringsAsFactors=FALSE)
     return(bootstrap.results)
 }
 
@@ -1308,7 +1222,7 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
 
     M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
                                      col=colnames(M.co.occurrence)[col(M.co.occurrence)],
-                                     co.occurrence=c(as.factor(M.co.occurrence)))
+                                     co.occurrence=c(as.factor(M.co.occurrence)),stringsAsFactors=FALSE)
 
     M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
     M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
