@@ -15,7 +15,6 @@ library(lubridate)
 library(assertthat)
 library(tidytext)
 library(Matrix)
-##library(zoo) ## for growth curve analysis.
 library(growthcurver) ## use growthcurver package to fit r from growth data.
 ## Cite the growthcurver package. https://www.ncbi.nlm.nih.gov/pubmed/27094401
 
@@ -55,11 +54,13 @@ proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
 
 pop.clone.labels <- read.csv(
     file.path(proj.dir,
-        "data/rohan-formatted/populations-and-clones.csv"))
+              "data/rohan-formatted/populations-and-clones.csv"),
+    stringsAsFactors=FALSE)
 
 evolved.mutations <- read.csv(
     file.path(proj.dir,
-        "results/genome-analysis/evolved_mutations.csv"))
+              "results/genome-analysis/evolved_mutations.csv"),
+    stringsAsFactors=FALSE)
 
 ###############################################
 ## Figure 1.
@@ -101,7 +102,8 @@ ggsave(fig1C.stacked, file=fig1C.output,width=7,height=7)
 ## This file indicates that this is 96 hour data, but appears to go
 ## for 166 hours (one week)??
 REL606.DM25.growth.data <- read.csv(
-    file.path(proj.dir, "data/rohan-formatted/REL606-DM25-96-hours.csv")) %>%
+    file.path(proj.dir, "data/rohan-formatted/REL606-DM25-96-hours.csv"),
+    stringsAsFactors=FALSE) %>%
     mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
     rowwise() %>%
     ## average the replicate blanks.
@@ -541,165 +543,114 @@ plot.growth.confints <- function (plot.df, confints.df) {
 
 }
 
-######
+reshape.growth.curve.fits <- function(growth.curve.fits) {
+    ## do some gymnastics to plot rates in different media conditions together.
+    DM0.growth.curve.fits <- filter(growth.curve.fits,
+                                            Experiment=='DM0-growth') %>%
+        mutate(DM0.r = r) %>%
+        mutate(DM0.t_mid = t_mid) %>%
+        select(-r,-t_mid,-Experiment)
+
+    DM25.growth.curve.fits <- filter(growth.curve.fits,
+                                     Experiment=='DM25-growth') %>%
+        mutate(DM25.r = r) %>%
+        mutate(DM25.t_mid = t_mid) %>%
+        select(-r,-t_mid,-Experiment)
+
+    reshaped.growth.curve.fits <- full_join(DM0.growth.curve.fits,
+                                            DM25.growth.curve.fits)
+    return(reshaped.growth.curve.fits)
+}
+
+reshape.my.growth.df <- function(growth) {
+    ## do some gymnastics to plot rates in different media conditions together.
+    DM0.growth <- filter(growth, Experiment=='DM0-growth') %>%
+        mutate(DM0.r.citrate=r.citrate) %>%
+        mutate(DM0.t.lag=t.lag) %>%
+        select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+
+    DM25.growth <- filter(growth, Experiment=='DM25-growth') %>%
+        mutate(DM25.r.citrate=r.citrate) %>%
+        mutate(DM25.r.glucose=r.glucose) %>%
+        mutate(DM25.t.lag=t.lag) %>%
+        select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+
+    reshaped.growth <- full_join(DM0.growth, DM25.growth)
+    return(reshaped.growth)
+}
+
+###############################################
 
 ## DM0-evolved population data.
-DM0.pop.growth.data <- read.csv(file.path(proj.dir,"results/DM0-evolved-pop-growth.csv"))
+DM0.pop.growth.data <- read.csv(file.path(proj.dir,"results/DM0-evolved-pop-growth.csv"),
+                                stringsAsFactors=FALSE)
 labeled.pop.growth.data <- left_join(DM0.pop.growth.data, pop.clone.labels, by="Name")
 final.pop.growth.data <- prep.growth.df(labeled.pop.growth.data)
 
 ## DM0-evolved clone data.
-DM0.clone.growth.data <- read.csv(file.path(proj.dir,"results/DM0-evolved-clone-growth.csv"))
+DM0.clone.growth.data <- read.csv(file.path(proj.dir,"results/DM0-evolved-clone-growth.csv"),
+                                  stringsAsFactors=FALSE)
 labeled.clone.growth.data <- left_join(DM0.clone.growth.data, pop.clone.labels, by="Name")
 final.clone.growth.data <- prep.growth.df(labeled.clone.growth.data)
 
-#########################################
 ## use growthcurver to fit logistic curves.
+clone.growth.curve.fits <- map.reduce.growth.curve(final.clone.growth.data) %>%
+    mutate(Dataset='CloneGrowth') %>%
+    reshape.growth.curve.fits()
 
-clone.growth.curve.fits <- map.reduce.growth.curve(final.clone.growth.data)%>%
-    mutate(Dataset='CloneGrowth')
-
-## do some gymnastics to plot rates in different media conditions together.
-
-DM0.evolved.clone.growth.curve.fits <- filter(clone.growth.curve.fits,
-                                            Experiment=='DM0-growth') %>%
-    mutate(DM0.r = r) %>%
-    mutate(DM0.t_mid = t_mid) %>%
-    select(-r,-t_mid,-Experiment)
-
-DM25.evolved.clone.growth.curve.fits <- filter(clone.growth.curve.fits,
-                                            Experiment=='DM25-growth') %>%
-    mutate(DM25.r = r) %>%
-    mutate(DM25.t_mid = t_mid) %>%
-    select(-r,-t_mid,-Experiment)
-
-evolved.clone.growth.curve.fits <- full_join(DM0.evolved.clone.growth.curve.fits,
-                                  DM25.evolved.clone.growth.curve.fits)
-#####
 pop.growth.curve.fits <- map.reduce.growth.curve(final.pop.growth.data)%>%
-    mutate(Dataset='PopulationGrowth')
+    mutate(Dataset='PopulationGrowth') %>%
+    reshape.growth.curve.fits()
 
-## do some gymnastics to plot rates in different media conditions together.
-
-DM0.evolved.pop.growth.curve.fits <- filter(pop.growth.curve.fits,
-                                            Experiment=='DM0-growth') %>%
-    mutate(DM0.r = r) %>%
-    mutate(DM0.t_mid = t_mid) %>%
-    select(-r,-t_mid,-Experiment)
-
-DM25.evolved.pop.growth.curve.fits <- filter(pop.growth.curve.fits,
-                                            Experiment=='DM25-growth') %>%
-    mutate(DM25.r = r) %>%
-    mutate(DM25.t_mid = t_mid) %>%
-    select(-r,-t_mid,-Experiment)
-
-evolved.pop.growth.curve.fits <- full_join(DM0.evolved.pop.growth.curve.fits,
-                                  DM25.evolved.pop.growth.curve.fits)
-###############
 ## Run calc.growth.rates code.
 clone.growth <- calc.growth.rates(final.clone.growth.data) %>%
-    mutate(Dataset='CloneGrowth')
+    mutate(Dataset='CloneGrowth') %>%
+    reshape.my.growth.df()
 
 pop.growth <- calc.growth.rates(final.pop.growth.data) %>%
-    mutate(Dataset='PopulationGrowth')
+    mutate(Dataset='PopulationGrowth') %>%
+    reshape.my.growth.df()
 
-## do some gymnastics to plot rates in different media conditions together.
-DM0.evolved.clone.growth <- filter(clone.growth,
-                                   Experiment=='DM0-growth') %>%
-    mutate(DM0.r.citrate=r.citrate) %>%
-    mutate(DM0.t.lag=t.lag) %>%
-    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
-
-DM25.evolved.clone.growth <- filter(clone.growth,
-                                    Experiment=='DM25-growth') %>%
-    mutate(DM25.r.citrate=r.citrate) %>%
-    mutate(DM25.r.glucose=r.glucose) %>%
-    mutate(DM25.t.lag=t.lag) %>%
-    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
-
-DM0.evolved.pop.growth <- filter(pop.growth,
-                                 Experiment=='DM0-growth') %>%
-    mutate(DM0.r.citrate=r.citrate) %>%
-    mutate(DM0.t.lag=t.lag) %>%
-    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
-
-DM25.evolved.pop.growth <- filter(pop.growth,
-                                  Experiment=='DM25-growth') %>%
-    mutate(DM25.r.citrate=r.citrate) %>%
-    mutate(DM25.r.glucose=r.glucose) %>%
-    mutate(DM25.t.lag=t.lag) %>%
-    select(-r.glucose,-r.citrate,-t.lag,-Experiment)
-
-evolved.clone.growth <- full_join(DM0.evolved.clone.growth,
-                                  DM25.evolved.clone.growth)
-
-evolved.pop.growth <- full_join(DM0.evolved.pop.growth,
-                                  DM25.evolved.pop.growth)
-
-## plot my clone growth estimates and growthcurver estimates as well.
-clone.growth.confint.df <- bootstrap.my.growth.confints(evolved.clone.growth)
-
-
-clone.confint.plot <- plot.growth.confints(clone.growth.confint.df)
-
-clone.growthcurver.confint.df <- bootstrap.growthcurver.confints(evolved.clone.growth.curve.fits)
-clone.growthcurver.confint.plot <- plot.growth.confints(clone.growthcurver.confint.df)
-
-
-pop.growth.confint.df <- bootstrap.my.growth.confints(evolved.pop.growth)
-pop.confint.plot <- plot.growth.confints(pop.growth.confint.df)
-
-pop.growthcurver.confint.df <- bootstrap.growthcurver.confints(evolved.pop.growth.curve.fits)
-pop.growthcurver.confint.plot <- plot.growth.confints(pop.growthcurver.confint.df)
-
-##################
+## plot my growth estimates and growthcurver estimates as well.
 ## plot estimates with confidence interval of mean.
 
-## calculate fancy CIs.
-evolved.clone.growth.CI <- bootstrap.my.growth.confints(evolved.clone.growth)
+clone.growth.CI <- bootstrap.my.growth.confints(clone.growth)
 
-evolved.clone.growth.plot.df <- evolved.clone.growth %>%
+clone.growth.plot.df <- clone.growth %>%
     gather(key="Parameter",value="Estimate",
            DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
 
-clone.growth.plot <- plot.growth.confints(evolved.clone.growth.plot.df,
-                                              evolved.clone.growth.CI)
-clone.growth.plot
+clone.growth.plot <- plot.growth.confints(clone.growth.plot.df,
+                                          clone.growth.CI)
 
-evolved.clone.growthcurver.plot.df <- evolved.clone.growth.curve.fits %>%
+pop.growth.CI <- bootstrap.my.growth.confints(pop.growth)
+
+pop.growth.plot.df <- pop.growth %>%
     gather(key="Parameter",value="Estimate",
-           DM0.r,DM25.r,DM0.t_mid,DM25.t_mid) ##%>%
-    ##filter(Name != 'ZDBp874')
+           DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
+
+pop.growth.plot <- plot.growth.confints(evolved.pop.growth.plot.df,
+                                           evolved.pop.growth.CI)
 
 ## Do the same for the growthcurver fits. Note different confint function needed.
-evolved.clone.growthcurver.CI <- bootstrap.growthcurver.confints(evolved.clone.growth.curve.fits)
+clone.growthcurver.CI <- bootstrap.growthcurver.confints(clone.growth.curve.fits)
 
-my.clone.growthcurver.plot <- plot.growth.confints(evolved.clone.growthcurver.plot.df,
-                                                   evolved.clone.growthcurver.CI)
-my.clone.growthcurver.plot
-
-#### Do the same for the population data.
-evolved.pop.growth.CI <- bootstrap.my.growth.confints(evolved.pop.growth)
-
-evolved.pop.growth.plot.df <- evolved.pop.growth %>%
+clone.growthcurver.plot.df <- evolved.clone.growth.curve.fits %>%
     gather(key="Parameter",value="Estimate",
-           DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
+           DM0.r,DM25.r,DM0.t_mid,DM25.t_mid) %>%
+    filter(Name != 'ZDBp874')
 
+clone.growthcurver.plot <- plot.growth.confints(clone.growthcurver.plot.df,
+                                                clone.growthcurver.CI)
 
-my.pop.growth.plot <- plot.growth.confints(evolved.pop.growth.plot.df,
-                                           evolved.pop.growth.CI)
-my.pop.growth.plot
+pop.growthcurver.CI <- bootstrap.growthcurver.confints(pop.growth.curve.fits)
 
-## Now pop growthcurver fits.
-evolved.pop.growthcurver.CI <- bootstrap.growthcurver.confints(evolved.pop.growth.curve.fits)
-
-evolved.pop.growthcurver.plot.df <- evolved.pop.growth.curve.fits %>%
+pop.growthcurver.plot.df <- pop.growth.curve.fits %>%
     gather(key="Parameter",value="Estimate",
            DM0.r,DM25.r,DM0.t_mid,DM25.t_mid)
 
-my.pop.growthcurver.plot <- plot.growth.confints(evolved.pop.growthcurver.plot.df,
-                                                 evolved.pop.growthcurver.CI)
-my.pop.growthcurver.plot
+pop.growthcurver.plot <- plot.growth.confints(pop.growthcurver.plot.df,
+                                              pop.growthcurver.CI)
 
 #######################################
 ## Now, plot growth curves.
@@ -751,7 +702,7 @@ filtered.log.Fig2B.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logs
 ################################################################################################
 
 ## summarize and take averages over each clone.
-evolved.clone.growth.summary <- evolved.clone.growth %>%
+evolved.clone.growth.summary <- clone.growth %>%
     group_by(Dataset, Founder, Name, SampleType) %>%
     summarise(DM25.r.glucose=mean(DM25.r.glucose,na.rm=TRUE),
               DM25.r.citrate=mean(DM25.r.citrate,na.rm=TRUE),
@@ -761,7 +712,7 @@ evolved.clone.growth.summary <- evolved.clone.growth %>%
               Generation=unique(Generation)) %>%
     ungroup()
 
-evolved.pop.growth.summary <- evolved.pop.growth %>%
+evolved.pop.growth.summary <- pop.growth %>%
     group_by(Dataset, Founder, Name, SampleType) %>%
     summarise(DM25.r.glucose=mean(DM25.r.glucose,na.rm=TRUE),
               DM25.r.citrate=mean(DM25.r.citrate,na.rm=TRUE),
