@@ -62,21 +62,27 @@ def prep_growth_data(plate_layout_file, raw_DM0_growth_file, raw_DM25_growth_fil
     wellfile = join(proj_dir,data_dir, plate_layout_file)
     plate_labels = read_plate_labels(wellfile)
 
-    raw_DM0_data = join(proj_dir,data_dir, raw_DM0_growth_file)
-    tidy_DM0_data = read_growth_data(raw_DM0_data)
-    ## label the samples using plate_labels.
-    tidy_DM0_data = pd.merge(tidy_DM0_data,plate_labels,how='outer',on='Well')
+    if raw_DM0_growth_file is not None:
+        raw_DM0_data = join(proj_dir,data_dir, raw_DM0_growth_file)
+        tidy_DM0_data = read_growth_data(raw_DM0_data)
+        ## label the samples using plate_labels.
+        tidy_DM0_data = pd.merge(tidy_DM0_data,plate_labels,how='outer',on='Well')
+        ## label by experiment.
+        tidy_DM0_data['Experiment'] = pd.Series(['DM0-growth' for x in range(len(tidy_DM0_data.index))], index=tidy_DM0_data.index)
 
     raw_DM25_data = join(proj_dir,data_dir, raw_DM25_growth_file)
     tidy_DM25_data = read_growth_data(raw_DM25_data)
     ## label the samples. using plate_labels.
     tidy_DM25_data = pd.merge(tidy_DM25_data,plate_labels,how='outer',on='Well')
-
-    ## label by experiment and merge the two data frames.
-    tidy_DM0_data['Experiment'] = pd.Series(['DM0-growth' for x in range(len(tidy_DM0_data.index))], index=tidy_DM0_data.index)
+    ## label by experiment.
     tidy_DM25_data['Experiment'] = pd.Series(['DM25-growth' for x in range(len(tidy_DM25_data.index))], index=tidy_DM25_data.index)
 
-    full_table = pd.concat([tidy_DM0_data,tidy_DM25_data])
+    if raw_DM0_growth_file is not None:
+        ##merge the two data frames.
+        full_table = pd.concat([tidy_DM0_data,tidy_DM25_data])
+    else:
+        full_table = tidy_DM25_data
+
     ## now write to results directory.
     outfile = join(proj_dir,"results/", outf)
     full_table.to_csv(outfile)
@@ -95,5 +101,12 @@ def main():
                      "DM0-evolved-clone-DM0-growth-5-17-19.csv",
                      "DM0-evolved-clone-DM25-growth-5-15-19.csv",
                      "DM0-evolved-clone-growth.csv")
+
+    ## DM25-evolved clone data
+    prep_growth_data("DM25-evolved-clone-growth-plate-layout.csv",
+                     None,
+                     "DM25-evolved-clone-DM25-growth-6-5-19.csv",
+                     "DM25-evolved-clone-growth.csv")
+
 
 main()
