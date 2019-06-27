@@ -30,16 +30,13 @@ library(IRanges)
 library(GenomicRanges)
 library(rtracklayer)
 
-library(purrr)       # consistent & safe list/vector munging
-library(tidyr)       # consistent data.frame cleaning
-library(ggplot2)     # base plots are for Coursera professors
+library(tidyverse)
 library(scales)      # pairs nicely with ggplot2 for plot label formatting
 library(gridExtra)   # a helper for arranging individual ggplot objects
 library(ggthemes)    # has a clean theme for ggplot2
 library(viridis)     # best. color. palette. evar.
 library(DT)          # prettier data.frame output
 library(data.table)  # faster fread()
-library(dplyr)       # consistent data.frame operations.
 library(dtplyr)      # dplyr works with data.table now.
 library(cowplot)     # layout figures nicely.
 
@@ -226,12 +223,12 @@ plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
         geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
-        xlab("Position") +
+        xlab("Amplified genes") +
         scale_fill_viridis(name="",option="plasma") +
         facet_wrap(~Environment,nrow=2, scales = "free_y") +
         theme_tufte(base_family='Helvetica') +
-        theme(axis.ticks=element_blank()) +
-        theme(axis.text.x=element_blank()) +
+        theme(axis.ticks=element_line(size=0.1)) +
+        theme(axis.text.x=element_text(size=3,angle=90,hjust=1,vjust=0.2,face="italic")) +
         theme(legend.text=element_text(size=6)) +
         guides(fill=FALSE)
 
@@ -270,7 +267,8 @@ plot.Fig5B.stackedbar <- function(amps,clone.labels) {
     return(stacked)
 }
 
-projdir <- file.path(Sys.getenv("HOME"),"BoxSync/DM0-evolution")
+home.dir <- path.expand("~")
+projdir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
 outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
 LCA.gff3 <- file.path(projdir,"genomes/curated-diffs/LCA.gff3")
@@ -328,7 +326,7 @@ save_plot(file.path(projdir,"results/figures/Fig5B.pdf"),Fig5B,base_aspect_ratio
 #' Make and save the final Figure 5.
 Fig5outf <- file.path(projdir,"results/figures/Fig5.pdf")
 Fig5 <- plot_grid(Fig5A, Fig5B, labels = c('A', 'B'), ncol = 1, rel_heights = c(1.1, 1))
-save_plot(Fig5outf,Fig5,base_height=7)
+save_plot(Fig5outf,Fig5,base_height=7,base_width=10.5)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
