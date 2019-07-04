@@ -9,7 +9,6 @@ Command line used in Daniel's original TEE analysis:
 python TEE.py -n 1000000 -p 150 -dt -s annotated_gd/ -g ../REL606.gbk -e annotated_gd/REL1207.gd -ct 37c
 
 """
-
 import datetime
 import copy
 import os
@@ -95,20 +94,20 @@ def treatment_read_in():
     return temp_dict
 
 
-def mutation_gene_assigment(mutation_list, exclusion_list,only_dN=False):
+def mutation_gene_assignment(mutation_list, exclusion_list,only_dN=False):
     """Pass in 2 arguments, list of list of mutations (strings split by tabs), and a list of genomic regions to exclude, by default this is regions flagged as repetitive"""
     intergenic_and_multi_gene = []
     valid_mutations = []
     for mutation in mutation_list:
-        valid_mut = False
+        assigned = False
         mutation[4] = int(mutation[4]) - 1  # pull mutation location and adjust for python starts numbering at 0
         mut_start = int(mutation[4])
         if str(mutation[0]) == "AMP" or str(mutation[0]) == "DEL":  # need to check that amps/del only effect a single gene
             mut_stop = int(mutation[4]) + int(mutation[5])  # add length of amp/del to get stop location
         else:
             mut_stop = int(mutation[4])  # needed for promoter comparison
-    #######
-    # block to check if mutation within repeat region
+        #######
+        # block to check if mutation within repeat region
         exclude_mut = False  # by default we want to include the mutation
         for region in exclusion_list:  # check each excluded region against the current mutation
             if (region[0] <= mut_start <= region[1]) or (region[0] <= mut_stop <= region[1]):
@@ -119,27 +118,23 @@ def mutation_gene_assigment(mutation_list, exclusion_list,only_dN=False):
             x[2] = "Repeat_Region"  # need updating if exclusion list to include more than repeat regions
             intergenic_and_multi_gene.append(x)
             continue
-    ########
+        ####### END block
         for feature in GenomeSeq.features:  # loop each mutation through whole genome
             if feature.type == 'gene':
                 if feature.location._start.position <= mut_start and mut_stop <= feature.location._end.position:
                     new_line = mutation_line(feature, mutation)
                     if 'snp_type=synonymous' in mutation:
                         intergenic_and_multi_gene.append(new_line)
-                        valid_mut = False
-                        break
                     ## if only_dN, then only dN are valid.
                     elif only_dN and 'snp_type=nonsynonymous' not in mutation:
                         intergenic_and_multi_gene.append(new_line)
-                        valid_mut = False
-                        break
                     else:
                         valid_mutations.append(new_line)
-                        valid_mut = True
-                        break
+                    assigned = True
+                    break
 
         ## mutation not assigned to gene; only run if not only_dN
-        if not valid_mut and not only_dN:
+        if not assigned and not only_dN:
             promoter_distance_comparison = []
             ## loop each mutation through whole genome with promoter comparisons
             for feature in GenomeSeq.features:
@@ -162,7 +157,7 @@ def mutation_gene_assigment(mutation_list, exclusion_list,only_dN=False):
 
             if len(promoter_distance_comparison) == 1:
                 valid_mutations.append(promoter_distance_comparison[0])
-                valid_mut = True
+                assigned = True
             elif len(promoter_distance_comparison) > 1:
                 minimal_distances = []
                 for possible_nearest_match in promoter_distance_comparison:
@@ -173,15 +168,13 @@ def mutation_gene_assigment(mutation_list, exclusion_list,only_dN=False):
                     x = int(possible_nearest_match[-1].replace("promoter=", ''))
                     if x == y:
                         valid_mutations.append(possible_nearest_match)
-                        valid_mut = True
-                assert valid_mut is True, "multiple possible promoter distances compared, but none considered valid"
-        if not valid_mut:
+                        assigned = True
+                assert assigned is True, "multiple possible promoter distances compared, but none considered valid"
+        if not assigned:
             x = mutation_line(feature, mutation)
             x[2] = "NO_SINGLE_GENE"
             intergenic_and_multi_gene.append(x)
-    temp_dict = {"valid_mutations": valid_mutations, "intergenic_or_multi-gene": intergenic_and_multi_gene}
-    return temp_dict
-
+    return {"valid_mutations": valid_mutations, "intergenic_or_multi-gene": intergenic_and_multi_gene}
 
 def gene_name_pull(feature):
     """Attempt to grab gene name, if gene name not found, grab locus_tag instead."""
@@ -525,7 +518,6 @@ def types_of_mutations(master_dict):
             mutation_type_dict[treatment]['Non-Synonymous'] += len(re.findall("'nonsynonymous", str(master_dict[treatment][sample]['total_mutations'])))
     print("SNP information: ")
     print(''.join([f"{x:{padding}.{precision}}" for x in ["Condition", "SNPs", "Synonymous", "Non-Synonymous"]]))
-
     for treatment in mutation_type_dict:
         if treatment == "Total":
             continue
@@ -570,7 +562,7 @@ def types_of_mutations(master_dict):
             body.append(mutation_type_dict[condition]["MOB"].count(mob_type))
 
         print(''.join([f'{x:{10}}' for x in map(str,body)]))
-    body = ["Total", len(mutation_type_dict["Total"]["DEL"]), len(mutation_type_dict["Total"]["AMP"]), len(mutation_type_dict["Total"]["INS"]), len(mutation_type_dict[condition]["SUB"]), len(mutation_type_dict[condition]["INV"]), len(mutation_type_dict[condition]["CON"]), len(mutation_type_dict["Total"]["MOB"])]
+    body = ["Total", len(mutation_type_dict["Total"]["DEL"]), len(mutation_type_dict["Total"]["AMP"]), len(mutation_type_dict["Total"]["INS"]), len(mutation_type_dict["Total"]["SUB"]), len(mutation_type_dict["Total"]["INV"]), len(mutation_type_dict["Total"]["CON"]), len(mutation_type_dict["Total"]["MOB"])]
     for mob_type in list(sorted(set(mutation_type_dict["Total"]["MOB"]))):
         body.append(mutation_type_dict["Total"]["MOB"].count(mob_type))
     print(''.join([f'{x:{10}}' for x in map(str,body)]))
@@ -635,10 +627,11 @@ def main():
         master_dict = treatment_read_in()
         for treatment in master_dict:
             for sample in master_dict[treatment]:
-                x = mutation_gene_assigment(master_dict[treatment][sample]['raw_mutations'], repeat_list_of_lists, args.dN_only)
+                x = mutation_gene_assignment(master_dict[treatment][sample]['raw_mutations'], repeat_list_of_lists, args.dN_only)
                 for mutationlist in x:  ## assign valid_mutations, and intergenic_and_multi_gene mutations to master dict
                     master_dict[treatment][sample][mutationlist] = x[mutationlist]
-                master_dict[treatment][sample]['total_mutations'] = master_dict[treatment][sample]['valid_mutations'] + master_dict[treatment][sample]['intergenic_or_multi-gene']
+                k = master_dict[treatment][sample]['valid_mutations'] + master_dict[treatment][sample]['intergenic_or_multi-gene']
+                master_dict[treatment][sample]['total_mutations'] = k
     assert master_dict is not None, "master_dict has not been populated. This should never trigger given assertion that args.dictionary_treatments must be supplied"
 
     valid_mutated_genes = {}
@@ -660,7 +653,6 @@ def main():
 
 
     ##  general mutation statistics; print statements within functions
-    print(master_dict.keys())
     general_mutation_stats(master_dict)
     types_of_mutations(master_dict)
     mann_whitney_tests(master_dict)

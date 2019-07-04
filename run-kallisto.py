@@ -2,14 +2,11 @@
 
 ''' 
 
-RNAseq-analysis.py by Rohan Maddamsetti. 
+run-kallisto.py by Rohan Maddamsetti. 
 
 This script does two tasks.
-
 1) make FASTA file of all ORFs in REL606.
-
 2) concatenates RNAseq fastq files by genome and biological replicate.
-
 NOTE: this will run on my office computer-- not on my laptop.
 
 '''

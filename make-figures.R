@@ -67,6 +67,12 @@ evolved.mutations <- read.csv(
               "results/genome-analysis/evolved_mutations.csv"),
     stringsAsFactors=FALSE)
 
+ltee.mutations <- read.csv(
+    file.path(proj.dir,
+              "data/rohan-formatted/nature18959-s4.csv"),
+    stringsAsFactors=FALSE
+)
+
 ## by inspecting evolved.mutations in conjunction with amplified genes, we see that the
 ## dctA amplification anti-correlates with the promoter mutation.
 ## Note that the dctA promoter mutation is in CZB151 and CZB154.
@@ -88,12 +94,12 @@ fisher.test(matrix(c(1,5,16,2),2))
 ## Figure 1A is a schematic of the experimental design, made in Illustrator.
 ## Figure 1B is the phylogenetic tree constructed using the iTOL webserver.
 ## Figure 1C: make a stacked bar plot of the different kinds of mutations in each clone.
+## Figure 1D: comparison to non-mutator LTEE 5000gen and 30000gen A clones.
 
-## remove ZDBp_874_ZDBp875 because it looks like it has twice as many mutations.
-fig1.mutations <- filter(evolved.mutations, Clone != 'ZDBp874_ZDBp875')
-
-fig1C.stacked <- ggplot(fig1.mutations,aes(x=Clone,fill=Mutation)) +
+fig1C <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +
     geom_bar() +
+    ylab("Count") +
+    ylim(c(0,80)) +
     scale_fill_viridis(option="magma",discrete=TRUE) +
     facet_grid(~Environment,scales="free") +
     theme_tufte(base_family='Helvetica') +
@@ -110,7 +116,71 @@ fig1C.stacked <- ggplot(fig1.mutations,aes(x=Clone,fill=Mutation)) +
     theme(legend.text=element_text(size=8))
 
 fig1C.output <- "../results/figures/Fig1C.pdf"
-ggsave(fig1C.stacked, file=fig1C.output,width=7,height=7)
+ggsave(fig1C, file=fig1C.output,width=7,height=7)
+
+ltee.5K.clones <- ltee.mutations %>% filter(Generation==5000) %>%
+    ## take odd rows to get A clones.
+    filter(row_number() %% 2 == 1) %>%
+    gather(key='Mutation',value='Count',
+           IS.Element.Insertions,Small.Indels,Large.Deletions,
+           Large.Duplications,Synonymous.Base.Substitutions,
+           Nonsynonymous.Base.Substitutions,Intergenic.Base.Substitutions,
+           Pseudogene.Base.Substitutions, Nonsense.Base.Substitutions) %>%
+    mutate(Mutation=recode(Mutation,
+                           IS.Element.Insertions='MOB',
+                           Small.Indels='DEL',
+                           Large.Deletions='DEL',
+                           Large.Duplications='INS',
+                           Synonymous.Base.Substitutions='synonymous',
+                           Nonsynonymous.Base.Substitutions = 'nonsynonymous',
+                           Intergenic.Base.Substitutions = 'intergenic',
+                           Pseudogene.Base.Substitutions = 'pseudogene',
+                           Nonsense.Base.Substitutions = 'nonsense')) %>%
+    filter(!(Population %in% c('Ara-2','Ara+3')))
+
+ltee.30K.clones <- ltee.mutations %>% filter(Generation==30000) %>%
+    ## take odd rows to get A clones.
+    filter(row_number() %% 2 == 1) %>%
+    gather(key='Mutation',value='Count',
+           IS.Element.Insertions,Small.Indels,Large.Deletions,
+           Large.Duplications,Synonymous.Base.Substitutions,
+           Nonsynonymous.Base.Substitutions,Intergenic.Base.Substitutions,
+           Pseudogene.Base.Substitutions, Nonsense.Base.Substitutions) %>%
+    mutate(Mutation=recode(Mutation,
+                           IS.Element.Insertions='MOB',
+                           Small.Indels='DEL',
+                           Large.Deletions='DEL',
+                           Large.Duplications='INS',
+                           Synonymous.Base.Substitutions='synonymous',
+                           Nonsynonymous.Base.Substitutions = 'nonsynonymous',
+                           Intergenic.Base.Substitutions = 'intergenic',
+                           Pseudogene.Base.Substitutions = 'pseudogene',
+                           Nonsense.Base.Substitutions = 'nonsense')) %>%
+    filter(!(Population %in% c('Ara-2','Ara+3','Ara-1','Ara-4','Ara+6')))
+
+fig1D.ltee.data <- rbind(ltee.5K.clones,ltee.30K.clones,stringsAsFactors=FALSE) %>%
+    mutate(Generation=as.factor(Generation)) %>%
+    mutate(Generation=recode_factor(Generation,'5000'='LTEE 5,000 generations','30000'='LTEE 30,000 generations'))
+
+fig1D <- ggplot(fig1D.ltee.data,aes(x=Population,y=Count,fill=Mutation)) +
+    geom_bar(stat='identity') +
+    scale_fill_viridis(option="magma",discrete=TRUE) +
+        facet_grid(~Generation, scales="free") +
+    theme_tufte(base_family='Helvetica') +
+    theme(axis.ticks=element_blank()) +
+    theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
+    theme(axis.text.y=element_text(size=12)) +
+    theme(panel.border=element_blank()) +
+    theme(plot.title=element_text(hjust=0)) +
+    theme(strip.text=element_text(hjust=0,size=12)) +
+    theme(panel.spacing.x=unit(1, "cm")) +
+    theme(panel.spacing.y=unit(0.5, "cm")) +
+    theme(legend.title=element_text(size=8)) +
+    theme(legend.title.align=1) +
+    theme(legend.text=element_text(size=8))
+
+fig1D.output <- "../results/figures/Fig1D.pdf"
+ggsave(fig1D, file=fig1D.output,width=7,height=7)
 
 ##############################################################
 ## Figure 2: growth curve analysis, showing evolution of
@@ -188,8 +258,9 @@ plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
 REL606.plot <- plot.REL606.DM25.growth(REL606.DM25.growth.data, logscale=FALSE)
 log.REL606.plot <- plot.REL606.DM25.growth(filter(REL606.DM25.growth.data,Hours<24), logscale=TRUE)
 
-save_plot(file.path(proj.dir,"results/figures/REL606_growth.pdf"),REL606.plot,base_height=2,base_width=3)
-save_plot(file.path(proj.dir,"results/figures/logREL606_growth.pdf"),log.REL606.plot,base_height=2,base_width=3)
+S1.Fig <- plot_grid(REL606.plot,log.REL606.plot,labels=c('A','B'),ncol=1)
+
+save_plot(file.path(proj.dir,"results/figures/S1Fig.pdf"),S1.Fig,base_height=4,base_width=3)
 
 ########################################
 prep.growth.df <- function(growth.df) {
@@ -910,7 +981,7 @@ save_plot(file.path(proj.dir,"results/figures/ZDBp892_growth.pdf"),ZDBp892.plot,
 ## SUPER COOL! ZDBp874 grows WORSE than ancestor in DM25!!!!
 ## ZDBp871 and ZDBp889 also grow worse in DM25 than ancestor!
 ## This is really interesting!
-3
+
 ## Fig. 2A: Plot growth curves for DM0-evolved clones.
 Fig2A.plot <- plot.growthcurve.figure(filter(DM0.clone.growth.data,Hours<=24), logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/Fig2A.pdf"),Fig2A.plot,base_height=7,base_width=11)
@@ -919,18 +990,17 @@ save_plot(file.path(proj.dir,"results/figures/Fig2A.pdf"),Fig2A.plot,base_height
 pop.Fig2E.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/pop_Fig2E.pdf"),pop.Fig2E.plot,base_height=7,base_width=11)
 
-## Fig SXX. Plot growth curves for DM25-evolved clones.
-FigDM25.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/DM25-evolved-growth-curves.pdf"),FigDM25.plot,base_height=7,base_width=11)
+## S5 Figure Panel A. Plot growth curves for DM25-evolved clones.
+S5FigA.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=FALSE)
 
 ## plot log-scale plots.
-log.Fig2A.plot <- plot.growthcurve.figure(DM0.clone.growth.data,logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/logFig2A.pdf"),log.Fig2A.plot,base_height=7,base_width=11)
-log.pop.Fig2A.plot <- plot.growthcurve.figure(DM0.pop.growth.data,logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/log_pop_Fig2A.pdf"),log.Fig2B.plot,base_height=7,base_width=11)
+S3Fig.plot <- plot.growthcurve.figure(DM0.clone.growth.data,logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height=7,base_width=11)
+S4Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data,logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/S4Fig.pdf"),S4Fig.plot,base_height=7,base_width=11)
 
-log.FigDM25.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/logDM25-evolved-growth-curves.pdf"), log.FigDM25.plot,base_height=7,base_width=11)
+S6Fig.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/S6Fig.pdf"), S6Fig.plot,base_height=7,base_width=11)
 
 ## data filtering to plot data included in my growth rate estimation.
 ## This code is useful for debugging and making sure the rate estimation works right.
@@ -992,55 +1062,41 @@ DM25.growth.estimate.comp.df <- full_join(
     DM25.growthcurver.summary) %>%
     ungroup()
 
-## r = 0.68, 0.70, -0.14, 0.59, respectively.
+## r = 0.68, 0.70, -0.14, 0.92, 0.59 respectively.
 cor(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs")
+cor.test(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs",method="pearson")
+
 cor(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.citrate,use="complete.obs")
+cor.test(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.citrate,use="complete.obs",method="pearson")
+
 cor(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.glucose,use="complete.obs")
+cor.test(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.glucose,use="complete.obs",method="pearson")
+
+cor(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,use="complete.obs")
+cor.test(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,use="complete.obs",method="pearson")
+
 cor(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs")
+cor.test(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs",method="pearson")
+
 
 pop.estimates <- filter(growth.estimate.comp.df,Dataset=='PopulationGrowth')
-
-## r = 0.64, 0.83, -0.04, 0.92, respectively.
+## r = 0.64, 0.83, -0.04, 0.81, 0.92, respectively.
 cor(pop.estimates$DM0.r, pop.estimates$DM0.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.glucose,use="complete.obs")
+cor(pop.estimates$DM0.t_mid, pop.estimates$DM0.t.lag,use="complete.obs")
 cor(pop.estimates$DM25.t_mid, pop.estimates$DM25.t.lag,use="complete.obs")
 
 clone.estimates <- filter(growth.estimate.comp.df,Dataset=='CloneGrowth')
-
-## r = 0.48, 0.60, -0.11, 0.68, respectively.
+## r = 0.48, 0.60, -0.11, 0.97, 0.68, respectively.
 cor(clone.estimates$DM0.r, clone.estimates$DM0.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.glucose,use="complete.obs")
+cor(clone.estimates$DM0.t_mid, clone.estimates$DM0.t.lag,use="complete.obs")
 cor(clone.estimates$DM25.t_mid, clone.estimates$DM25.t.lag,use="complete.obs")
 
 ## Note: the following are for the DM0-evolved clones.
 rate.comp.plot1 <- ggplot(growth.estimate.comp.df,
-                              aes(x=DM25.r,y=DM25.r.citrate,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    xlim(0,2) +
-    ylim(0,2) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM25 growthcurver r") +
-    ylab("DM25 r citrate")
-
-
-rate.comp.plot2 <- ggplot(growth.estimate.comp.df,
-                          aes(x=DM25.r,y=DM25.r.glucose,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    xlim(0,2) +
-    ylim(0,2) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM25 growthcurver r") +
-    ylab("DM25 r glucose")
-
-rate.comp.plot3 <- ggplot(growth.estimate.comp.df,
                           aes(x=DM0.r,y=DM0.r.citrate,color=Dataset)) +
     scale_color_manual(values=c('purple','green')) +
     geom_point() +
@@ -1049,38 +1105,85 @@ rate.comp.plot3 <- ggplot(growth.estimate.comp.df,
     xlim(0,2) +
     ylim(0,2) +
     geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM0 growthcurver r") +
+    xlab("DM0 r") +
     ylab("DM0 r citrate")
 
+rate.comp.plot2 <- ggplot(growth.estimate.comp.df,
+                              aes(x=DM25.r,y=DM25.r.citrate,color=Dataset)) +
+    scale_color_manual(values=c('purple','green')) +
+    geom_point() +
+    theme_classic() +
+    guides(color=FALSE) +
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_abline(slope=1,intercept=0,linetype='dotted') +
+    xlab("DM25 r") +
+    ylab("DM25 r citrate")
+
+rate.comp.plot3 <- ggplot(growth.estimate.comp.df,
+                          aes(x=DM25.r,y=DM25.r.glucose,color=Dataset)) +
+    scale_color_manual(values=c('purple','green')) +
+    geom_point() +
+    theme_classic() +
+    guides(color=FALSE) +
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_abline(slope=1,intercept=0,linetype='dotted') +
+    xlab("DM25 r") +
+    ylab("DM25 r glucose")
+
+rate.comp.plot4 <- ggplot(growth.estimate.comp.df,
+                          aes(x=DM0.t_mid,y=DM0.t.lag,color=Dataset)) +
+    scale_color_manual(values=c('purple','green')) +
+    geom_point() +
+    theme_classic() +
+    guides(color=FALSE) +
+    geom_abline(slope=1,intercept=0,linetype='dotted') +
+    xlab("DM0 t_mid") +
+    ylab("DM0 t_lag")
+
+rate.comp.plot5 <- ggplot(growth.estimate.comp.df,
+                          aes(x=DM25.t_mid,y=DM25.t.lag,color=Dataset)) +
+    scale_color_manual(values=c('purple','green')) +
+    geom_point() +
+    theme_classic() +
+    guides(color=FALSE) +
+    geom_abline(slope=1,intercept=0,linetype='dotted') +
+    xlab("DM25 t_mid") +
+    ylab("DM25 t_lag")
+
 ## Save figure for the Supplement. 
-full.rate.comp.fig <- plot_grid(rate.comp.plot1,
-                          rate.comp.plot2,
-                          rate.comp.plot3,
-                          labels=c('A','B','C'), nrow=1)
-comp.plot.outf <- file.path(proj.dir, "results/figures/r_comp_plot.pdf")
-save_plot(comp.plot.outf, full.rate.comp.fig, base_width=12)
+S7Fig <- plot_grid(rate.comp.plot1,
+                                rate.comp.plot2,
+                                rate.comp.plot3,
+                                rate.comp.plot4,
+                                rate.comp.plot5,
+                                labels=c('A','B','C','D','E'), ncol=1)
+S7Fig.outf <- file.path(proj.dir, "results/figures/S7Fig.pdf")
+save_plot(S7Fig.outf, S7Fig, base_height=10,base_width=4)
 
 ####################################
-### supplementary figure: show correlation in citrate growth rates in DM0 and DM25,
-### but no correlation between glucose growth rates and citrate growth rates.
-
-## correlations between growth rate in DM25 and DM0 by growthcurver:
-## marginally insignificant for clones, significant for populations.
-## Kendall's tau = 0.38, p = 0.06 for clones; tau = 0.52, p = 0.006 for pop.
-cor.test(x=clone.estimates$DM25.r,y=clone.estimates$DM0.r,method="kendall")
-cor.test(x=pop.estimates$DM25.r,y=pop.estimates$DM0.r,method="kendall")
-
-## significant correlation between r citrate in DM25 and DM0 by my estimates.
-cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM0.r.citrate,method="kendall")
-cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM0.r.citrate,method="kendall")
+### supplementary figure:
+### no correlation between glucose growth rates and citrate growth rates,
+### but  correlation in citrate growth rates in DM0 and DM25.
 
 ## no correlation between r citrate and r glucose in DM25 by my estimates.
-cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM25.r.glucose,method="kendall")
-cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM25.r.glucose,method="kendall")
+cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM25.r.glucose,method="pearson")
+cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM25.r.glucose,method="pearson")
+
+## significant correlation between r citrate in DM25 and DM0 by my estimates.
+cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM0.r.citrate,method="pearson")
+cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM0.r.citrate,method="pearson")
+
+## correlations between growth rate in DM25 and DM0 by growthcurver:
+##  significant for clones and marginially insignificant for populations.
+## Pearson's r = 0.74, p = 0.002 for clones; r = 0.50, p = 0.057 for pop.
+cor.test(x=clone.estimates$DM25.r,y=clone.estimates$DM0.r,method="pearson")
+cor.test(x=pop.estimates$DM25.r,y=pop.estimates$DM0.r,method="pearson")
 
 cit.glucose.cor.plot <- ggplot(growth.summary,
-                aes(x=DM25.r.glucose,y=DM25.r.citrate,color=Founder, shape=Generation)) +
-    facet_wrap(Founder~Dataset) +
+                aes(x=DM25.r.citrate,y=DM25.r.glucose, color=Founder, shape=Generation)) +
+    facet_wrap(Founder~Dataset,nrow=1) +
     geom_point() +
     theme_classic() +
     xlab("DM25 r citrate") +
@@ -1091,7 +1194,7 @@ cit.glucose.cor.plot <- ggplot(growth.summary,
 ## Think more about correlation between growth on citrate in DM0 and growth on citrate in DM25.
 cit.cit.cor.plot <- ggplot(growth.summary,
                 aes(x=DM25.r.citrate,y=DM0.r.citrate,color=Founder, shape=Generation)) +
-    facet_wrap(Founder~Dataset) +
+    facet_wrap(Founder~Dataset,nrow=1) +
     geom_point() +
     theme_classic() +
     xlab("DM25 r citrate") +
@@ -1102,7 +1205,7 @@ cit.cit.cor.plot <- ggplot(growth.summary,
 ## Compare with cit.cit.cor.plot. Very nice! Results look robust.
 r.r.cor.plot <- ggplot(growthcurver.summary,
                 aes(x=DM25.r,y=DM0.r,color=Founder, shape=Generation)) +
-    facet_wrap(Founder~Dataset) +
+    facet_wrap(Founder~Dataset,nrow=1) +
     geom_point() +
     theme_classic() +
     xlab("DM25 r") +
@@ -1111,11 +1214,11 @@ r.r.cor.plot <- ggplot(growthcurver.summary,
     guides(color=FALSE,shape=FALSE)
 
 ## Save figure for the Supplement. 
-all.cor.plot <- plot_grid(cit.glucose.cor.plot,
+S8Fig <- plot_grid(cit.glucose.cor.plot,
                           cit.cit.cor.plot,
-                          r.r.cor.plot, labels=c('A','B','C'), nrow=1)
-corr.plot.outf <- file.path(proj.dir,"results/figures/r_corr_plot.pdf")
-save_plot(corr.plot.outf,all.cor.plot,base_width=12)
+                          r.r.cor.plot, labels=c('A','B','C'), ncol=1)
+S8Fig.outf <- file.path(proj.dir,"results/figures/S8Fig.pdf")
+save_plot(S8Fig.outf, S8Fig, base_height=8, base_width=12)
 ######################################################################
 final.pop.growth.summary <- calc.growth.log.ratios(pop.estimates)
 final.clone.growth.summary <- calc.growth.log.ratios(clone.estimates)
@@ -1134,9 +1237,8 @@ clone.Fig2D.plot.df <- final.clone.growth.summary %>%
 Fig2D.clone <- plot.Fig2D(clone.Fig2D.plot.df, clone.bootstrap.CI)
 save_plot(file.path(proj.dir,"results/figures/Fig2D_clone.pdf"),Fig2D.clone)
 
-
 Fig2BCD <- plot_grid(clone.growth.parameter.plot,Fig2D.clone,labels=c('','D'),ncol=1,
-                     rel_heights = c(1.8, 1))
+                     rel_heights = c(1.8, 1),rel_widths=c(1.5,1))
 
 pop.bootstrap.CI <- run.ratio.confint.bootstrapping(final.pop.growth.summary)
 pop.Fig2H.plot.df <- final.pop.growth.summary %>%
@@ -1154,17 +1256,16 @@ Fig2FGH <- plot_grid(pop.growth.parameter.plot,Fig2H.pop,labels=c('','H'),ncol=1
 DM25.final.clone.growth.summary <- calc.growth.log.ratios(DM25.growth.estimate.comp.df)
 DM25.clone.bootstrap.CI <- run.ratio.confint.bootstrapping(DM25.final.clone.growth.summary)
 
-DM25.clone.Fig2D.plot.df <- DM25.final.clone.growth.summary %>%
+S5FigD.plot.df <- DM25.final.clone.growth.summary %>%
     gather(key="Parameter", value="Estimate",
            log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio,
            log.DM25.t.lag.ratio, log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
     filter(Name != Founder) ## ancestors always have a ratio of zero.
 
-Fig2D.DM25.clone <- plot.Fig2D(DM25.clone.Fig2D.plot.df, DM25.clone.bootstrap.CI)
-save_plot(file.path(proj.dir,"results/figures/Fig2D_DM25.pdf"),Fig2D.DM25.clone)
+S5FigD <- plot.Fig2D(S5FigD.plot.df, DM25.clone.bootstrap.CI)
 
-DM25.Fig2BCD <- plot_grid(DM25.clone.growth.parameter.plot,
-                          Fig2D.DM25.clone,
+S5FigBCD <- plot_grid(DM25.clone.growth.parameter.plot,
+                          S5FigD,
                           labels=c('','D'),ncol=1,
                           rel_heights = c(1.8, 1))
 
@@ -1173,12 +1274,12 @@ Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
 Fig2.1 <- plot_grid(Fig2A.plot, Fig2BCD, labels = c('A', ''), nrow = 1, rel_widths = c(1.2, 1))
 Fig2.2 <- plot_grid(pop.Fig2E.plot, Fig2FGH, labels = c('E', ''), nrow = 1, rel_widths = c(1.2, 1))
 Fig2 <- plot_grid(Fig2.1,Fig2.2,labels=c('',''),nrow=2)
-save_plot(Fig2outf,Fig2,base_height=16,base_width=16)
+save_plot(Fig2outf,Fig2,base_height=18,base_width=18)
 
 ## supplementary fig of DM25-evolved clone growth.
-DM25.evolved.Fig2outf <- file.path(proj.dir,"results/figures/DM25_Fig2.pdf")
-DM25.evolved.Fig2 <- plot_grid(FigDM25.plot, DM25.Fig2BCD, labels = c('A', ''), nrow = 1, rel_widths = c(1.2, 1))
-save_plot(DM25.evolved.Fig2outf, DM25.evolved.Fig2, base_height=8, base_width=16)
+S5Figoutf <- file.path(proj.dir,"results/figures/S5Fig.pdf")
+S5Fig <- plot_grid(S5FigA.plot, S5FigBCD, labels = c('A', ''), nrow = 1, rel_widths = c(1.2, 1))
+save_plot(S5Figoutf, S5Fig, base_height=9, base_width=18)
 
 ####### Figure 3: Nkrumah's cell death results.
 
@@ -1419,8 +1520,8 @@ amp.matrix.f <- file.path(proj.dir,"results/amp_matrix.csv")
 ltee.matrix.f <- file.path(proj.dir,"results/LTEE-mut_matrix.csv")
 dN.ltee.matrix.f <- file.path(proj.dir,"results/dN-LTEE-mut_matrix.csv")
 ltee.50k.labels.f <- file.path(proj.dir, "data/rohan-formatted/LTEE-50K-clones.csv")
-matrix.outf <- "../results/figures/Fig3.pdf"
-dN.matrix.outf <- "../results/figures/Fig3B.pdf"
+matrix.outf <- "../results/figures/Fig5.pdf"
+dN.matrix.outf <- "../results/figures/Fig5B.pdf"
 co.occurrence.outf <- file.path(proj.dir,"results/figures/co_occurrence.pdf")
 dN.co.occurrence.outf <- file.path(proj.dir,"results/figures/dN_co_occurrence.pdf")
 
@@ -1477,7 +1578,7 @@ IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element,frame=Environ
     xlab("Position") +
     theme_tufte(base_family="Helvetica")
 
-save_plot(file.path(proj.dir,"results/figures/Fig4B.pdf"),
+save_plot(file.path(proj.dir,"results/figures/Fig6B.pdf"),
          IS.plot,base_aspect_ratio=1.5)
 
 
@@ -1505,13 +1606,13 @@ parallel.IS.plot <- ggplot(parallel.IS.summary,aes(x=genome_start,
                                            label=annotation)) +
     geom_point() +
     guides(color=FALSE) +
-    scale_color_manual(values=cbb.friendly) +
+    scale_color_manual(values=cbbPalette) +
     theme_classic() +
     ylab("Count") +
     xlab("Position") +
     geom_text_repel(fontface = "italic")
 
-save_plot(file.path(proj.dir,"results/figures/Fig4A.pdf"),
+save_plot(file.path(proj.dir,"results/figures/Fig6A.pdf"),
          parallel.IS.plot,base_aspect_ratio=1.5)
 
 ########
@@ -1550,16 +1651,16 @@ IS150.rate.plot <- ggplot(IS150.rate.df,
     geom_jitter(width=50) +
     guides(color=FALSE)
 
-save_plot(file.path(proj.dir,"results/figures/Fig4C.pdf"),
+save_plot(file.path(proj.dir,"results/figures/Fig6C.pdf"),
          IS150.rate.plot,base_aspect_ratio=1.57)
 
 
 ########
 ## Combine the IS plots with cowplot to make Figure 4.
-Fig4outf <- file.path(proj.dir,"results/figures/Fig4.pdf")
-Fig4 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
+Fig6outf <- file.path(proj.dir,"results/figures/Fig6.pdf")
+Fig6 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
                   labels = c('A', 'B', 'C'), ncol=1)
-save_plot(Fig4outf,Fig4,base_height=10,base_aspect_ratio=0.8)
+save_plot(Fig6outf,Fig6,base_height=10,base_aspect_ratio=0.8)
 
 ########
 ## Conduct the following test for parallel evolution of IS-insertions:

@@ -108,33 +108,21 @@ def contamination_check(pathdict, pop_clone_labels,resultsdir):
 
 def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdir):
     ''' First copy annotated genomediffs into a nice directory structure, filtering out
-        mutations in the ancestral strains.'''
+        mutations in the ancestral strains.
+
+        In addition, remove the yhiO/uspA mutation from ZDBp874 to make ZDBp874 and ZDBp875
+        evolutionarily independent.
+    '''
     evol_genomes = [x for x in pathdict.keys() if x.startswith('ZDBp')]
     evol_pop_clone_labels = pop_clone_labels[pop_clone_labels['Name'].isin(evol_genomes)]
-    ## take the union over genomes sampled at the same timepoint in the same population.
-    grouped_evol_labels = evol_pop_clone_labels.groupby(['PopulationLabel'])
+    grouped_evol_labels = evol_pop_clone_labels.groupby(['Name'])
     for poplabel, group_df in grouped_evol_labels:
-        ## if more than one genome sampled from the population
-        if group_df.shape[0] > 1:
-            ## then gdtools UNION those mutations.
-            gds_in_group = [x for x in group_df['Name']]
-            union_gds = [join(pathdict[x],'output/evidence/annotated.gd') for x in gds_in_group]
-            for x in union_gds:
-                assert isfile(x)
-            evolname = '_'.join(gds_in_group + ['UNION'])
-            union_outf = evolname + '.gd'
-            union_tempf = join(resultsdir,"temp_"+union_outf)
-            CallGDtools('UNION', union_tempf, union_gds).call()
-            ## set the output of gdtools UNION to be input for gdtools SUBTRACT.
-            evol_gd = union_tempf
-            ## do the whole rigamole. TODO: get rid of code duplication.
-        else:
-            evolname = group_df.Name.unique().item()
-            evol_gd = join(pathdict[evolname],"output/evidence/annotated.gd")
-
+        evolname = group_df.Name.unique().item()
+        evol_gd = join(pathdict[evolname],"output/evidence/annotated.gd")
+        
         anc = group_df.ParentClone.unique().item()
         anc_gd = join(pathdict[anc],"output/evidence/annotated.gd")
-        assert isfile(evol_gd), print(evol_gd)
+        assert isfile(evol_gd)
         assert isfile(anc_gd)
         infiles = [evol_gd, anc_gd]
         outname = evolname+"_minus_"+anc+".gd"
@@ -146,15 +134,14 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
         outf = join(outdir,outname)
         CallGDtools('SUBTRACT',tempf,infiles).call()
 
-        if group_df.shape[0] > 1: ## erase temporary unionfile.
-            run("rm "+union_tempf,shell=True,executable='/bin/bash')
-
         ''' Now remove all mutation calls in:
         rrlA (23S ribosomal RNA)
         rhsA and rhsB (repeat-rich proteins)
         Q48Q mutation in insE-3 or insE-5 (uncertain genomic variation in insE transposon).
         '''
         all_conditions = ['gene_name==rrlA','gene_name==rhsA','gene_name==rhsB','gene_name==insE-3','gene_name==insE-5']
+        if evolname == 'ZDBp874': 
+            all_conditions.append('gene_name==yhiO/uspA')
         while len(all_conditions): ## run gdtools REMOVE for each condition to remove all matches.
             clist = [all_conditions.pop(0)]
             ## add a digit to the temp outfile name to keep them distinct.
@@ -365,7 +352,7 @@ def annotate_LTEE_MAE_genomes(LTEE_Ecoli_dir, outdir, refgen):
 def main():
 
     homedir = expanduser("~")
-    projdir = join(homedir,"BoxSync/DM0-evolution")
+    projdir = join(homedir,"BoxSync/active-projects/DM0-evolution")
     resultsdir = join(projdir,"results/genome-analysis")
     poly_resultsdir = join(projdir,"results/genome-analysis/polymorphism")
     breseqoutput_dir = join(projdir,"genomes/consensus")
@@ -388,37 +375,37 @@ def main():
     rhsA and rhsB (repeat-rich proteins)
     Q48Q mutation in insE-3 or insE-5 (uncertain genomic variation in insE transposon).
     '''
-    ##contamination_check(genome_path_dict, all_pop_clone_labels,resultsdir)
+    contamination_check(genome_path_dict, all_pop_clone_labels,resultsdir)
 
     ''' Now subtract ancestral mutations from evolved strains, and remove mutations in
     rrlA, rhsA, rhsB, insE-3, insE-5 from the analysis. Then, organize diffs for the
     Dice analysis. '''
-    ##subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
-    ##organize_diffs(resultsdir)
+    subtract_ancestors_and_filter_mutations(genome_path_dict,all_pop_clone_labels,resultsdir)
+    organize_diffs(resultsdir)
     ''' do the same thing,using the breseq --polymorphism mode results.'''
-    ##subtract_ancestors_and_filter_mutations(poly_genome_path_dict,all_pop_clone_labels,poly_resultsdir)
-    ##organize_diffs(poly_resultsdir)
+    subtract_ancestors_and_filter_mutations(poly_genome_path_dict,all_pop_clone_labels,poly_resultsdir)
+    organize_diffs(poly_resultsdir)
 
     ''' tabulate the evolved mutations.'''
     evolved_genomes = [x for x in listdir(breseqoutput_dir) if x.startswith('ZDBp')]
     evol_pop_clone_labels = all_pop_clone_labels[all_pop_clone_labels['Name'].isin(evolved_genomes)]
     genomesdir = join(resultsdir,"environment-comparison")
     mut_table_outf = join(resultsdir,"evolved_mutations.csv")
-    ##write_evolved_mutations(evol_pop_clone_labels, genomesdir, mut_table_outf)
+    write_evolved_mutations(evol_pop_clone_labels, genomesdir, mut_table_outf)
 
     poly_genomesdir = join(poly_resultsdir,"environment-comparison")
     poly_mut_table_outf = join(resultsdir,"poly_evolved_mutations.csv")
-    ##write_evolved_mutations(evol_pop_clone_labels, poly_genomesdir, poly_mut_table_outf,polymorphism=True)
+    write_evolved_mutations(evol_pop_clone_labels, poly_genomesdir, poly_mut_table_outf,polymorphism=True)
 
     ''' make a table of IS-insertions, genome, and start and end locations.
         in the evolved and subtracted clones.'''
     IS_table_outf = join(resultsdir,"IS_insertions.csv")
-    ##make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
+    make_IS_insertion_tbl(evol_pop_clone_labels, genomesdir, IS_table_outf)
 
     ''' make a table of IS elements in LCA (including REL606).'''
     LCA_table_outf = join(resultsdir,"LCA_IS_insertions.csv")
     LCAgff = join(projdir,"genomes/curated-diffs/LCA.gff3")
-    ##make_LCA_IS_insertion_csv(evol_pop_clone_labels, resultsdir, LCA_table_outf, LCAgff)
+    make_LCA_IS_insertion_csv(evol_pop_clone_labels, resultsdir, LCA_table_outf, LCAgff)
 
     ''' run gdtools ANNOTATE on the LTEE and MAE genomes.'''
     LTEE_MAE_dir = join(projdir,"genomes/LTEE-Ecoli")
@@ -426,13 +413,12 @@ def main():
     REL606ref = join(projdir,"genomes/REL606.7.gbk")
     if not exists(annotated_LTEE_MAE_dir):
         makedirs(annotated_LTEE_MAE_dir)
-    ##annotate_LTEE_MAE_genomes(LTEE_MAE_dir,annotated_LTEE_MAE_dir,REL606ref)
-
+    annotate_LTEE_MAE_genomes(LTEE_MAE_dir,annotated_LTEE_MAE_dir,REL606ref)
 
     ''' make a table of IS-insertions, genome, and start and end locations in the
     LTEE and MAE clones. '''
 
     LTEE_MAE_IS_outf = join(resultsdir, "LTEE_MAE_IS150_insertions.csv")
-    ##make_LTEE_MAE_IS150_tbl(annotated_LTEE_MAE_dir, LTEE_MAE_IS_outf)
+    make_LTEE_MAE_IS150_tbl(annotated_LTEE_MAE_dir, LTEE_MAE_IS_outf)
 
 main()
