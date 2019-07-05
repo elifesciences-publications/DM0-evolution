@@ -67,6 +67,40 @@ evolved.mutations <- read.csv(
               "results/genome-analysis/evolved_mutations.csv"),
     stringsAsFactors=FALSE)
 
+## Notice parallel mutations at base-pair level in citrate synthase!
+filter(evolved.mutations,Gene=='gltA') arrange(Position)
+## but remember that fine-tuning was already reported by Erik Quandt.
+
+## any other parallel dN at base-pair level?
+parallel.dN <- evolved.mutations %>% filter(Mutation=='nonsynonymous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
+
+parallel.dN.Table <- filter(evolved.mutations, Position %in% parallel.dN$Position) %>%
+  arrange(Position)
+
+## 3/5 parallel bp mutations are in citrate synthase, gltA!
+## 735765, 735797, 735941. What are the others?
+## 2209801 is in atoS, 2630053 is in ygaF.
+
+## atoS annotation from Ecocyc:
+## AtoS is the sensor histidine kinase of the AtoS/AtoC two-component signal transduction pathway which is best characterised by its induction of the ato operon for metabolism of short chain fatty acids in response to the presence of acetoacetate. AtoS is a homo-dimeric transmembrane protein consisting of an amino-terminal periplasmic sensing domain coupled to a carboxy-terminal cytoplasmic kinase domain [Lioliou05, Filippou08]. AtoS autophosphorylates on a conserved histidine residue by trans-phosphorylation between the monomers of the homodimer [Filippou08]. AtoS tranfers a phosphoryl group to the cytoplasmic response regulator AtoC which controls transcriptional expression of the operon (atoDAEB) involved in short-chain fatty acid catabolism [Jenkins87a, Lioliou04, Lioliou05].
+
+## ygaF annotation from Ecocyc:
+## L-2-hydroxyglutarate dehydrogenase (LhgD) is an electron transport chain-coupled dehydrogenase that feeds electrons from the reaction into the membrane quinone pool [Knorr18]. LhgD contains an FAD cofactor which is not covalently attached, and whose reduction potential is relatively high at -25 mV [Kalliri08].
+## LhgD was initially thought to be an oxidase, i.e. using molecular oxygen for oxidation of L-2-hydroxyglutarate and producing hydrogen peroxide [Kalliri08].
+
+## LhgD is associated with the cytoplasmic membrane [Zhang07], and its activity is only found in the membrane fraction [Knorr18].
+
+## lhgD is part of an operon whose expression is induced upon carbon starvation and in stationary phase [Marschall98, Becker01, Germer01, Metzner04].
+
+
+non.MOB.parallel <- evolved.mutations %>% filter(Mutation!='MOB') %>% filter(Mutation!= 'nonsynony
+mous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
+
+## what about other classes of mutations?
+Table3 <- filter(evolved.mutations, Position %in% non.MOB.parallel$Position) %>% arrange(Position)
+## should I write up these results/dig deeper?
+
+
 ltee.mutations <- read.csv(
     file.path(proj.dir,
               "data/rohan-formatted/nature18959-s4.csv"),

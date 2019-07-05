@@ -32,12 +32,12 @@ make.transcript.table <- function(s) {
   data <- read.table(
     file.path(proj.dir, "results", "RNAseq-analysis", s, "abundance.tsv"),
     header=TRUE, sep="\t", stringsAsFactors=FALSE) %>%
-      select(target_id, est_counts) %>%
+      select(target_id, tpm) %>%
           mutate(temp = target_id) %>%
             extract(temp,
                     c("locus_tag", "gene", "note"),
                     regex=".+=(.+)\\|.+=(.+)\\|.+=(.+)") %>%
-                      rename(!! s := est_counts)
+                      rename(!! s := tpm)
   return(data)
 }
 
@@ -45,13 +45,13 @@ make.transcript.table <- function(s) {
 transcript.df <- map(metadata$sample, make.transcript.table) %>%
   reduce(left_join) %>%
   gather(key='Sample',
-         value='est_counts',
+         value='tpm',
          -target_id, -locus_tag, -gene, -note) %>%
   separate(Sample, c('Clone','Run'))
 
 total.run.transcripts.df <- transcript.df %>%
   group_by(Clone, Run) %>%
-  summarize(total.run.transcripts=sum(est_counts,na.rm=TRUE))
+  summarize(total.run.transcripts=sum(tpm,na.rm=TRUE))
 
 total.clone.transcripts.df <- total.run.transcripts.df %>%
   summarize(total.transcripts=sum(total.run.transcripts))
@@ -63,35 +63,34 @@ total.run.transcripts.df %<>% left_join(total.clone.transcripts.df) %>%
 mean.transcript.df <- transcript.df %>%
   left_join(total.run.transcripts.df) %>%
   group_by(target_id, locus_tag, gene, note, Clone) %>%
-  summarize(mean_count=weighted.mean(est_counts,weights,na.rm=TRUE)) %>%
+  summarize(mean_tpm=weighted.mean(tpm,weights,na.rm=TRUE)) %>%
   ungroup()
-
 
 ## get gene annotation from the kallisto output (target_id already has annotation).
 my.annotation <- transcript.df %>%
-  select(target_id,locus_tag, gene, note)
+  select(target_id,locus_tag, gene, note) %>%
+  distinct()
 
 so <- sleuth_prep(metadata, target_mapping = my.annotation,
                   extra_bootstrap_summary = TRUE) %>%
-    sleuth_fit(~ Treatment, 'full') %>%
-    sleuth_fit(~ 1, 'reduced') %>%
-    sleuth_lrt('reduced','full') %>%
-    sleuth_wt("TreatmentEvolved", "full")
+  sleuth_fit(~ Treatment, 'full') %>%
+  sleuth_fit(~ 1, 'reduced') %>%
+  sleuth_lrt('reduced','full') %>%
+  sleuth_wt("TreatmentEvolved", "full")
 
 lrt.results <- sleuth_results(so, 'reduced:full', 'lrt', show_all = TRUE) %>%
-    filter(qval < 0.05)
+    filter(qval < 0.05) %>% distinct()
 ## Wald test will return an effect size (regression parameter beta).
 wt.results <- sleuth_results(so,'TreatmentEvolved') %>%
-    filter(qval < 0.05)
-
-## filter wald test results by the lrt test.
-results.table <- filter(wt.results, gene %in% lrt.results$gene)
-
-results.table2 <- results.table %>%
-    select(gene,note,pval,qval,b)
+    filter(qval < 0.05) %>% distinct()
 
 sleuth_live(so)
 
+## NOTE: I am uncertain whether the following results are
+## correct or not. Am I calculating average counts properly??
+## check out apparent variability in fadB..
+## seems like my calculations are way too naive.
+## Hold off on reporting for now, and stick to the sleuth results.
 
 ## make a heatmap with clustergrammer.
 ## filter on RNAs differently expressed between
@@ -123,11 +122,11 @@ clustergrammer.df2 <- mean.transcript.df %>%
 ## NOTE: add a tab to first row by hand, then save as "tab_clustergrammer.tsv"
 ## so that not overwritten.
 write.table(clustergrammer.df,
-            file.path(proj.dir, "results", "RNAseq-analysis", "clustergrammer.tsv"),
+            file.path(proj.dir, "results", "sleuth-results", "clustergrammer.tsv"),
             sep='\t', quote= FALSE)
 
 write.table(clustergrammer.df2,
-            file.path(proj.dir, "results", "RNAseq-analysis", "clustergrammer2.tsv"),
+            file.path(proj.dir, "results", "sleuth-results", "clustergrammer2.tsv"),
             sep='\t', quote= FALSE)
 
 clustergrammer.df3 <- mean.transcript.df %>%
@@ -150,4 +149,4 @@ clustergrammer.df3 <- mean.transcript.df %>%
 
 ## ycfR anticorrelates with a lot of genes: rpoB, rps, rpl genes.
 ## this is a stress response gene that affects outer membrane.
-## ycdQ anticorrelates with aceB, pheA, murF, lpdA. This
+## ycdQ anticorrelates with aceB, pheA, murF, lpdA.
