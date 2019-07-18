@@ -78,7 +78,17 @@ parallel.dN.Table <- filter(evolved.mutations, Position %in% parallel.dN$Positio
   arrange(Position)
 
 ## 3/5 parallel bp mutations are in citrate synthase, gltA!
-## 735765, 735797, 735941. What are the others?
+## 735765, 735797, 735941.
+## These are M172I, A162T, I114F, respectively.
+## A162V is reported in Quandt et al. (2015) in eLife as affecting NADH-binding.
+## The other two have not been reported before.
+
+## From methods section of Quandt et al. (2015):
+## Dimeric models of ligand-free and NADH-bound E. coli citrate synthase (PDB: 1NXE and 1NXG) (Maurus et al., 2003)
+## were prepared for analysis by reverting alanine-383 to phenylalanine and processing with the Structure
+## Preparation application within MOE (Molecular Operating Environment).
+
+## the other parallel bp mutations are:
 ## 2209801 is in atoS, 2630053 is in ygaF.
 
 ## atoS annotation from Ecocyc:
@@ -91,7 +101,6 @@ parallel.dN.Table <- filter(evolved.mutations, Position %in% parallel.dN$Positio
 ## LhgD is associated with the cytoplasmic membrane [Zhang07], and its activity is only found in the membrane fraction [Knorr18].
 
 ## lhgD is part of an operon whose expression is induced upon carbon starvation and in stationary phase [Marschall98, Becker01, Germer01, Metzner04].
-
 
 non.MOB.parallel <- evolved.mutations %>% filter(Mutation!='MOB') %>% filter(Mutation!= 'nonsynony
 mous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
@@ -280,6 +289,7 @@ plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
     title.string <- "REL606 in DM25"
 
     fig <- fig +
+        xlab('Time (h)') +
         geom_point(size=0.1, alpha=0.1) +
     theme_classic() +
         guides(color=FALSE) +
@@ -292,9 +302,9 @@ plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
 REL606.plot <- plot.REL606.DM25.growth(REL606.DM25.growth.data, logscale=FALSE)
 log.REL606.plot <- plot.REL606.DM25.growth(filter(REL606.DM25.growth.data,Hours<24), logscale=TRUE)
 
-S1.Fig <- plot_grid(REL606.plot,log.REL606.plot,labels=c('A','B'),ncol=1)
+S2Fig <- plot_grid(REL606.plot,log.REL606.plot,labels=c('A','B'),ncol=1)
 
-save_plot(file.path(proj.dir,"results/figures/S1Fig.pdf"),S1.Fig,base_height=4,base_width=3)
+save_plot(file.path(proj.dir,"results/figures/S2Fig.pdf"),S2Fig,base_height=4,base_width=3)
 
 ########################################
 prep.growth.df <- function(growth.df) {
@@ -344,9 +354,9 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
     ev.pop <- unique(filter(plot.growth.data,Name==ev.name)$PopulationLabel)
     sample.type <- unique(filter(plot.growth.data,Name==ev.name)$SampleType)
     if (sample.type == 'Clone') {
-        title.string <- paste0(ev.pop,': ', ev.name)
+        title.string <- paste0(ev.pop, ': ', ev.name)
     } else {
-        title.string <- ev.pop
+        title.string <- paste0(ev.pop, ': population')
     }
 
     ## make Cit- strain stand out.
@@ -357,6 +367,7 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
     }
 
     fig <- fig +
+        xlab('Time (h)') +
         geom_point(data=filter(plot.growth.data, Name==fdr),
                    size=0.1, color="#999999", alpha=0.1) +
         geom_point(data=filter(plot.growth.data,Name==ev.name),
@@ -908,7 +919,7 @@ plot.growthcurver.parameters <- function(growth) {
     return(growth.plot)   
 }
 
-plot.Fig2D <- function (plot.df, confints.df) {
+plot.growth.parameter.log.ratios <- function (plot.df, confints.df) {
 
     recode.Parameter <- function(df) {
         df <- mutate(df,
@@ -1016,25 +1027,28 @@ save_plot(file.path(proj.dir,"results/figures/ZDBp892_growth.pdf"),ZDBp892.plot,
 ## ZDBp871 and ZDBp889 also grow worse in DM25 than ancestor!
 ## This is really interesting!
 
-## Fig. 2A: Plot growth curves for DM0-evolved clones.
-Fig2A.plot <- plot.growthcurve.figure(filter(DM0.clone.growth.data,Hours<=24), logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/Fig2A.pdf"),Fig2A.plot,base_height=7,base_width=11)
+## S3 Fig: Plot growth curves for DM0-evolved clones.
+S3Fig.plot <- plot.growthcurve.figure(filter(DM0.clone.growth.data,Hours<=24), logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height=7,base_width=11)
 
-## Fig. 2E: Plot growth curves for DM0-evolved populations.
-pop.Fig2E.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/pop_Fig2E.pdf"),pop.Fig2E.plot,base_height=7,base_width=11)
+## S5 Fig: Plot growth curves for DM0-evolved populations.
+S5Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/S5Fig.pdf"), S5Fig.plot,base_height=7,base_width=11)
 
-## S5 Figure Panel A. Plot growth curves for DM25-evolved clones.
-S5FigA.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=FALSE)
+## S7 Figure. Plot growth curves for DM25-evolved clones.
+S7Figoutf <- file.path(proj.dir,"results/figures/S7Fig.pdf")
+S7Fig.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=FALSE)
+save_plot(S7Figoutf, S7Fig.plot,base_height=7,base_width=11)
+
 
 ## plot log-scale plots.
-S3Fig.plot <- plot.growthcurve.figure(DM0.clone.growth.data,logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height=7,base_width=11)
-S4Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data,logscale=TRUE)
+S4Fig.plot <- plot.growthcurve.figure(DM0.clone.growth.data,logscale=TRUE)
 save_plot(file.path(proj.dir,"results/figures/S4Fig.pdf"),S4Fig.plot,base_height=7,base_width=11)
+S6Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data,logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/S6Fig.pdf"),S6Fig.plot,base_height=7,base_width=11)
 
-S6Fig.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/S6Fig.pdf"), S6Fig.plot,base_height=7,base_width=11)
+S9Fig.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=TRUE)
+save_plot(file.path(proj.dir,"results/figures/S9Fig.pdf"), S9Fig.plot,base_height=7,base_width=11)
 
 ## data filtering to plot data included in my growth rate estimation.
 ## This code is useful for debugging and making sure the rate estimation works right.
@@ -1053,20 +1067,19 @@ clone.growth.plot <- plot.growth.parameters(clone.growth)
 clone.growthcurver.plot <- plot.growthcurver.parameters(clone.growth.curve.fits)
 clone.growth.parameter.plot <- plot_grid(clone.growth.plot,
                                          clone.growthcurver.plot,ncol=1,
-                                         labels=c('B','C'))
+                                         labels=c('A','B'))
 
 pop.growth.plot <- plot.growth.parameters(pop.growth)
 pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
 pop.growth.parameter.plot <- plot_grid(pop.growth.plot,
                                          pop.growthcurver.plot,ncol=1,
-                                         labels=c('F','G'))
-
+                                         labels=c('A','B'))
 
 DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth)
 DM25.clone.growthcurver.plot <- plot.growthcurver.parameters(DM25.clone.growth.curve.fits)
 DM25.clone.growth.parameter.plot <- plot_grid(DM25.clone.growth.plot,
                                          DM25.clone.growthcurver.plot,ncol=1,
-                                         labels=c('B','C'))
+                                         labels=c('A','B'))
 
 ## summarize and take averages over clone and population samples.
 clone.growth.summary <- summarize.growth.results(clone.growth)
@@ -1187,14 +1200,14 @@ rate.comp.plot5 <- ggplot(growth.estimate.comp.df,
     ylab("DM25 t_lag")
 
 ## Save figure for the Supplement. 
-S7Fig <- plot_grid(rate.comp.plot1,
+S10Fig <- plot_grid(rate.comp.plot1,
                                 rate.comp.plot2,
                                 rate.comp.plot3,
                                 rate.comp.plot4,
                                 rate.comp.plot5,
                                 labels=c('A','B','C','D','E'), ncol=1)
-S7Fig.outf <- file.path(proj.dir, "results/figures/S7Fig.pdf")
-save_plot(S7Fig.outf, S7Fig, base_height=10,base_width=4)
+S10Fig.outf <- file.path(proj.dir, "results/figures/S10Fig.pdf")
+save_plot(S10Fig.outf, S10Fig, base_height=10,base_width=4)
 
 ####################################
 ### supplementary figure:
@@ -1248,76 +1261,72 @@ r.r.cor.plot <- ggplot(growthcurver.summary,
     guides(color=FALSE,shape=FALSE)
 
 ## Save figure for the Supplement. 
-S8Fig <- plot_grid(cit.glucose.cor.plot,
+S11Fig <- plot_grid(cit.glucose.cor.plot,
                           cit.cit.cor.plot,
                           r.r.cor.plot, labels=c('A','B','C'), ncol=1)
-S8Fig.outf <- file.path(proj.dir,"results/figures/S8Fig.pdf")
-save_plot(S8Fig.outf, S8Fig, base_height=8, base_width=12)
+S11Fig.outf <- file.path(proj.dir,"results/figures/S11Fig.pdf")
+save_plot(S11Fig.outf, S11Fig, base_height=8, base_width=12)
 ######################################################################
 final.pop.growth.summary <- calc.growth.log.ratios(pop.estimates)
 final.clone.growth.summary <- calc.growth.log.ratios(clone.estimates)
+
+Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
+Fig3outf <- file.path(proj.dir,"results/figures/Fig3.pdf")
 
 ## Exclude the Cit- ZDBp874 strain from these calculations.
 clone.bootstrap.CI <- run.ratio.confint.bootstrapping(filter(
     final.clone.growth.summary,Name!='ZDBp874'))
 
-clone.Fig2D.plot.df <- final.clone.growth.summary %>%
+Fig2C.plot.df <- final.clone.growth.summary %>%
     gather(key="Parameter", value="Estimate",
            log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
            log.DM25.t.lag.ratio, log.DM0.t.lag.ratio, log.DM0.r.ratio, log.DM0.t_mid.ratio,
            log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
     filter(Name != Founder) ## ancestors always have a ratio of zero.
 
-Fig2D.clone <- plot.Fig2D(clone.Fig2D.plot.df, clone.bootstrap.CI)
-save_plot(file.path(proj.dir,"results/figures/Fig2D_clone.pdf"),Fig2D.clone)
+Fig2C <- plot.growth.parameter.log.ratios(Fig2C.plot.df, clone.bootstrap.CI)
 
-Fig2BCD <- plot_grid(clone.growth.parameter.plot,Fig2D.clone,labels=c('','D'),ncol=1,
-                     rel_heights = c(1.8, 1),rel_widths=c(1.5,1))
+Fig2 <- plot_grid(clone.growth.parameter.plot,Fig2C,labels=c('','C'),ncol=1,
+                  rel_heights = c(1.8, 1),rel_widths=c(1.5,1))
+save_plot(Fig2outf,Fig2, base_height=7.5)
 
 pop.bootstrap.CI <- run.ratio.confint.bootstrapping(final.pop.growth.summary)
-pop.Fig2H.plot.df <- final.pop.growth.summary %>%
+Fig3C.plot.df <- final.pop.growth.summary %>%
     gather(key="Parameter", value="Estimate",
            log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
            log.DM25.t.lag.ratio, log.DM0.t.lag.ratio, log.DM0.r.ratio, log.DM0.t_mid.ratio,
            log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
     filter(Name != Founder) ## ancestors always have a ratio of zero.
-Fig2H.pop <- plot.Fig2D(pop.Fig2H.plot.df, pop.bootstrap.CI)
-save_plot(file.path(proj.dir,"results/figures/Fig2D_pop.pdf"),Fig2H.pop)
+Fig3C <- plot.growth.parameter.log.ratios(Fig3C.plot.df, pop.bootstrap.CI)
 
-Fig2FGH <- plot_grid(pop.growth.parameter.plot,Fig2H.pop,labels=c('','H'),ncol=1,
+Fig3 <- plot_grid(pop.growth.parameter.plot,Fig3C,labels=c('','C'),ncol=1,
                      rel_heights = c(1.8, 1))
+save_plot(Fig3outf,Fig3, base_height=7.5)
 
 DM25.final.clone.growth.summary <- calc.growth.log.ratios(DM25.growth.estimate.comp.df)
 DM25.clone.bootstrap.CI <- run.ratio.confint.bootstrapping(DM25.final.clone.growth.summary)
 
-S5FigD.plot.df <- DM25.final.clone.growth.summary %>%
+S8FigC.plot.df <- DM25.final.clone.growth.summary %>%
     gather(key="Parameter", value="Estimate",
            log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio,
            log.DM25.t.lag.ratio, log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
     filter(Name != Founder) ## ancestors always have a ratio of zero.
 
-S5FigD <- plot.Fig2D(S5FigD.plot.df, DM25.clone.bootstrap.CI)
+S8FigC <- plot.growth.parameter.log.ratios(S8FigC.plot.df, DM25.clone.bootstrap.CI)
 
-S5FigBCD <- plot_grid(DM25.clone.growth.parameter.plot,
-                          S5FigD,
-                          labels=c('','D'),ncol=1,
+S8Fig <- plot_grid(DM25.clone.growth.parameter.plot,
+                          S8FigC,
+                          labels=c('','C'),ncol=1,
                           rel_heights = c(1.8, 1))
 
-####### Make Figure 2 using cowplot.
-Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
-Fig2.1 <- plot_grid(Fig2A.plot, Fig2BCD, labels = c('A', ''), nrow = 1, rel_widths = c(1.2, 1))
-Fig2.2 <- plot_grid(pop.Fig2E.plot, Fig2FGH, labels = c('E', ''), nrow = 1, rel_widths = c(1.2, 1))
-Fig2 <- plot_grid(Fig2.1,Fig2.2,labels=c('',''),nrow=2)
-save_plot(Fig2outf,Fig2,base_height=18,base_width=18)
-
 ## supplementary fig of DM25-evolved clone growth.
-S5Figoutf <- file.path(proj.dir,"results/figures/S5Fig.pdf")
-S5Fig <- plot_grid(S5FigA.plot, S5FigBCD, labels = c('A', ''), nrow = 1, rel_widths = c(1.2, 1))
-save_plot(S5Figoutf, S5Fig, base_height=9, base_width=18)
+S8Figoutf <- file.path(proj.dir,"results/figures/S8Fig.pdf")
+save_plot(S8Figoutf,S8Fig)
 
-####### Figure 3: Nkrumah's cell death results.
 
-### Figure 4 (AFTER cell death results): plot CFU results.
+####### Figure 4: Nkrumah's cell death results.
+
+### Figure 5 (AFTER cell death results): plot CFU results.
 ## After looking at the growth curves, let's examine the CFUs in DM25.
 calc.CFU.log.ratios <- function(CFU.summary) {
     anc.Counts <- rep(-1,nrow(CFU.summary))

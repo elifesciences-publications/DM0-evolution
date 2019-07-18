@@ -6,6 +6,7 @@ gdtools UNION initLCA.gd clpA-serW-mut.gd -o LCA.gd
 rm initLCA.gd
 gdtools APPLY -o LCA.gff3 -f GFF3 -r ../REL606.7.gbk LCA.gd
 gdtools APPLY -o LCA.fasta -f FASTA -r ../REL606.7.gbk LCA.gd
+gdtools ANNOTATE -r ../REL606.7.gbk -o annotated_LCA.html -f HTML LCA.gd
 
 ## horrible hacks to make a genbank file from the LCA ggf3 file
 ## for the dice analysis.

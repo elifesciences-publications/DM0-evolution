@@ -141,11 +141,14 @@ D3 %>% group_by(Clone, Treatment, Block) %>%
   guides(color=guide_legend(title="Cell viability"))
 
 ## Plot 4 : proportion of dead:alive cells on a population level. 
+orange.red <- '#fc8d59'
+cool.blue <- '#91bfdb'
+
 Fig3B <- D4 %>%
   group_by(Clone, Treatment) %>% 
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") +
-  scale_fill_manual(values=c('#fc8d59','#91bfdb')) +
+  scale_fill_manual(values=c(cool.blue,orange.red)) +
 facet_wrap(. ~ Clone, nrow=1) +
   guides(fill = FALSE) +
   ylab("Number of cells") +
