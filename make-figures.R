@@ -25,7 +25,7 @@ library(growthcurver) ## use growthcurver package to fit r from growth data.
 calc.bootstrap.conf.int <- function(vec) {
     ## bootstrap confidence intervals around the mean.
     ## Use the boot package to calculate fancy BCA intervals.
-
+    
     mean.boot <- function(x,ind) {
         ## define this type of mean-calculating function to pass to the boot function.
         ## from: https://web.as.uky.edu/statistics/users/pbreheny/621/F12/notes/9-18.pdf
@@ -34,17 +34,24 @@ calc.bootstrap.conf.int <- function(vec) {
 
     Nbootstraps <- 10000
 
-    out <- boot(vec,mean.boot,Nbootstraps)
-    ## handle bad inputs in bootstrapping confidence intervals
-    ci.result <- tryCatch(boot.ci(out,type="bca"), error= function(c) return(NULL))
-    if (is.null(ci.result)) {
+    ## remove any NA values from vec.
+    vec <- vec[!is.na(vec)]
+
+    if (length(vec)) {    
+        out <- boot(vec,mean.boot,Nbootstraps)
+        ## handle bad inputs in bootstrapping confidence intervals
+        ci.result <- tryCatch(boot.ci(out,type="bca"), error= function(c) return(NULL))
+        if (is.null(ci.result)) {
+            Left <- NA
+            Right <- NA
+        } else {
+            Left <- ci.result$bca[4]
+            Right <- ci.result$bca[5]
+        }
+    } else { ## vec only contained NA values.
         Left <- NA
         Right <- NA
-    } else {
-        Left <- ci.result$bca[4]
-        Right <- ci.result$bca[5]
-    }
-
+    }   
     final <- c(Left, Right)
     return(final)
 }
@@ -68,7 +75,7 @@ evolved.mutations <- read.csv(
     stringsAsFactors=FALSE)
 
 ## Notice parallel mutations at base-pair level in citrate synthase!
-filter(evolved.mutations,Gene=='gltA') arrange(Position)
+filter(evolved.mutations,Gene=='gltA') %>% arrange(Position)
 ## but remember that fine-tuning was already reported by Erik Quandt.
 
 ## any other parallel dN at base-pair level?
@@ -592,11 +599,11 @@ bootstrap.my.growth.confints <- function(growth) {
                                             "DM0.t.lag",
                                             "DM25.t.lag"),
                                         Estimate = c(
-                                            mean(df$DM0.r.citrate),
-                                            mean(df$DM25.r.citrate),
-                                            mean(df$DM25.r.glucose),
-                                            mean(df$DM0.t.lag),
-                                            mean(df$DM25.t.lag)),
+                                            mean(df$DM0.r.citrate, na.rm=TRUE),
+                                            mean(df$DM25.r.citrate, na.rm=TRUE),
+                                            mean(df$DM25.r.glucose, na.rm=TRUE),
+                                            mean(df$DM0.t.lag, na.rm=TRUE),
+                                            mean(df$DM25.t.lag, na.rm=TRUE)),
                                         Left = c(
                                             DM0.r.citrate.conf.int[1],
                                             DM25.r.citrate.conf.int[1],
@@ -644,8 +651,8 @@ bootstrap.growthcurver.confints <- function(growth.fits) {
                                             ),
                                         Estimate = c(mean(df$DM0.r,na.rm=TRUE),
                                             mean(df$DM25.r,na.rm=TRUE),
-                                            mean(df$DM0.t_mid),
-                                            mean(df$DM25.t_mid)
+                                            mean(df$DM0.t_mid, na.rm = TRUE),
+                                            mean(df$DM25.t_mid, na.rm = TRUE)
                                             ),
                                         Left = c(DM0.r.conf.int[1],
                                             DM25.r.conf.int[1],
@@ -669,7 +676,7 @@ bootstrap.growthcurver.confints <- function(growth.fits) {
     return(confint.df)
 }
 
-plot.growth.confints <- function (plot.df, confints.df) {
+plot.growth.confints <- function (plot.df, confints.df, plot.CIs=TRUE) {
 
     recode.Parameter <- function(df) {
         df <- mutate(df,
@@ -688,19 +695,52 @@ plot.growth.confints <- function (plot.df, confints.df) {
         return(df)
     }
 
-    plot.df <- recode.Parameter(plot.df) %>% drop_na()
-    confints.df <- recode.Parameter(confints.df) %>% drop_na()
-
-    ggplot(plot.df, aes(x = Name,y = Estimate,color = Founder)) +
+    plot.df2 <- recode.Parameter(plot.df) %>% filter(!is.na(Estimate))
+    confints.df2 <- recode.Parameter(confints.df) %>% filter(!is.na(Estimate))
+    
+    list.of.plots <- vector("list",length(unique(plot.df2$Parameter)))
+    i <- 1 ## index for list.
+    for (param in unique(plot.df2$Parameter)) {
+      param.df <- filter(plot.df2, Parameter==param)
+      param.confint.df <- filter(confints.df2, Parameter==param)
+      fig <- ggplot(param.df, aes(x = Name,y = Estimate,color = Founder)) +
         geom_point(size=0.5) +
-        ylab("Estimate") +
-        xlab("Sequenced Isolate") +
-        guides(color=FALSE) +
-        scale_color_manual(values = cbbPalette) +
-        facet_wrap( Parameter ~ . , scales="free",nrow=1) +
-    geom_errorbar(data = confints.df, aes(ymin=Left,ymax=Right), width=1, size=0.5) +
-    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
+          ggtitle(param) +
+            ylab("Estimate") +
+              xlab("Sample") +
+                guides(color=FALSE) +
+                  scale_color_manual(values = cbbPalette) +
+                    theme(plot.title = element_text(size = 10, face = "bold")) +
+                      theme(axis.title.x = element_text(size=10)) +
+                        theme(axis.text.y = element_text(size=8)) +
+                          theme(plot.margin = unit(c(0,0,0.25,0.25), "cm")) +
+                            theme(axis.text.x  = element_text(angle=90, vjust=-0.1,size=8))
 
+      ## only add y-axis labels to left-most plot.
+      if (i == 1) {
+        fig <- fig + theme(axis.title.y = element_text(size=10))
+      } else {
+        fig <- fig + theme(axis.title.y = element_blank())                  
+      }
+      
+        ## plot CIs.
+        if (plot.CIs) {
+            fig <- fig +
+                geom_errorbar(data = param.confint.df, aes(ymin=Left,ymax=Right), width=1, size=0.5)
+        }
+        ## set bounds for rate and time parameter plots.
+        if (str_detect(param,'r')) {
+            fig <- fig + ylim(c(0,2))
+        } else {
+            fig <- fig + ylim(c(0,25))    
+        }
+        
+        list.of.plots[[i]] <- fig
+        i <- i + 1
+    }
+    ## use cowplot to plot.
+    my.plot <- plot_grid(plotlist=list.of.plots, nrow=1)
+    return(my.plot)
 }
 
 reshape.growth.curve.fits <- function(growth.curve.fits) {
@@ -901,21 +941,21 @@ run.ratio.confint.bootstrapping <- function(final.growth.summary) {
     return(bootstrap.results)
 }
 
-plot.growth.parameters <- function(growth) {    
+plot.growth.parameters <- function(growth, plot.CIs=TRUE) {    
     growth.CI <- bootstrap.my.growth.confints(growth)
     growth.plot.df <- growth %>%
         gather(key="Parameter",value="Estimate",
                DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
-    growth.plot <- plot.growth.confints(growth.plot.df, growth.CI)
+    growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
     return(growth.plot)    
 }
 
-plot.growthcurver.parameters <- function(growth) {    
+plot.growthcurver.parameters <- function(growth, plot.CIs=TRUE) {    
     growth.CI <- bootstrap.growthcurver.confints(growth)
     growth.plot.df <- growth %>%
         gather(key="Parameter",value="Estimate",
                DM0.r,DM25.r,DM0.t_mid,DM25.t_mid)
-    growth.plot <- plot.growth.confints(growth.plot.df, growth.CI)
+    growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
     return(growth.plot)   
 }
 
@@ -1066,20 +1106,24 @@ filtered.log.Fig2B.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logs
 clone.growth.plot <- plot.growth.parameters(clone.growth)
 clone.growthcurver.plot <- plot.growthcurver.parameters(clone.growth.curve.fits)
 clone.growth.parameter.plot <- plot_grid(clone.growth.plot,
-                                         clone.growthcurver.plot,ncol=1,
+                                         clone.growthcurver.plot,
+                                         ncol=1,
+                                         rel_heights = c(1, 1),rel_widths=c(1.5,1),
                                          labels=c('A','B'))
 
 pop.growth.plot <- plot.growth.parameters(pop.growth)
 pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
 pop.growth.parameter.plot <- plot_grid(pop.growth.plot,
-                                         pop.growthcurver.plot,ncol=1,
-                                         labels=c('A','B'))
+                                       pop.growthcurver.plot,
+                                       ncol=1,
+                                       labels=c('A','B'))
 
 DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth)
 DM25.clone.growthcurver.plot <- plot.growthcurver.parameters(DM25.clone.growth.curve.fits)
 DM25.clone.growth.parameter.plot <- plot_grid(DM25.clone.growth.plot,
-                                         DM25.clone.growthcurver.plot,ncol=1,
-                                         labels=c('A','B'))
+                                              DM25.clone.growthcurver.plot,
+                                              ncol=1,
+                                              labels=c('A','B'))
 
 ## summarize and take averages over clone and population samples.
 clone.growth.summary <- summarize.growth.results(clone.growth)
@@ -1287,8 +1331,8 @@ Fig2C.plot.df <- final.clone.growth.summary %>%
 Fig2C <- plot.growth.parameter.log.ratios(Fig2C.plot.df, clone.bootstrap.CI)
 
 Fig2 <- plot_grid(clone.growth.parameter.plot,Fig2C,labels=c('','C'),ncol=1,
-                  rel_heights = c(1.8, 1),rel_widths=c(1.5,1))
-save_plot(Fig2outf,Fig2, base_height=7.5)
+                  rel_heights = c(2, 1),rel_widths=c(1.5,1))
+save_plot(Fig2outf,Fig2, base_width=11, base_height=7.5)
 
 pop.bootstrap.CI <- run.ratio.confint.bootstrapping(final.pop.growth.summary)
 Fig3C.plot.df <- final.pop.growth.summary %>%
@@ -1300,8 +1344,8 @@ Fig3C.plot.df <- final.pop.growth.summary %>%
 Fig3C <- plot.growth.parameter.log.ratios(Fig3C.plot.df, pop.bootstrap.CI)
 
 Fig3 <- plot_grid(pop.growth.parameter.plot,Fig3C,labels=c('','C'),ncol=1,
-                     rel_heights = c(1.8, 1))
-save_plot(Fig3outf,Fig3, base_height=7.5)
+                     rel_heights = c(2, 1), rel_widths=c(1.5,1))
+save_plot(Fig3outf,Fig3, base_width=11, base_height=7.5)
 
 DM25.final.clone.growth.summary <- calc.growth.log.ratios(DM25.growth.estimate.comp.df)
 DM25.clone.bootstrap.CI <- run.ratio.confint.bootstrapping(DM25.final.clone.growth.summary)
@@ -1321,7 +1365,7 @@ S8Fig <- plot_grid(DM25.clone.growth.parameter.plot,
 
 ## supplementary fig of DM25-evolved clone growth.
 S8Figoutf <- file.path(proj.dir,"results/figures/S8Fig.pdf")
-save_plot(S8Figoutf,S8Fig)
+save_plot(S8Figoutf,S8Fig,base_height=7.5)
 
 
 ####### Figure 4: Nkrumah's cell death results.
