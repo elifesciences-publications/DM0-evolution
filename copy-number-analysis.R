@@ -198,75 +198,6 @@ annotate.amplifications <- function(amplifications,LCA.gff) {
     return(amplified.genes.df)
 }
 
-## see the excellent plots on https://rud.is/projects/facetedheatmaps.html
-plot.amp.heatmap <- function(annotated.amps,clone.labels) {
-
-    ## for annotated.amps and clone.labels to play nicely with each other.
-    clone.labels$Name <- as.character(clone.labels$Name)
-
-    labeled.annotated.amps <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
-        select(-query.index,-subject.index,-is.significant,-SampleType, -Population) %>%
-        ## replace 'sfcA' with 'maeA' in the plot.
-        mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
-        mutate(log.pval=log(bonferroni.corrected.pval)) %>%
-        mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
-        transform(Population = PopulationLabel) %>% filter(!(Genome==ParentClone))
-
-    ## order the genes by start to get axes correct on heatmap.
-    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
-    ## reverse the order of genomes to make axes consistent with Fig5B.
-    labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome)
-    labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome,
-                                            levels=rev(levels(labeled.annotated.amps$Genome)))
-    
-    heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=log2.copy.number.mean,frame=Environment)) +
-        geom_tile(color="white",size=0.1) +
-        ## draw vertical lines at genes of interest.
-        geom_vline(linetype='dashed',xintercept = which(levels(labeled.annotated.amps$gene) %in% c('citT','dctA','maeA'))) +
-        xlab("Amplified genes") +
-        scale_fill_viridis(name="",option="plasma") +
-        facet_wrap(~Environment,nrow=2, scales = "free_y") +
-        theme_tufte(base_family='Helvetica') +
-        theme(axis.ticks=element_line(size=0.1)) +
-        theme(axis.text.x=element_text(size=3,angle=90,hjust=1,vjust=0.2,face="italic")) +
-        theme(legend.text=element_text(size=6)) +
-        guides(fill=FALSE)
-
-    return(heatmap)
-}
-
-## plot a stacked bar graph to show how big the amplifications are
-## in the DM0 and DM25 treatments.
-plot.amp.stackedbar <- function(amps,clone.labels) {
-
-    amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
-        mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
-        left_join(clone.labels, by=c("Genome" = "Name")) %>% select(-Population) %>%
-        transform(Population=PopulationLabel) %>% filter(!(Genome==ParentClone))
-
-    stacked <- ggplot(amps2,aes(x=Genome,y=total.amp.length,fill=log2.copy.number.mean)) +
-        geom_bar(stat="identity") +
-        scale_fill_viridis(name=expression("log"[2]*"(copy number)"),option="plasma") +
-        facet_grid(~Environment, scales = "free") +
-        theme_tufte(base_family='Helvetica') +
-        theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
-        theme(axis.text.y=element_text(size=12)) +
-        theme(panel.border=element_blank()) +
-        theme(plot.title=element_text(hjust=0)) +
-        theme(strip.text=element_text(hjust=0,size=12)) +
-        theme(panel.spacing.x=unit(1, "cm")) +
-        theme(panel.spacing.y=unit(0.5, "cm")) +
-        theme(legend.title=element_text(size=6)) +
-        theme(legend.title.align=1) +
-        theme(legend.text=element_text(size=6)) +
-        theme(legend.position="bottom") +
-        theme(legend.key.size=unit(0.2, "cm")) +
-        theme(legend.key.width=unit(1, "cm")) +
-        ylab("Total amplification length")
-
-    return(stacked)
-}
-
 plot.amp.segments <- function(annotated.amps,clone.labels) {
 
   ## for annotated.amps and clone.labels to play nicely with each other.
@@ -364,19 +295,6 @@ amp.segments <- plot.amp.segments(annotated.amps,clone.labels)
 
 Fig8outf <- file.path(projdir,"results/figures/Fig8.pdf")
 save_plot(Fig8outf,amp.segments,base_height=7,base_width=10.5)
-
-
-
-#' Make a heatmap plot with facet grid on DM0 versus DM25.
-#' color the matrix based on log2(copy number).
-amp.heatmap <- plot.amp.heatmap(annotated.amps,clone.labels)
-
-#' Make a stacked bar plot, with facet grid on DM0 versus DM25.
-#' color the stacked bars based on log2(copy number) for consistency.
-amp.bar <- plot.amp.stackedbar(amps,clone.labels)
-
-#' Make my original figure.
-full.fig <- plot_grid(, amp.bar, labels = c('A', 'B'), ncol = 1, rel_heights = c(1.1, 1))
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
