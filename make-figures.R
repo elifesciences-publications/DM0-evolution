@@ -1148,6 +1148,9 @@ growth.estimate.comp.df <- full_join(
     growthcurver.summary) %>%
     ungroup()
 
+pop.estimates <- filter(growth.estimate.comp.df,Dataset=='PopulationGrowth')
+clone.estimates <- filter(growth.estimate.comp.df,Dataset=='CloneGrowth')
+
 DM25.growth.estimate.comp.df <- full_join(
     DM25.growth.summary,
     DM25.growthcurver.summary) %>%
@@ -1169,8 +1172,6 @@ cor.test(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,us
 cor(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs")
 cor.test(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs",method="pearson")
 
-
-pop.estimates <- filter(growth.estimate.comp.df,Dataset=='PopulationGrowth')
 ## r = 0.64, 0.83, -0.04, 0.81, 0.92, respectively.
 cor(pop.estimates$DM0.r, pop.estimates$DM0.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.citrate,use="complete.obs")
@@ -1178,7 +1179,6 @@ cor(pop.estimates$DM25.r, pop.estimates$DM25.r.glucose,use="complete.obs")
 cor(pop.estimates$DM0.t_mid, pop.estimates$DM0.t.lag,use="complete.obs")
 cor(pop.estimates$DM25.t_mid, pop.estimates$DM25.t.lag,use="complete.obs")
 
-clone.estimates <- filter(growth.estimate.comp.df,Dataset=='CloneGrowth')
 ## r = 0.48, 0.60, -0.11, 0.97, 0.68, respectively.
 cor(clone.estimates$DM0.r, clone.estimates$DM0.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.citrate,use="complete.obs")
@@ -1652,22 +1652,21 @@ citT.poly.mutations <- filter(poly.evolved.mutations,Gene=='citT')
 ################################################
 ## IS element analysis and visualization.
 
+IScbPalette <- c('#d7191c','#fdae61','black','#abd9e9','#2c7bb6')
+
 IS.insertions <- read.csv(file.path(proj.dir,
               "results/genome-analysis/IS_insertions.csv")) %>%
     arrange(genome_start)
 
 IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element,frame=Environment)) +
     facet_grid(Environment~.) +
-    geom_histogram(bins=400) +
+  geom_histogram(bins=200) +
     guides(fill=FALSE) +
-    scale_fill_manual(values=cbbPalette) +
+  ##scale_fill_manual(values=cbbPalette) +
+  scale_fill_manual(values=IScbPalette) +
     ylab("Count") +
     xlab("Position") +
     theme_tufte(base_family="Helvetica")
-
-save_plot(file.path(proj.dir,"results/figures/Fig6B.pdf"),
-         IS.plot,base_aspect_ratio=1.5)
-
 
 ## 81/213 IS insertions recur at the same locations! 38%!
 parallel.IS.insertions <- IS.insertions %>%
@@ -1693,14 +1692,12 @@ parallel.IS.plot <- ggplot(parallel.IS.summary,aes(x=genome_start,
                                            label=annotation)) +
     geom_point() +
     guides(color=FALSE) +
-    scale_color_manual(values=cbbPalette) +
+  ##scale_color_manual(values=cbbPalette) +
+  scale_color_manual(values=IScbPalette) +
     theme_classic() +
     ylab("Count") +
     xlab("Position") +
     geom_text_repel(fontface = "italic")
-
-save_plot(file.path(proj.dir,"results/figures/Fig6A.pdf"),
-         parallel.IS.plot,base_aspect_ratio=1.5)
 
 ########
 ## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
@@ -1713,37 +1710,30 @@ LTEE.MAE.IS.insertions <- read.csv(
     arrange(Position)
 
 LTEE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='LTEE')
-MAE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='MAE')
+## don't bother with MAE comparison, since Jeff Barrick says the rate and spectrum is
+## weird due to growth on plates.
+
 Ara.minus.3.IS150 <- filter(LTEE.IS150,Population=='Ara-3')
 
 Ara.minus.3.IS150.by.clone <- group_by(Ara.minus.3.IS150,Clone,Generation,Environment,Population) %>%
     summarize(total.count=n())
 
-MAE.IS150.over.time <- group_by(MAE.IS150,Clone,Generation,Environment,Population) %>%
-    summarize(total.count=n())
-
 DM0.DM25.over.time <- group_by(IS.insertions,Clone,Generation,Environment,Population) %>%
     summarize(total.count=n())
 
-##IS150.rate.df <- rbind(MAE.IS150.over.time,DM0.DM25.over.time,Ara.minus.3.IS150.by.clone)
-## don't bother with MAE comparison, since Jeff Barrick says the rate and spectrum is
-## weird due to growth on plates.
 IS150.rate.df <- rbind(DM0.DM25.over.time,Ara.minus.3.IS150.by.clone)
 
 IS150.rate.plot <- ggplot(IS150.rate.df,
-                          aes(x=Generation,y=total.count,color=Environment)) +
+                          aes(x=Generation,
+                              y=total.count,color=Environment,shape=Environment)) +
     theme_classic() +
-    scale_colour_manual(values=c('#1b9e77','#d95f02','#7570b3')) +
-    ylab('IS150 insertions') +
+    scale_colour_manual(values=c('#c51b8a','#fa9fb5' ,'#fde0dd')) +
+    ylab(expression(paste('IS',italic('150'),' insertions'))) +
     geom_jitter(width=50) +
-    guides(color=FALSE)
-
-save_plot(file.path(proj.dir,"results/figures/Fig6C.pdf"),
-         IS150.rate.plot,base_aspect_ratio=1.57)
-
+    guides(color=FALSE,shape=FALSE)
 
 ########
-## Combine the IS plots with cowplot to make Figure 4.
+## Combine the IS plots with cowplot to make Figure 6.
 Fig6outf <- file.path(proj.dir,"results/figures/Fig6.pdf")
 Fig6 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
                   labels = c('A', 'B', 'C'), ncol=1)

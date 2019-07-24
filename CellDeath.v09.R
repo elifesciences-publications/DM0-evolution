@@ -105,14 +105,14 @@ D4 <- D3 %>% group_by(Clone, Treatment, Block) %>%
 ## 1) Lets plot the relationship between blocks of the same clone by environment.
 ## Will give me a sense of how heterogenous the data is. 
 
-## Here I plot the relative and the propotional flouresence of each independent replicate. 
+## Here I plot the relative and the propotional fluorescence of each independent replicate. 
 ## This will give me a sense of the variability in my dataset. 
 ## Keep in mind that I am using a log scale, thus the intepretations are as followed. 
 ## interpretations: 
-## plot 1: There is greater fluoresence in the death channel when value approaches "0"
+## plot 1: There is greater fluorescence in the death channel when value approaches "0"
 ## plot 2: The proportion of death is higher as you approach "negative infinity "0"
 
-## Plot 1: Distribution showing relative fluoresences (Dead/Alive)
+## Plot 1: Distribution showing relative fluorescences (Dead/Alive)
 D3 %>% group_by(Clone, Treatment, Block) %>% 
   ggplot(aes(x=Block, y=log(RelFluor), color=Treatment)) +
   geom_boxplot(outlier.shape = NA) +
@@ -141,24 +141,29 @@ D3 %>% group_by(Clone, Treatment, Block) %>%
   guides(color=guide_legend(title="Cell viability"))
 
 ## Plot 4 : proportion of dead:alive cells on a population level. 
-orange.red <- '#fc8d59'
-cool.blue <- '#91bfdb'
+
+## PI emission is 617 nm when bound.
+## SYTO9 emission is 498 nm.
+## I used this website to convert to hex.
+## https://academo.org/demos/wavelength-to-colour-relationship/
+SYTO9.color <- '#00ffa9'
+PI.color <- '#ff8200'
 
 Fig3B <- D4 %>%
   group_by(Clone, Treatment) %>% 
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") +
-  scale_fill_manual(values=c(cool.blue,orange.red)) +
-facet_wrap(. ~ Clone, nrow=1) +
+  scale_fill_manual(values=c(SYTO9.color,PI.color)) +
+  facet_wrap(. ~ Clone, nrow=1) +
   guides(fill = FALSE) +
   ylab("Number of cells") +
-  labs(fill = "Cell viability") #Changes legend title from "RelFlourPrime" to "Cell viability"
+  labs(fill = "Cell viability") #Changes legend title from "RelFluorPrime" to "Cell viability"
 
 D4 %>% group_by(Clone, Treatment) %>% 
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") + 
   ylab("Number of cells") +
-  labs(fill = "Cell viability") #Changes legend title from "RelFlourPrime" to "Cell viability"
+  labs(fill = "Cell viability") #Changes legend title from "RelFluorPrime" to "Cell viability"
   
 ## Plot 6: plot of the proportions for independent replicates.  
 ## First must construct the data frame piece-wise.
@@ -206,7 +211,6 @@ P6.confint.df <- P6 %>%
 Fig3C <- P6 %>%
   ggplot(aes(x = Treatment, y = PropPrime.Dead, label = my.text)) +
   geom_point(size=0.5) +
-  geom_text_repel(nudge_x = 0.4, size=2) +
   facet_wrap(. ~ Clone, nrow = 1) +
   ylab("Proportion dead cells") +
   geom_errorbar(data=P6.confint.df,aes(x=Treatment,ymin=Left,ymax=Right), width=0.15, size=0.4,inherit.aes=FALSE) +

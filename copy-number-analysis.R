@@ -28,7 +28,7 @@ library(roxygen2)
 library(assertthat)
 library(IRanges)
 library(GenomicRanges)
-library(rtracklayer)
+##library(rtracklayer)
 
 library(tidyverse)
 library(scales)      # pairs nicely with ggplot2 for plot label formatting
@@ -199,7 +199,7 @@ annotate.amplifications <- function(amplifications,LCA.gff) {
 }
 
 ## see the excellent plots on https://rud.is/projects/facetedheatmaps.html
-plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
+plot.amp.heatmap <- function(annotated.amps,clone.labels) {
 
     ## for annotated.amps and clone.labels to play nicely with each other.
     clone.labels$Name <- as.character(clone.labels$Name)
@@ -218,7 +218,7 @@ plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
     labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome)
     labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome,
                                             levels=rev(levels(labeled.annotated.amps$Genome)))
-
+    
     heatmap <- ggplot(labeled.annotated.amps,aes(x=gene,y=Genome,fill=log2.copy.number.mean,frame=Environment)) +
         geom_tile(color="white",size=0.1) +
         ## draw vertical lines at genes of interest.
@@ -237,7 +237,7 @@ plot.Fig5A.heatmap <- function(annotated.amps,clone.labels) {
 
 ## plot a stacked bar graph to show how big the amplifications are
 ## in the DM0 and DM25 treatments.
-plot.Fig5B.stackedbar <- function(amps,clone.labels) {
+plot.amp.stackedbar <- function(amps,clone.labels) {
 
     amps2 <- amps %>% mutate(total.amp.length = copy.number.mean*len) %>%
         mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
@@ -266,6 +266,53 @@ plot.Fig5B.stackedbar <- function(amps,clone.labels) {
 
     return(stacked)
 }
+
+plot.amp.segments <- function(annotated.amps,clone.labels) {
+
+  ## for annotated.amps and clone.labels to play nicely with each other.
+  clone.labels$Name <- as.character(clone.labels$Name)
+
+  labeled.annotated.amps <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
+    select(-query.index,-subject.index,-is.significant,-SampleType, -Population) %>%
+      ## replace 'sfcA' with 'maeA' in the plot.
+      mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
+        mutate(log.pval=log(bonferroni.corrected.pval)) %>%
+          mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
+            transform(Population = PopulationLabel) %>%
+              filter(!(Genome==ParentClone)) %>%
+                
+
+  ## order the genes by start to get axes correct on heatmap.
+  labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
+  ## reverse the order of genomes to make axes consistent with stacked barplot.
+  labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome)
+  labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome,
+                                          levels=rev(levels(labeled.annotated.amps$Genome)))
+  
+  segmentplot <- ggplot(
+    labeled.annotated.amps,
+    aes(x=left.boundary,
+        xend=right.boundary,
+        y=Genome,
+        yend=Genome,
+        color=log2.copy.number.mean,
+        size=20,
+        frame=Environment)) +
+          geom_segment() +
+            ## draw vertical lines at citT, maeA, dctA.
+            geom_vline(size=0.2,
+                       linetype='dashed',
+                       xintercept = c(626743,1534704,3542785)
+                       ) +
+                         xlab("Genomic position") +
+                           scale_color_viridis(name="",option="plasma") +
+                             facet_wrap(~Environment,nrow=2, scales = "free_y") +
+                               theme_tufte(base_family='Helvetica') +
+                                 theme(axis.ticks=element_line(size=0.1)) +
+                                   guides(color=FALSE,size=FALSE)  
+  return(segmentplot)
+}
+
 
 home.dir <- path.expand("~")
 projdir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
@@ -312,21 +359,24 @@ write.csv(x=copy.number.table,file=file.path(outdir,"copy_number_table.csv"))
 label.filename <- file.path(projdir,"data/rohan-formatted/populations-and-clones.csv")
 clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 
+#' Make a plot of amplified segments in the genome.
+amp.segments <- plot.amp.segments(annotated.amps,clone.labels)
+
+Fig8outf <- file.path(projdir,"results/figures/Fig8.pdf")
+save_plot(Fig8outf,amp.segments,base_height=7,base_width=10.5)
+
+
 
 #' Make a heatmap plot with facet grid on DM0 versus DM25.
 #' color the matrix based on log2(copy number).
-Fig5A <- plot.Fig5A.heatmap(annotated.amps,clone.labels)
+amp.heatmap <- plot.amp.heatmap(annotated.amps,clone.labels)
+
 #' Make a stacked bar plot, with facet grid on DM0 versus DM25.
 #' color the stacked bars based on log2(copy number) for consistency.
-Fig5B <- plot.Fig5B.stackedbar(amps,clone.labels)
+amp.bar <- plot.amp.stackedbar(amps,clone.labels)
 
-save_plot(file.path(projdir,"results/figures/Fig5A.pdf"),Fig5A,base_aspect_ratio=1.5)
-save_plot(file.path(projdir,"results/figures/Fig5B.pdf"),Fig5B,base_aspect_ratio=1.5)
-
-#' Make and save the final Figure 5.
-Fig5outf <- file.path(projdir,"results/figures/Fig5.pdf")
-Fig5 <- plot_grid(Fig5A, Fig5B, labels = c('A', 'B'), ncol = 1, rel_heights = c(1.1, 1))
-save_plot(Fig5outf,Fig5,base_height=7,base_width=10.5)
+#' Make my original figure.
+full.fig <- plot_grid(, amp.bar, labels = c('A', 'B'), ncol = 1, rel_heights = c(1.1, 1))
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
