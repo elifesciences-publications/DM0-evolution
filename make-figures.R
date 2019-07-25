@@ -10,6 +10,7 @@ library(data.table)
 library(ggrepel)
 library(ggthemes)
 library(viridis)
+library(RColorBrewer)
 library(scales)
 library(gridExtra)
 library(lubridate)
@@ -23,37 +24,37 @@ library(growthcurver) ## use growthcurver package to fit r from growth data.
 ###return(c(mean(x[ind]),var(x[ind])/length(ind)))
 
 calc.bootstrap.conf.int <- function(vec) {
-    ## bootstrap confidence intervals around the mean.
-    ## Use the boot package to calculate fancy BCA intervals.
-    
-    mean.boot <- function(x,ind) {
-        ## define this type of mean-calculating function to pass to the boot function.
-        ## from: https://web.as.uky.edu/statistics/users/pbreheny/621/F12/notes/9-18.pdf
-        return(c(mean(x[ind]),var(x[ind])/length(ind)))
+  ## bootstrap confidence intervals around the mean.
+  ## Use the boot package to calculate fancy BCA intervals.
+  
+  mean.boot <- function(x,ind) {
+    ## define this type of mean-calculating function to pass to the boot function.
+    ## from: https://web.as.uky.edu/statistics/users/pbreheny/621/F12/notes/9-18.pdf
+    return(c(mean(x[ind]),var(x[ind])/length(ind)))
+  }
+
+  Nbootstraps <- 10000
+
+  ## remove any NA values from vec.
+  vec <- vec[!is.na(vec)]
+
+  if (length(vec)) {    
+    out <- boot(vec,mean.boot,Nbootstraps)
+    ## handle bad inputs in bootstrapping confidence intervals
+    ci.result <- tryCatch(boot.ci(out,type="bca"), error= function(c) return(NULL))
+    if (is.null(ci.result)) {
+      Left <- NA
+      Right <- NA
+    } else {
+      Left <- ci.result$bca[4]
+      Right <- ci.result$bca[5]
     }
-
-    Nbootstraps <- 10000
-
-    ## remove any NA values from vec.
-    vec <- vec[!is.na(vec)]
-
-    if (length(vec)) {    
-        out <- boot(vec,mean.boot,Nbootstraps)
-        ## handle bad inputs in bootstrapping confidence intervals
-        ci.result <- tryCatch(boot.ci(out,type="bca"), error= function(c) return(NULL))
-        if (is.null(ci.result)) {
-            Left <- NA
-            Right <- NA
-        } else {
-            Left <- ci.result$bca[4]
-            Right <- ci.result$bca[5]
-        }
-    } else { ## vec only contained NA values.
-        Left <- NA
-        Right <- NA
-    }   
-    final <- c(Left, Right)
-    return(final)
+  } else { ## vec only contained NA values.
+    Left <- NA
+    Right <- NA
+  }   
+  final <- c(Left, Right)
+  return(final)
 }
 
 ## colorblind-friendly palette.
@@ -65,14 +66,15 @@ home.dir <- path.expand("~")
 proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
 
 pop.clone.labels <- read.csv(
-    file.path(proj.dir,
-              "data/rohan-formatted/populations-and-clones.csv"),
-    stringsAsFactors=FALSE)
+  file.path(proj.dir,
+            "data/rohan-formatted/populations-and-clones.csv"),
+  stringsAsFactors=FALSE)
 
 evolved.mutations <- read.csv(
-    file.path(proj.dir,
-              "results/genome-analysis/evolved_mutations.csv"),
-    stringsAsFactors=FALSE)
+  file.path(proj.dir,
+            "results/genome-analysis/evolved_mutations.csv"),
+  stringsAsFactors=FALSE) %>%
+mutate(Mutation=as.factor(Mutation))
 
 ## Notice parallel mutations at base-pair level in citrate synthase!
 filter(evolved.mutations,Gene=='gltA') %>% arrange(Position)
@@ -82,7 +84,7 @@ filter(evolved.mutations,Gene=='gltA') %>% arrange(Position)
 parallel.dN <- evolved.mutations %>% filter(Mutation=='nonsynonymous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
 
 parallel.dN.Table <- filter(evolved.mutations, Position %in% parallel.dN$Position) %>%
-  arrange(Position)
+arrange(Position)
 
 ## 3/5 parallel bp mutations are in citrate synthase, gltA!
 ## 735765, 735797, 735941.
@@ -118,20 +120,20 @@ Table3 <- filter(evolved.mutations, Position %in% non.MOB.parallel$Position) %>%
 
 
 ltee.mutations <- read.csv(
-    file.path(proj.dir,
-              "data/rohan-formatted/nature18959-s4.csv"),
-    stringsAsFactors=FALSE
-)
+  file.path(proj.dir,
+            "data/rohan-formatted/nature18959-s4.csv"),
+  stringsAsFactors=FALSE
+  )
 
 ## by inspecting evolved.mutations in conjunction with amplified genes, we see that the
 ## dctA amplification anti-correlates with the promoter mutation.
 ## Note that the dctA promoter mutation is in CZB151 and CZB154.
 promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
-    transmute(Name=Clone) %>% left_join(pop.clone.labels)
+transmute(Name=Clone) %>% left_join(pop.clone.labels)
 dctA.AMPs <- read.csv(file.path(proj.dir,"results/amplified_genes.csv"),
                       stringsAsFactors=FALSE) %>%
-    filter(gene=='dctA') %>% select(Genome) %>% distinct() %>%
-    transmute(Name=Genome) %>% left_join(pop.clone.labels)
+filter(gene=='dctA') %>% select(Genome) %>% distinct() %>%
+transmute(Name=Genome) %>% left_join(pop.clone.labels)
 ## 5/6 dctA AMP genomes lack the promoter mutation.
 ## 1/17 with promoter mutation have the AMP.
 ## 5/7 without promoter mutation have the AMP.
@@ -140,100 +142,102 @@ fisher.test(matrix(c(1,5,16,2),2))
 
 ###############################################
 ## Figure 1.
-
 ## Figure 1A is a schematic of the experimental design, made in Illustrator.
 ## Figure 1B is the phylogenetic tree constructed using the iTOL webserver.
-## Figure 1C: make a stacked bar plot of the different kinds of mutations in each clone.
-## Figure 1D: comparison to non-mutator LTEE 5000gen and 30000gen A clones.
+###############################################
+## Figure 2.
+## Figure 2A: make a stacked bar plot of the different kinds of mutations in each clone.
+## Figure 2B: comparison to non-mutator LTEE 5000gen A clones.
 
-fig1C <- ggplot(evolved.mutations,aes(x=Clone,fill=Mutation)) +
-    geom_bar() +
-    ylab("Count") +
-    ylim(c(0,80)) +
-    scale_fill_viridis(option="magma",discrete=TRUE) +
-    facet_grid(~Environment,scales="free") +
-    theme_tufte(base_family='Helvetica') +
-    theme(axis.ticks=element_blank()) +
-    theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
-    theme(axis.text.y=element_text(size=12)) +
-    theme(panel.border=element_blank()) +
-    theme(plot.title=element_text(hjust=0)) +
-    theme(strip.text=element_text(hjust=0,size=12)) +
-    theme(panel.spacing.x=unit(1, "cm")) +
-    theme(panel.spacing.y=unit(0.5, "cm")) +
-    theme(legend.title=element_text(size=8)) +
-    theme(legend.title.align=1) +
-    theme(legend.text=element_text(size=8))
+plot.evolved.mutations.stackbar <- function(evolved.mutations,DM0=TRUE) {
+  if (DM0) {
+    muts <- filter(evolved.mutations,Environment=='DM0')
+    my.title <- 'DM0 2,500 generations'
+  } else {
+    muts <- filter(evolved.mutations,Environment=='DM25')
+    my.title <- 'DM25 2,500 generations'
+  }
+  
+  fig <- ggplot(muts,aes(x=Clone,fill=Mutation)) +
+  geom_bar() +
+  ylab("Count") +
+  ylim(c(0,30)) +
+  scale_fill_brewer(palette = "RdYlBu", direction=-1,drop=FALSE) +        
+  theme_tufte(base_family='Helvetica') +
+  theme(axis.ticks=element_blank(),
+        axis.text.x=element_text(size=12,angle=45,hjust=1),
+        axis.text.y=element_text(size=12),
+        panel.border=element_blank(),
+        plot.title=element_text(hjust=0, size = 12, face = "bold"),
+        strip.text=element_text(hjust=0,size=12),
+        panel.spacing.x=unit(1, "cm"),
+        panel.spacing.y=unit(0.5, "cm")) +
+        ggtitle(my.title) +
+        guides(fill=FALSE)
+  return(fig)
+}
 
-fig1C.output <- "../results/figures/Fig1C.pdf"
-ggsave(fig1C, file=fig1C.output,width=7,height=7)
+fig2A <- plot.evolved.mutations.stackbar(evolved.mutations,DM0=TRUE)
+fig2B <- plot.evolved.mutations.stackbar(evolved.mutations,DM0=FALSE)
 
 ltee.5K.clones <- ltee.mutations %>% filter(Generation==5000) %>%
-    ## take odd rows to get A clones.
-    filter(row_number() %% 2 == 1) %>%
-    gather(key='Mutation',value='Count',
-           IS.Element.Insertions,Small.Indels,Large.Deletions,
-           Large.Duplications,Synonymous.Base.Substitutions,
-           Nonsynonymous.Base.Substitutions,Intergenic.Base.Substitutions,
-           Pseudogene.Base.Substitutions, Nonsense.Base.Substitutions) %>%
-    mutate(Mutation=recode(Mutation,
-                           IS.Element.Insertions='MOB',
-                           Small.Indels='DEL',
-                           Large.Deletions='DEL',
-                           Large.Duplications='INS',
-                           Synonymous.Base.Substitutions='synonymous',
-                           Nonsynonymous.Base.Substitutions = 'nonsynonymous',
-                           Intergenic.Base.Substitutions = 'intergenic',
-                           Pseudogene.Base.Substitutions = 'pseudogene',
-                           Nonsense.Base.Substitutions = 'nonsense')) %>%
-    filter(!(Population %in% c('Ara-2','Ara+3')))
+## take odd rows to get A clones.
+filter(row_number() %% 2 == 1) %>%
+gather(key='Mutation',value='Count',
+       IS.Element.Insertions,Small.Indels,Large.Deletions,
+       Large.Duplications,Synonymous.Base.Substitutions,
+       Nonsynonymous.Base.Substitutions,Intergenic.Base.Substitutions,
+       Pseudogene.Base.Substitutions, Nonsense.Base.Substitutions) %>%
+mutate(Mutation=recode(Mutation,
+         IS.Element.Insertions='MOB',
+         Small.Indels='DEL',
+         Large.Deletions='DEL',
+         Large.Duplications='INS',
+         Synonymous.Base.Substitutions='synonymous',
+         Nonsynonymous.Base.Substitutions = 'nonsynonymous',
+         Intergenic.Base.Substitutions = 'intergenic',
+         Pseudogene.Base.Substitutions = 'pseudogene',
+         Nonsense.Base.Substitutions = 'nonsense')) %>%
+mutate(Mutation=as.factor(Mutation)) %>%
+filter(!(Population %in% c('Ara-2','Ara+3')))
 
-ltee.30K.clones <- ltee.mutations %>% filter(Generation==30000) %>%
-    ## take odd rows to get A clones.
-    filter(row_number() %% 2 == 1) %>%
-    gather(key='Mutation',value='Count',
-           IS.Element.Insertions,Small.Indels,Large.Deletions,
-           Large.Duplications,Synonymous.Base.Substitutions,
-           Nonsynonymous.Base.Substitutions,Intergenic.Base.Substitutions,
-           Pseudogene.Base.Substitutions, Nonsense.Base.Substitutions) %>%
-    mutate(Mutation=recode(Mutation,
-                           IS.Element.Insertions='MOB',
-                           Small.Indels='DEL',
-                           Large.Deletions='DEL',
-                           Large.Duplications='INS',
-                           Synonymous.Base.Substitutions='synonymous',
-                           Nonsynonymous.Base.Substitutions = 'nonsynonymous',
-                           Intergenic.Base.Substitutions = 'intergenic',
-                           Pseudogene.Base.Substitutions = 'pseudogene',
-                           Nonsense.Base.Substitutions = 'nonsense')) %>%
-    filter(!(Population %in% c('Ara-2','Ara+3','Ara-1','Ara-4','Ara+6')))
+## make sure colors are the same across plots by setting levels.
+levels(ltee.5K.clones$Mutation) <- levels(evolved.mutations$Mutation)
 
-fig1D.ltee.data <- rbind(ltee.5K.clones,ltee.30K.clones,stringsAsFactors=FALSE) %>%
-    mutate(Generation=as.factor(Generation)) %>%
-    mutate(Generation=recode_factor(Generation,'5000'='LTEE 5,000 generations','30000'='LTEE 30,000 generations'))
+fig2C <- ggplot(ltee.5K.clones,aes(x=Population,y=Count,fill=Mutation)) +
+geom_bar(stat='identity') +
+ylim(c(0,30)) +
+xlab('Clone') +
+scale_fill_brewer(palette = "RdYlBu", direction=-1,drop=FALSE) +
+theme_tufte(base_family='Helvetica') +
+theme(axis.ticks=element_blank(),
+      axis.text.x=element_text(size=12,angle=45,hjust=1),
+      axis.text.y=element_text(size=12),
+      panel.border=element_blank(),
+      plot.title=element_text(hjust=0, size = 12, face = "bold"),
+      strip.text=element_text(hjust=0, size=12),
+      panel.spacing.x=unit(1, "cm"),
+      panel.spacing.y=unit(0.5, "cm"),
+      legend.title=element_text(size=12),
+      legend.title.align=1,
+      legend.text=element_text(size=12)) +
+ggtitle('LTEE 5,000 generations')
 
-fig1D <- ggplot(fig1D.ltee.data,aes(x=Population,y=Count,fill=Mutation)) +
-    geom_bar(stat='identity') +
-    scale_fill_viridis(option="magma",discrete=TRUE) +
-        facet_grid(~Generation, scales="free") +
-    theme_tufte(base_family='Helvetica') +
-    theme(axis.ticks=element_blank()) +
-    theme(axis.text.x=element_text(size=12,angle=45,hjust=1)) +
-    theme(axis.text.y=element_text(size=12)) +
-    theme(panel.border=element_blank()) +
-    theme(plot.title=element_text(hjust=0)) +
-    theme(strip.text=element_text(hjust=0,size=12)) +
-    theme(panel.spacing.x=unit(1, "cm")) +
-    theme(panel.spacing.y=unit(0.5, "cm")) +
-    theme(legend.title=element_text(size=8)) +
-    theme(legend.title.align=1) +
-    theme(legend.text=element_text(size=8))
+## pull the legend from fig2C.
+legend <- cowplot::get_legend(fig2C)
 
-fig1D.output <- "../results/figures/Fig1D.pdf"
-ggsave(fig1D, file=fig1D.output,width=7,height=7)
+## remove the legend from fig2C.
+fig2C <- fig2C + guides(fill=FALSE)
+
+fig2 <- plot_grid(fig2A,fig2B,fig2C,legend,
+                  labels=c('A','B','C',''),
+                  nrow=2)
+
+fig2.output <- "../results/figures/Fig2.pdf"
+ggsave(fig2, file=fig2.output,width=7,height=7)
 
 ##############################################################
-## Figure 2: growth curve analysis, showing evolution of
+## Figure 3: growth curve analysis, showing evolution of
 ## growth rate and time lags in DM0, and associated growth
 ## parameters when grown in DM25.
 
@@ -246,64 +250,64 @@ ggsave(fig1D, file=fig1D.output,width=7,height=7)
 ## This file indicates that this is 96 hour data, but appears to go
 ## for 166 hours (one week)??
 REL606.DM25.growth.data <- read.csv(
-    file.path(proj.dir, "data/rohan-formatted/REL606-DM25-96-hours.csv"),
-    stringsAsFactors=FALSE) %>%
-    mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
-    rowwise() %>%
-    ## average the replicate blanks.
-    mutate(Blank = lift_vd(mean)(DM25.1,DM25.2,DM25.3,DM25.4,DM25.5,DM25.6)) %>%
-    select(-DM25.1,-DM25.2,-DM25.3,-DM25.4,-DM25.5,-DM25.6) %>%
-    ## subtract Blank from well readings.
-    mutate(REL606.1 = REL606.1 - Blank) %>%
-    mutate(REL606.2 = REL606.2 - Blank) %>%
-    mutate(REL606.3 = REL606.3 - Blank) %>%
-    mutate(REL606.4 = REL606.4 - Blank) %>%
-    mutate(REL606.5 = REL606.5 - Blank) %>%
-    ## zero out negative values.
-    mutate_at(vars(REL606.1:REL606.5),function(x)ifelse(x<0,0,x)) %>%
-    select(-Blank) %>%
-    gather("Replicate","OD420",-Hours,-Time) %>%
-    mutate(Name='REL606') %>%
-    mutate(log.OD420=log(OD420)) %>%
+  file.path(proj.dir, "data/rohan-formatted/REL606-DM25-96-hours.csv"),
+  stringsAsFactors=FALSE) %>%
+mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
+rowwise() %>%
+## average the replicate blanks.
+mutate(Blank = lift_vd(mean)(DM25.1,DM25.2,DM25.3,DM25.4,DM25.5,DM25.6)) %>%
+select(-DM25.1,-DM25.2,-DM25.3,-DM25.4,-DM25.5,-DM25.6) %>%
+## subtract Blank from well readings.
+mutate(REL606.1 = REL606.1 - Blank) %>%
+mutate(REL606.2 = REL606.2 - Blank) %>%
+mutate(REL606.3 = REL606.3 - Blank) %>%
+mutate(REL606.4 = REL606.4 - Blank) %>%
+mutate(REL606.5 = REL606.5 - Blank) %>%
+## zero out negative values.
+mutate_at(vars(REL606.1:REL606.5),function(x)ifelse(x<0,0,x)) %>%
+select(-Blank) %>%
+gather("Replicate","OD420",-Hours,-Time) %>%
+mutate(Name='REL606') %>%
+mutate(log.OD420=log(OD420)) %>%
 ## Note: the blanks get messed up several days in. Contamination??
-    filter(Hours<=24)
+filter(Hours<=24)
 
 plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
+  
+  glu.interval.high <- 0.02
+  glu.interval.low <- 0.01
+  glu.ceiling <- 0.05
+  
+  if (logscale) {
+    fig <- ggplot(REL606.df,
+                  aes(x=Hours,
+                      y=log.OD420)) +
+                      ylab('log(OD420)') +
+                      geom_hline(yintercept=log(glu.ceiling),linetype='dashed',color='red') +
+                      geom_hline(yintercept=log(glu.interval.high),linetype='dashed',color='black') +
+                      geom_hline(yintercept=log(glu.interval.low),linetype='dashed',color='black')
 
-    glu.interval.high <- 0.02
-    glu.interval.low <- 0.01
-    glu.ceiling <- 0.05
-
-    if (logscale) {
-        fig <- ggplot(REL606.df,
-                      aes(x=Hours,
-                          y=log.OD420)) +
-            ylab('log(OD420)') +
-            geom_hline(yintercept=log(glu.ceiling),linetype='dashed',color='red') +
-            geom_hline(yintercept=log(glu.interval.high),linetype='dashed',color='black') +
-            geom_hline(yintercept=log(glu.interval.low),linetype='dashed',color='black')
-
-    } else {
-        fig <- ggplot(REL606.df,
-                      aes(x=Hours,
-                          y=OD420)) +
-            ylab('OD420') +
-            geom_hline(yintercept=glu.ceiling,linetype='dashed',color='red') +
-            geom_hline(yintercept=glu.interval.high,linetype='dashed',color='black') +
-            geom_hline(yintercept=glu.interval.low,linetype='dashed',color='black')
-
-    }
-    title.string <- "REL606 in DM25"
-
-    fig <- fig +
-        xlab('Time (h)') +
-        geom_point(size=0.1, alpha=0.1) +
-    theme_classic() +
-        guides(color=FALSE) +
-        ggtitle(title.string) +
-        theme(plot.title = element_text(size = 12, face = "bold"))
-
-    return(fig)
+  } else {
+    fig <- ggplot(REL606.df,
+                  aes(x=Hours,
+                      y=OD420)) +
+                      ylab('OD420') +
+                      geom_hline(yintercept=glu.ceiling,linetype='dashed',color='red') +
+                      geom_hline(yintercept=glu.interval.high,linetype='dashed',color='black') +
+                      geom_hline(yintercept=glu.interval.low,linetype='dashed',color='black')
+    
+  }
+  title.string <- "REL606 in DM25"
+  
+  fig <- fig +
+  xlab('Time (h)') +
+  geom_point(size=0.1, alpha=0.1) +
+  theme_classic() +
+  guides(color=FALSE) +
+  ggtitle(title.string) +
+  theme(plot.title = element_text(size = 12, face = "bold"))
+  
+  return(fig)
 }
 
 REL606.plot <- plot.REL606.DM25.growth(REL606.DM25.growth.data, logscale=FALSE)
@@ -315,680 +319,739 @@ save_plot(file.path(proj.dir,"results/figures/S2Fig.pdf"),S2Fig,base_height=4,ba
 
 ########################################
 prep.growth.df <- function(growth.df) {
-    ## The analysis follows what Zack has done:
-    ## 1) average blank measurement at every time point.
-    ## 2) subtract average blank measurement from each time point.
-    ## 3) log transform the data.
-    blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
-        summarise(blank.time.avg = mean(OD420))
-    growth.df <- left_join(growth.df, blanks) %>%
-        mutate(rawOD420 = OD420) %>%
-        mutate(OD420 = rawOD420 - blank.time.avg) %>%
-        mutate(log.OD420 = log(OD420)) %>%
-        ## filter out blank rows.
-        filter(Name != 'Blank') %>%
-        ## Make an hours column with lubridate for plotting.
-        mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
-        ungroup()
-    return(growth.df)
+  ## The analysis follows what Zack has done:
+  ## 1) average blank measurement at every time point.
+  ## 2) subtract average blank measurement from each time point.
+  ## 3) log transform the data.
+  blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
+  summarise(blank.time.avg = mean(OD420))
+  growth.df <- left_join(growth.df, blanks) %>%
+  mutate(rawOD420 = OD420) %>%
+  mutate(OD420 = rawOD420 - blank.time.avg) %>%
+  mutate(log.OD420 = log(OD420)) %>%
+  ## filter out blank rows.
+  filter(Name != 'Blank') %>%
+  ## Make an hours column with lubridate for plotting.
+  mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
+  ungroup()
+  return(growth.df)
 }
 
 plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FALSE) {
-
-    if (logscale) {
-        fig <- ggplot(plot.growth.data,
-                      aes(x=Hours,
-                          y=log.OD420,
-                          color=Name)) +
-            ylim(c(-6,0)) +
-            ylab('log(OD420)') +
-            geom_hline(yintercept=log(0.05),linetype='dashed',color='red',size=0.1) +
-            geom_hline(yintercept=log(0.1),linetype='dashed',color='red',size=0.1) +
-            ## clever trick to only plot glucose interval on DM25 curves.
-            geom_hline(data=data.frame(yint=log(0.01),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1) +
-            geom_hline(data=data.frame(yint=log(0.02),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1)
-
-    } else {
-        fig <- ggplot(plot.growth.data,
-                      aes(x=Hours,
-                          y=OD420,
-                          color=Name)) +
-            ylim(c(0,0.6)) +
-            ylab('OD420')
-    }
-
-    ## title for the plot.
-    ev.pop <- unique(filter(plot.growth.data,Name==ev.name)$PopulationLabel)
-    sample.type <- unique(filter(plot.growth.data,Name==ev.name)$SampleType)
-    if (sample.type == 'Clone') {
-        title.string <- paste0(ev.pop, ': ', ev.name)
-    } else {
-        title.string <- paste0(ev.pop, ': population')
-    }
-
-    ## make Cit- strain stand out.
-    if (ev.name == 'ZDBp874') {
-        ev.color <- "#E69F00"
-    } else {
-        ev.color <- "#009E73"
-    }
-
-    fig <- fig +
-        xlab('Time (h)') +
-        geom_point(data=filter(plot.growth.data, Name==fdr),
-                   size=0.1, color="#999999", alpha=0.1) +
-        geom_point(data=filter(plot.growth.data,Name==ev.name),
-                   size=0.1, color=ev.color, alpha=0.1) +
-        facet_grid(Experiment ~ Founder) +
-        guides(color=FALSE) +
-        ggtitle(title.string) +
-        theme(plot.title = element_text(size = 12, face = "bold")) +
-        theme(strip.text.x = element_blank())
-
-    return(fig)
+  
+  if (logscale) {
+    fig <- ggplot(plot.growth.data,
+                  aes(x=Hours,
+                      y=log.OD420,
+                      color=Name)) +
+                      ylim(c(-6,0)) +
+                      ylab('log(OD420)') +
+                      geom_hline(yintercept=log(0.05),linetype='dashed',color='red',size=0.1) +
+                      geom_hline(yintercept=log(0.1),linetype='dashed',color='red',size=0.1) +
+                      ## clever trick to only plot glucose interval on DM25 curves.
+                      geom_hline(data=data.frame(yint=log(0.01),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1) +
+                      geom_hline(data=data.frame(yint=log(0.02),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1)
+    
+  } else {
+    fig <- ggplot(plot.growth.data,
+                  aes(x=Hours,
+                      y=OD420,
+                      color=Name)) +
+                      ylim(c(0,0.6)) +
+                      ylab('OD420')
+  }
+  
+  ## title for the plot.
+  ev.pop <- unique(filter(plot.growth.data,Name==ev.name)$PopulationLabel)
+  sample.type <- unique(filter(plot.growth.data,Name==ev.name)$SampleType)
+  if (sample.type == 'Clone') {
+    title.string <- paste0(ev.pop, ': ', ev.name)
+  } else {
+    title.string <- paste0(ev.pop, ': population')
+  }
+  
+  ## make Cit- strain stand out.
+  if (ev.name == 'ZDBp874') {
+    ev.color <- "#E69F00"
+  } else {
+    ev.color <- "#009E73"
+  }
+  
+  fig <- fig +
+  theme_classic() +
+  xlab('Time (h)') +
+  geom_point(data=filter(plot.growth.data, Name==fdr),
+             size=0.1, color="#999999", alpha=0.1) +
+  geom_point(data=filter(plot.growth.data,Name==ev.name),
+             size=0.1, color=ev.color, alpha=0.1) +
+             facet_grid(Experiment ~ Founder) +
+             guides(color=FALSE) +
+             ggtitle(title.string) +
+             theme(plot.title = element_text(size = 12, face = "bold")) +
+             theme(strip.text.x = element_blank())
+  
+  return(fig)
 }
 
 plot.growthcurve.figure <- function(growth.df,logscale=FALSE) {
-
-    list.of.plots <- vector("list", 12) ## we will have 12 plots.
-    i <- 1 ## index for list.
-
-    ## recode Experiment column for plotting clarity.
-    growth.df <- mutate(growth.df,
-                        Experiment=recode_factor(Experiment,
-                                                 `DM0-growth`='DM0',
-                                                 `DM25-growth`='DM25'))
-
-    for (fdr in sort(unique(growth.df$Founder))) {
-
-        growth.by.founder <- filter(growth.df,Founder == fdr)
-        evolved.names <- sort(unique(filter(growth.by.founder, Name != fdr)$Name))
-
-        for (ev.name in evolved.names) {
-            plot.growth.data <- filter(growth.by.founder, Name %in% c(fdr, ev.name))
-            fig <- plot.single.growthcurve(plot.growth.data, ev.name, fdr, logscale)
-            ## append fig to the list of plots.
-            list.of.plots[[i]] <- fig
-            i <- i + 1
-        }
+  
+  list.of.plots <- vector("list", 12) ## we will have 12 plots.
+  i <- 1 ## index for list.
+  
+  ## recode Experiment column for plotting clarity.
+  growth.df <- mutate(growth.df,
+                      Experiment=recode_factor(Experiment,
+                        `DM0-growth`='DM0',
+                        `DM25-growth`='DM25'))
+  
+  for (fdr in sort(unique(growth.df$Founder))) {
+    
+    growth.by.founder <- filter(growth.df,Founder == fdr)
+    evolved.names <- sort(unique(filter(growth.by.founder, Name != fdr)$Name))
+    
+    for (ev.name in evolved.names) {
+      plot.growth.data <- filter(growth.by.founder, Name %in% c(fdr, ev.name))
+      fig <- plot.single.growthcurve(plot.growth.data, ev.name, fdr, logscale)
+      ## append fig to the list of plots.
+      list.of.plots[[i]] <- fig
+      i <- i + 1
     }
-    ## use cowplot to plot.
-    my.plot <- plot_grid(plotlist=list.of.plots, ncol=4)
-    return(my.plot)
+  }
+  ## use cowplot to plot.
+  my.plot <- plot_grid(plotlist=list.of.plots, ncol=4)
+  return(my.plot)
 }
 
 calc.growth.rates <- function(final.growth.df) {
-    ## This is a simpler growth rate calculation code.
-    ## use two different intervals for estimating r.glucose and r.citrate,
-    ## based on the REL606 growth curves in DM25, the Cit- ZDBp874 growth curve,
-    ## and the Cit+ clone growth curves.
-    ## This should hopefully provide more reliable estimates.
-
-    summarize.well.growth <- function(well.df) {
-
-        glu.min.index <- max(min(which(well.df$OD420 > 0.01)), 1)
-        glu.max.index <- min(min(which(well.df$OD420 > 0.02)), nrow(well.df))
-
-        cit.min.index <- max(min(which(well.df$OD420 > 0.05)), 1)
-        cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
-        ## to compare time lags, measure point when OD420 hits 0.05.
-        t.OD.hit.cit.min <- well.df[cit.min.index,]$Hours
-
-        if ((glu.max.index <= nrow(well.df)) & (glu.min.index < glu.max.index)) {
-            glucose.data <- well.df[glu.min.index:glu.max.index,]
-        } else {
-            glucose.data <- NULL
-        }
-
-        if ((cit.max.index <= nrow(well.df)) & (cit.min.index<cit.max.index)) {
-            citrate.data <- well.df[cit.min.index:cit.max.index,]
-        } else { ## if OD never hits 0.1, then don't measure r.citrate.
-            citrate.data <- NULL
-        }
-
-        ## can't measure growth on glucose if there's no glucose!
-        if (unique(well.df$Experiment) == 'DM0-growth'){
-            glucose.data <- NULL
-        }
-
-        get.max.growth.rate <- function(subdata,window=TRUE) {
-            ## find max growth rate for glucose or citrate data.
-
-            if (is.null(subdata)) return(NA)
-            rel.subdata <- select(subdata,c('log.OD420','Hours')) %>%
-                ##Remove rows that contain nans
-                drop_na()
-
-            w <- 5 ## require at least 5 datapoints to calculate growth rates.
-            if (nrow(rel.subdata) < w) return(NA)
-
-            calc.slope <- function(subdf) {
-                coef(lm(log.OD420 ~ Hours, data = as.data.frame(subdf)))[2]
-            }
-
-            if (window) { ## Find the max slope in the interval.
-                g.rate <- max(rollapply(zoo(rel.subdata), width = w,
-                                        FUN = calc.slope,
-                                        by.column = FALSE, align = "right"))
-            }
-            else { ## Calculate slope on the whole interval
-                g.rate <- calc.slope(rel.subdata)
-            }
-            return(g.rate)
-        }
-
-        summarized.df <- data.frame(Name = unique(well.df$Name),
-                                    Well = unique(well.df$Well),
-                                    Experiment = unique(well.df$Experiment),
-                                    SampleType = unique(well.df$SampleType),
-                                    Generation = unique(well.df$Generation),
-                                    Environment = unique(well.df$Environment),
-                                    ParentClone = unique(well.df$ParentClone),
-                                    Founder = unique(well.df$Founder),
-                                    r.citrate = get.max.growth.rate(citrate.data),
-                                    r.glucose = get.max.growth.rate(glucose.data),
-                                    t.lag = t.OD.hit.cit.min,
-                                    stringsAsFactors=FALSE)
-
-        return(summarized.df)
+  ## This is a simpler growth rate calculation code.
+  ## use two different intervals for estimating r.glucose and r.citrate,
+  ## based on the REL606 growth curves in DM25, the Cit- ZDBp874 growth curve,
+  ## and the Cit+ clone growth curves.
+  ## This should hopefully provide more reliable estimates.
+  
+  summarize.well.growth <- function(well.df) {
+    
+    glu.min.index <- max(min(which(well.df$OD420 > 0.01)), 1)
+    glu.max.index <- min(min(which(well.df$OD420 > 0.02)), nrow(well.df))
+    
+    cit.min.index <- max(min(which(well.df$OD420 > 0.05)), 1)
+    cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
+    ## to compare time lags, measure point when OD420 hits 0.05.
+    t.OD.hit.cit.min <- well.df[cit.min.index,]$Hours
+    
+    if ((glu.max.index <= nrow(well.df)) & (glu.min.index < glu.max.index)) {
+      glucose.data <- well.df[glu.min.index:glu.max.index,]
+    } else {
+      glucose.data <- NULL
     }
+    
+    if ((cit.max.index <= nrow(well.df)) & (cit.min.index<cit.max.index)) {
+      citrate.data <- well.df[cit.min.index:cit.max.index,]
+    } else { ## if OD never hits 0.1, then don't measure r.citrate.
+      citrate.data <- NULL
+    }
+    
+    ## can't measure growth on glucose if there's no glucose!
+    if (unique(well.df$Experiment) == 'DM0-growth'){
+      glucose.data <- NULL
+    }
+    
+    get.max.growth.rate <- function(subdata,window=TRUE) {
+      ## find max growth rate for glucose or citrate data.
+      
+      if (is.null(subdata)) return(NA)
+      rel.subdata <- select(subdata,c('log.OD420','Hours')) %>%
+      ##Remove rows that contain nans
+      drop_na()
+      
+      w <- 5 ## require at least 5 datapoints to calculate growth rates.
+      if (nrow(rel.subdata) < w) return(NA)
+      
+      calc.slope <- function(subdf) {
+        coef(lm(log.OD420 ~ Hours, data = as.data.frame(subdf)))[2]
+      }
+      
+      if (window) { ## Find the max slope in the interval.
+        g.rate <- max(rollapply(zoo(rel.subdata), width = w,
+                                FUN = calc.slope,
+                                by.column = FALSE, align = "right"))
+      }
+      else { ## Calculate slope on the whole interval
+        g.rate <- calc.slope(rel.subdata)
+      }
+      return(g.rate)
+    }
+    
+    summarized.df <- data.frame(Name = unique(well.df$Name),
+                                Well = unique(well.df$Well),
+                                Experiment = unique(well.df$Experiment),
+                                SampleType = unique(well.df$SampleType),
+                                Generation = unique(well.df$Generation),
+                                Environment = unique(well.df$Environment),
+                                ParentClone = unique(well.df$ParentClone),
+                                Founder = unique(well.df$Founder),
+                                r.citrate = get.max.growth.rate(citrate.data),
+                                r.glucose = get.max.growth.rate(glucose.data),
+                                t.lag = t.OD.hit.cit.min,
+                                stringsAsFactors=FALSE)
 
-    growth.rate.summary <- final.growth.df %>%
-        droplevels() %>% ## otherwise runs and dies on empty subsets!
-        ## Split on both growth conditions (DM25 or DM0) and Well.
-        split(list(.$Experiment,.$Well)) %>%
-        map_dfr(.f=summarize.well.growth)
-    return(growth.rate.summary)
+    return(summarized.df)
+  }
+
+  growth.rate.summary <- final.growth.df %>%
+  droplevels() %>% ## otherwise runs and dies on empty subsets!
+  ## Split on both growth conditions (DM25 or DM0) and Well.
+  split(list(.$Experiment,.$Well)) %>%
+  map_dfr(.f=summarize.well.growth)
+  return(growth.rate.summary)
 }
 
 filter.growth.data.on.analysis.domain <- function(growth.rate.df) {
-    ## The goal here is to plot the domain of the curves
-    ## PER EXPERIMENTAL CONDITIONS AND PER WELL
-    ## that is used to calculate growth rates.
-    ## We want to plot the data that goes into my rate analysis code.
-    ## Also plot intervals used to calculate rates.
-    ## This code is EXTREMELY useful for debugging.
+  ## The goal here is to plot the domain of the curves
+  ## PER EXPERIMENTAL CONDITIONS AND PER WELL
+  ## that is used to calculate growth rates.
+  ## We want to plot the data that goes into my rate analysis code.
+  ## Also plot intervals used to calculate rates.
+  ## This code is EXTREMELY useful for debugging.
 
-    filter.well.data <- function(well.df) {
-        ## minimum OD420 > 0.01.
-        ## maximum OD420 < 0.1.
-        
-        ## find first index where OD420 > 0.01.
-        min.index <- max(min(which(well.df$OD420 > 0.01)),1)
-        ## find first index where OD420 > 0.1.
-        max.index <- min(min(which(well.df$OD420 > 0.1)),nrow(well.df))
+  filter.well.data <- function(well.df) {
+    ## minimum OD420 > 0.01.
+    ## maximum OD420 < 0.1.
+    
+    ## find first index where OD420 > 0.01.
+    min.index <- max(min(which(well.df$OD420 > 0.01)),1)
+    ## find first index where OD420 > 0.1.
+    max.index <- min(min(which(well.df$OD420 > 0.1)),nrow(well.df))
 
-        ## if OD never hits 0.1, then don't measure.
-        if ((max.index > nrow(well.df)) | (min.index >= max.index)) {
-            return(NULL)
-        }
+    ## if OD never hits 0.1, then don't measure.
+    if ((max.index > nrow(well.df)) | (min.index >= max.index)) {
+      return(NULL)
+    }
 
-        return(well.df[min.index:max.index,])
-     }
+    return(well.df[min.index:max.index,])
+  }
 
-    filtered.df <- growth.rate.df %>%
-        droplevels() %>% ## don't map/reduce empty subsets
-        split(list(.$Experiment,.$Well)) %>%
-        map_dfr(.f=filter.well.data)
+  filtered.df <- growth.rate.df %>%
+  droplevels() %>% ## don't map/reduce empty subsets
+  split(list(.$Experiment,.$Well)) %>%
+  map_dfr(.f=filter.well.data)
 
-    return(filtered.df)
+  return(filtered.df)
 }
 
 map.reduce.growth.curve <- function(final.growth.df) {
-    ## This function splits the growth plate data by Well and Experiment,
-    ## Where Experiment is either 'DM0-growth' or 'DM25-growth'.
+  ## This function splits the growth plate data by Well and Experiment,
+  ## Where Experiment is either 'DM0-growth' or 'DM25-growth'.
 
-    ## returns one-row dataframe of growth rate fit and metadata from gdata.
-    get.growth.curve.fit <- function(well.df) {
+  ## returns one-row dataframe of growth rate fit and metadata from gdata.
+  get.growth.curve.fit <- function(well.df) {
 
-        ## since stationary phase is so wacky,
-        ## fit data up to 6 hours past OD420 == 0.1,
-        ## or to the end of the timecourse, whichever is first.
-        cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
-        t.OD.hit.cit.max <- well.df[cit.max.index,]$Hours
-        trim.time <- min(t.OD.hit.cit.max + 6, max(well.df$Hours))
+    ## since stationary phase is so wacky,
+    ## fit data up to 6 hours past OD420 == 0.1,
+    ## or to the end of the timecourse, whichever is first.
+    cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
+    t.OD.hit.cit.max <- well.df[cit.max.index,]$Hours
+    trim.time <- min(t.OD.hit.cit.max + 6, max(well.df$Hours))
 
-        gcfit <- SummarizeGrowth(well.df$Hours,well.df$OD420,t_trim = trim.time)
-        gcfitv <- gcfit$val
-        my.df = data.frame(Name = unique(well.df$Name),
-                           Well = unique(well.df$Well),
-                           Experiment = unique(well.df$Experiment),
-                           SampleType = unique(well.df$SampleType),
-                           Generation = unique(well.df$Generation),
-                           Population = unique(well.df$Population),
-                           PopulationLabel = unique(well.df$PopulationLabel),
-                           AraStatus = unique(well.df$AraStatus),
-                           ParentClone = unique(well.df$ParentClone),
-                           Founder = unique(well.df$Founder),
-                           Environment = unique(well.df$Environment),
-                           Sequenced = unique(well.df$Sequenced),
-                           r = gcfitv$r,
-                           t_mid = gcfitv$t_mid,
-                           stringsAsFactors=FALSE)
-        return(my.df)
-    }
+    gcfit <- SummarizeGrowth(well.df$Hours,well.df$OD420,t_trim = trim.time)
+    gcfitv <- gcfit$val
+    my.df = data.frame(Name = unique(well.df$Name),
+      Well = unique(well.df$Well),
+      Experiment = unique(well.df$Experiment),
+      SampleType = unique(well.df$SampleType),
+      Generation = unique(well.df$Generation),
+      Population = unique(well.df$Population),
+      PopulationLabel = unique(well.df$PopulationLabel),
+      AraStatus = unique(well.df$AraStatus),
+      ParentClone = unique(well.df$ParentClone),
+      Founder = unique(well.df$Founder),
+      Environment = unique(well.df$Environment),
+      Sequenced = unique(well.df$Sequenced),
+      r = gcfitv$r,
+      t_mid = gcfitv$t_mid,
+      stringsAsFactors=FALSE)
+    return(my.df)
+  }
 
-    gcfit.df <- final.growth.df %>%
-        droplevels() %>% ## so that doesn't run and die on empty subsets
-        ## Split on both growth conditions (DM25 or DM0) and Well.
-        split(list(.$Experiment,.$Well)) %>%
-        map_dfr(.f=get.growth.curve.fit)
+  gcfit.df <- final.growth.df %>%
+  droplevels() %>% ## so that doesn't run and die on empty subsets
+  ## Split on both growth conditions (DM25 or DM0) and Well.
+  split(list(.$Experiment,.$Well)) %>%
+  map_dfr(.f=get.growth.curve.fit)
 
-    return(gcfit.df)
+  return(gcfit.df)
 }
 
 bootstrap.my.growth.confints <- function(growth) {
-    ## Calculate and plot growth parameter estimates for each population and clone.
-    ## I want to distinguish between noise within estimates versus differences between then.
+  ## Calculate and plot growth parameter estimates for each population and clone.
+  ## I want to distinguish between noise within estimates versus differences between then.
 
-    bootstrap.my.growth.parameters <- function(df) {
-        ## my analysis fits.
-        DM0.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM0.r.citrate)
-        DM25.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM25.r.citrate)
-        DM25.r.glucose.conf.int <- calc.bootstrap.conf.int(df$DM25.r.glucose)
-        DM0.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM0.t.lag)
-        DM25.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM25.t.lag)
+  bootstrap.my.growth.parameters <- function(df) {
+    ## my analysis fits.
+    DM0.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM0.r.citrate)
+    DM25.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM25.r.citrate)
+    DM25.r.glucose.conf.int <- calc.bootstrap.conf.int(df$DM25.r.glucose)
+    DM0.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM0.t.lag)
+    DM25.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM25.t.lag)
 
-        bootstrap.results <- data.frame(Name=rep(unique(df$Name),5),
-                                        Founder=rep(unique(df$Founder),5),
-                                        Generation=rep(unique(df$Generation),5),
-                                        Parameter=c(
-                                            "DM0.r.citrate",
-                                            "DM25.r.citrate",
-                                            "DM25.r.glucose",
-                                            "DM0.t.lag",
-                                            "DM25.t.lag"),
-                                        Estimate = c(
-                                            mean(df$DM0.r.citrate, na.rm=TRUE),
-                                            mean(df$DM25.r.citrate, na.rm=TRUE),
-                                            mean(df$DM25.r.glucose, na.rm=TRUE),
-                                            mean(df$DM0.t.lag, na.rm=TRUE),
-                                            mean(df$DM25.t.lag, na.rm=TRUE)),
-                                        Left = c(
-                                            DM0.r.citrate.conf.int[1],
-                                            DM25.r.citrate.conf.int[1],
-                                            DM25.r.glucose.conf.int[1],
-                                            DM0.t.lag.conf.int[1],
-                                            DM25.t.lag.conf.int[1]),
-                                        Right = c(
-                                            DM0.r.citrate.conf.int[2],
-                                            DM25.r.citrate.conf.int[2],
-                                            DM25.r.glucose.conf.int[2],
-                                            DM0.t.lag.conf.int[2],
-                                            DM25.t.lag.conf.int[2]),
-                                        stringsAsFactors=FALSE)
-        return(bootstrap.results)
-    }
+    bootstrap.results <- data.frame(Name=rep(unique(df$Name),5),
+                                    Founder=rep(unique(df$Founder),5),
+                                    Generation=rep(unique(df$Generation),5),
+                                    Parameter=c(
+                                      "DM0.r.citrate",
+                                      "DM25.r.citrate",
+                                      "DM25.r.glucose",
+                                      "DM0.t.lag",
+                                      "DM25.t.lag"),
+                                    Estimate = c(
+                                      mean(df$DM0.r.citrate, na.rm=TRUE),
+                                      mean(df$DM25.r.citrate, na.rm=TRUE),
+                                      mean(df$DM25.r.glucose, na.rm=TRUE),
+                                      mean(df$DM0.t.lag, na.rm=TRUE),
+                                      mean(df$DM25.t.lag, na.rm=TRUE)),
+                                    Left = c(
+                                      DM0.r.citrate.conf.int[1],
+                                      DM25.r.citrate.conf.int[1],
+                                      DM25.r.glucose.conf.int[1],
+                                      DM0.t.lag.conf.int[1],
+                                      DM25.t.lag.conf.int[1]),
+                                    Right = c(
+                                      DM0.r.citrate.conf.int[2],
+                                      DM25.r.citrate.conf.int[2],
+                                      DM25.r.glucose.conf.int[2],
+                                      DM0.t.lag.conf.int[2],
+                                      DM25.t.lag.conf.int[2]),
+                                    stringsAsFactors=FALSE)
+    return(bootstrap.results)
+  }
 
-    ## average values for the same clone or population, over wells of the growth plate.
-    confint.df <- growth %>%
-        droplevels() %>% ## don't run on empty subsets
-        split(.$Name) %>%
-        map_dfr(.f=bootstrap.my.growth.parameters)
+  ## average values for the same clone or population, over wells of the growth plate.
+  confint.df <- growth %>%
+  droplevels() %>% ## don't run on empty subsets
+  split(.$Name) %>%
+  map_dfr(.f=bootstrap.my.growth.parameters)
 
-    return(confint.df)
+  return(confint.df)
 }
 
 ## This function works on estimates from running growthcurver.
 bootstrap.growthcurver.confints <- function(growth.fits) {
-    ## average values for the same clone or population, over wells of the growth plate.
+  ## average values for the same clone or population, over wells of the growth plate.
 
-    bootstrap.growthcurver.parameters <- function(df) {
+  bootstrap.growthcurver.parameters <- function(df) {
 
-        ## growthcurver fits.
-        DM0.r.conf.int <- calc.bootstrap.conf.int(df$DM0.r)
-        DM0.t_mid.conf.int <- calc.bootstrap.conf.int(df$DM0.t_mid)
-        DM25.r.conf.int <- calc.bootstrap.conf.int(df$DM25.r)
-        DM25.t_mid.conf.int <- calc.bootstrap.conf.int(df$DM25.t_mid)
+    ## growthcurver fits.
+    DM0.r.conf.int <- calc.bootstrap.conf.int(df$DM0.r)
+    DM0.t_mid.conf.int <- calc.bootstrap.conf.int(df$DM0.t_mid)
+    DM25.r.conf.int <- calc.bootstrap.conf.int(df$DM25.r)
+    DM25.t_mid.conf.int <- calc.bootstrap.conf.int(df$DM25.t_mid)
 
-        bootstrap.results <- data.frame(Name=rep(unique(df$Name),4),
-                                        Founder=rep(unique(df$Founder),4),
-                                        Generation=rep(unique(df$Generation),4),
-                                        Parameter=c("DM0.r",
-                                            "DM25.r",
-                                            "DM0.t_mid",
-                                            "DM25.t_mid"
-                                            ),
-                                        Estimate = c(mean(df$DM0.r,na.rm=TRUE),
-                                            mean(df$DM25.r,na.rm=TRUE),
-                                            mean(df$DM0.t_mid, na.rm = TRUE),
-                                            mean(df$DM25.t_mid, na.rm = TRUE)
-                                            ),
-                                        Left = c(DM0.r.conf.int[1],
-                                            DM25.r.conf.int[1],
-                                            DM0.t_mid.conf.int[1],
-                                            DM25.t_mid.conf.int[1]
-                                            ),
-                                        Right = c(DM0.r.conf.int[2],
-                                            DM25.r.conf.int[2],
-                                            DM0.t_mid.conf.int[2],
-                                            DM25.t_mid.conf.int[2]
-                                            ),
-                                        stringsAsFactors=FALSE)
-        return(bootstrap.results)
-    }
+    bootstrap.results <- data.frame(Name=rep(unique(df$Name),4),
+                                    Founder=rep(unique(df$Founder),4),
+                                    Generation=rep(unique(df$Generation),4),
+                                    Parameter=c("DM0.r",
+                                      "DM25.r",
+                                      "DM0.t_mid",
+                                      "DM25.t_mid"
+                                      ),
+                                    Estimate = c(mean(df$DM0.r,na.rm=TRUE),
+                                      mean(df$DM25.r,na.rm=TRUE),
+                                      mean(df$DM0.t_mid, na.rm = TRUE),
+                                      mean(df$DM25.t_mid, na.rm = TRUE)
+                                      ),
+                                    Left = c(DM0.r.conf.int[1],
+                                      DM25.r.conf.int[1],
+                                      DM0.t_mid.conf.int[1],
+                                      DM25.t_mid.conf.int[1]
+                                      ),
+                                    Right = c(DM0.r.conf.int[2],
+                                      DM25.r.conf.int[2],
+                                      DM0.t_mid.conf.int[2],
+                                      DM25.t_mid.conf.int[2]
+                                      ),
+                                    stringsAsFactors=FALSE)
+    return(bootstrap.results)
+  }
 
-    confint.df <- growth.fits %>%
-        droplevels() %>% ## don't run on empty subsets
-        split(.$Name) %>%
-        map_dfr(.f=bootstrap.growthcurver.parameters)
+  confint.df <- growth.fits %>%
+  droplevels() %>% ## don't run on empty subsets
+  split(.$Name) %>%
+  map_dfr(.f=bootstrap.growthcurver.parameters)
 
-    return(confint.df)
+  return(confint.df)
 }
 
 plot.growth.confints <- function (plot.df, confints.df, plot.CIs=TRUE) {
 
-    recode.Parameter <- function(df) {
-        df <- mutate(df,
-                     Parameter=recode(
-                         Parameter,
-                         DM0.r = "DM0 r",
-                         DM25.r = "DM25 r",
-                         DM0.r.citrate = "DM0 r citrate",
-                         DM25.r.citrate = "DM25 r citrate",
-                         DM25.r.glucose = "DM25 r glucose",
-                         DM0.t_mid = "DM0 t_mid",
-                         DM25.t_mid = "DM25 t_mid",
-                         DM0.t.lag = "DM0 t_lag",
-                         DM25.t.lag = "DM25 t_lag"
-                     ))
-        return(df)
-    }
+  recode.Parameter <- function(df) {
+    df <- mutate(df,
+                 Parameter=recode(
+                   Parameter,
+                   DM0.r = "DM0 r",
+                   DM25.r = "DM25 r",
+                   DM0.r.citrate = "DM0 r citrate",
+                   DM25.r.citrate = "DM25 r citrate",
+                   DM25.r.glucose = "DM25 r glucose",
+                   DM0.t_mid = "DM0 t_mid",
+                   DM25.t_mid = "DM25 t_mid",
+                   DM0.t.lag = "DM0 t_lag",
+                   DM25.t.lag = "DM25 t_lag"
+                   ))
+    return(df)
+  }
 
-    plot.df2 <- recode.Parameter(plot.df) %>% filter(!is.na(Estimate))
-    confints.df2 <- recode.Parameter(confints.df) %>% filter(!is.na(Estimate))
+  plot.df2 <- recode.Parameter(plot.df) %>% filter(!is.na(Estimate))
+  confints.df2 <- recode.Parameter(confints.df) %>% filter(!is.na(Estimate))
+  
+  list.of.plots <- vector("list",length(unique(plot.df2$Parameter)))
+  i <- 1 ## index for list.
+  for (param in unique(plot.df2$Parameter)) {
+    param.df <- filter(plot.df2, Parameter==param)
+    param.confint.df <- filter(confints.df2, Parameter==param)
+    fig <- ggplot(param.df, aes(x = Name,y = Estimate,color = Founder)) +
+    geom_point(size=0.5) +
+    ggtitle(param) +
+    ylab("Estimate") +
+    xlab("Sample") +
+    guides(color=FALSE) +
+    scale_color_manual(values = cbbPalette) +
+    theme_classic() +
+    theme(plot.title = element_text(size = 10, face = "bold"),
+          axis.title.x = element_text(size=10),
+          axis.text.y = element_text(size=8),
+          plot.margin = unit(c(0,0,0.25,0.25), "cm"),
+          axis.text.x  = element_text(angle=90, vjust=-0.1,size=8)
+          )
+
+    ## only add y-axis labels to left-most plot.
+    if (i == 1) {
+      fig <- fig + theme(axis.title.y = element_text(size=10))
+    } else {
+      fig <- fig + theme(axis.title.y = element_blank())                  
+    }
     
-    list.of.plots <- vector("list",length(unique(plot.df2$Parameter)))
-    i <- 1 ## index for list.
-    for (param in unique(plot.df2$Parameter)) {
-      param.df <- filter(plot.df2, Parameter==param)
-      param.confint.df <- filter(confints.df2, Parameter==param)
-      fig <- ggplot(param.df, aes(x = Name,y = Estimate,color = Founder)) +
-        geom_point(size=0.5) +
-          ggtitle(param) +
-            ylab("Estimate") +
-              xlab("Sample") +
-                guides(color=FALSE) +
-                  scale_color_manual(values = cbbPalette) +
-                    theme(plot.title = element_text(size = 10, face = "bold")) +
-                      theme(axis.title.x = element_text(size=10)) +
-                        theme(axis.text.y = element_text(size=8)) +
-                          theme(plot.margin = unit(c(0,0,0.25,0.25), "cm")) +
-                            theme(axis.text.x  = element_text(angle=90, vjust=-0.1,size=8))
-
-      ## only add y-axis labels to left-most plot.
-      if (i == 1) {
-        fig <- fig + theme(axis.title.y = element_text(size=10))
-      } else {
-        fig <- fig + theme(axis.title.y = element_blank())                  
-      }
-      
-        ## plot CIs.
-        if (plot.CIs) {
-            fig <- fig +
-                geom_errorbar(data = param.confint.df, aes(ymin=Left,ymax=Right), width=1, size=0.5)
-        }
-        ## set bounds for rate and time parameter plots.
-        if (str_detect(param,'r')) {
-            fig <- fig + ylim(c(0,2))
-        } else {
-            fig <- fig + ylim(c(0,25))    
-        }
-        
-        list.of.plots[[i]] <- fig
-        i <- i + 1
+    ## plot CIs.
+    if (plot.CIs) {
+      fig <- fig +
+      geom_errorbar(data = param.confint.df, aes(ymin=Left,ymax=Right), width=1, size=0.5)
     }
-    ## use cowplot to plot.
-    my.plot <- plot_grid(plotlist=list.of.plots, nrow=1)
-    return(my.plot)
+    ## set bounds for rate and time parameter plots.
+    if (str_detect(param,'r')) {
+      fig <- fig + ylim(c(0,2))
+    } else {
+      fig <- fig + ylim(c(0,25))    
+    }
+    
+    list.of.plots[[i]] <- fig
+    i <- i + 1
+  }
+  ## use cowplot to plot.
+  my.plot <- plot_grid(plotlist=list.of.plots, nrow=1)
+  return(my.plot)
 }
 
 reshape.growth.curve.fits <- function(growth.curve.fits) {
-    ## do some gymnastics to plot rates in different media conditions together.
-    DM0.growth.curve.fits <- filter(growth.curve.fits,
-                                    Experiment=='DM0-growth') %>%
-        mutate(DM0.r = r) %>%
-        mutate(DM0.t_mid = t_mid) %>%
-        select(-r,-t_mid,-Experiment)
+  ## do some gymnastics to plot rates in different media conditions together.
+  DM0.growth.curve.fits <- filter(growth.curve.fits,
+                                  Experiment=='DM0-growth') %>%
+                                  mutate(DM0.r = r) %>%
+                                  mutate(DM0.t_mid = t_mid) %>%
+                                  select(-r,-t_mid,-Experiment)
 
-    DM25.growth.curve.fits <- filter(growth.curve.fits,
-                                     Experiment=='DM25-growth') %>%
-        mutate(DM25.r = r) %>%
-        mutate(DM25.t_mid = t_mid) %>%
-        select(-r,-t_mid,-Experiment)
+  DM25.growth.curve.fits <- filter(growth.curve.fits,
+                                   Experiment=='DM25-growth') %>%
+                                   mutate(DM25.r = r) %>%
+                                   mutate(DM25.t_mid = t_mid) %>%
+                                   select(-r,-t_mid,-Experiment)
 
-    reshaped.growth.curve.fits <- full_join(DM0.growth.curve.fits,
-                                            DM25.growth.curve.fits)
-    return(reshaped.growth.curve.fits)
+  reshaped.growth.curve.fits <- full_join(DM0.growth.curve.fits,
+                                          DM25.growth.curve.fits)
+  return(reshaped.growth.curve.fits)
 }
 
 reshape.my.growth.df <- function(growth) {
-    ## do some gymnastics to plot rates in different media conditions together.
-    DM0.growth <- filter(growth, Experiment=='DM0-growth') %>%
-        mutate(DM0.r.citrate=r.citrate) %>%
-        mutate(DM0.t.lag=t.lag) %>%
-        select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+  ## do some gymnastics to plot rates in different media conditions together.
+  DM0.growth <- filter(growth, Experiment=='DM0-growth') %>%
+  mutate(DM0.r.citrate=r.citrate) %>%
+  mutate(DM0.t.lag=t.lag) %>%
+  select(-r.glucose,-r.citrate,-t.lag,-Experiment)
 
-    DM25.growth <- filter(growth, Experiment=='DM25-growth') %>%
-        mutate(DM25.r.citrate=r.citrate) %>%
-        mutate(DM25.r.glucose=r.glucose) %>%
-        mutate(DM25.t.lag=t.lag) %>%
-        select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+  DM25.growth <- filter(growth, Experiment=='DM25-growth') %>%
+  mutate(DM25.r.citrate=r.citrate) %>%
+  mutate(DM25.r.glucose=r.glucose) %>%
+  mutate(DM25.t.lag=t.lag) %>%
+  select(-r.glucose,-r.citrate,-t.lag,-Experiment)
 
-    reshaped.growth <- full_join(DM0.growth, DM25.growth)
-    return(reshaped.growth)
+  reshaped.growth <- full_join(DM0.growth, DM25.growth)
+  return(reshaped.growth)
 }
 
 summarize.growthcurver.results <- function(growth.curve.fits) {
-    ## lag time t_mid is the midpoint of the fit sigmoid curve.
-    ## UNFORTUNATELY: cannot really infer lag time without CFUs for initial inoculum
-    ## given Nkrumah's cell death observations.
-    ## same goes for cell yield K, can't infer without measuring viable CFUs by plating.
-    ## HOWEVER: the lag time estimated here should still be biologically relevant
-    ## to experimental conditions, even if the transfer inoculum size is unknown.
-    growth.curve.summary <- growth.curve.fits %>%
-        group_by(SampleType, Generation, ParentClone,
-                 Founder, Environment, Dataset, Name) %>%
-        summarize(DM0.r = mean(DM0.r, na.rm=TRUE),
-                  DM0.t_mid = mean(DM0.t_mid, na.rm=TRUE),
-                  DM25.r = mean(DM25.r, na.rm=TRUE),
-                  DM25.t_mid = mean(DM25.t_mid, na.rm=TRUE)) %>%
-        ungroup() %>%
-        mutate(Generation=as.factor(Generation))
-    return(growth.curve.summary)
+  ## lag time t_mid is the midpoint of the fit sigmoid curve.
+  ## UNFORTUNATELY: cannot really infer lag time without CFUs for initial inoculum
+  ## given Nkrumah's cell death observations.
+  ## same goes for cell yield K, can't infer without measuring viable CFUs by plating.
+  ## HOWEVER: the lag time estimated here should still be biologically relevant
+  ## to experimental conditions, even if the transfer inoculum size is unknown.
+  growth.curve.summary <- growth.curve.fits %>%
+  group_by(SampleType, Generation, ParentClone,
+           Founder, Environment, Dataset, Name) %>%
+           summarize(DM0.r = mean(DM0.r, na.rm=TRUE),
+                     DM0.t_mid = mean(DM0.t_mid, na.rm=TRUE),
+                     DM25.r = mean(DM25.r, na.rm=TRUE),
+                     DM25.t_mid = mean(DM25.t_mid, na.rm=TRUE)) %>%
+                     ungroup() %>%
+                     mutate(Generation=as.factor(Generation))
+  return(growth.curve.summary)
 }
 
 summarize.growth.results <- function(growth) {
-    growth.summary <- growth %>%
-        group_by(SampleType, Generation, ParentClone,
-                 Founder, Environment, Dataset, Name) %>%
-    summarise(DM25.r.glucose = mean(DM25.r.glucose, na.rm=TRUE),
-              DM25.r.citrate = mean(DM25.r.citrate, na.rm=TRUE),
-              DM0.r.citrate = mean(DM0.r.citrate, na.rm=TRUE),
-              DM25.t.lag = mean(DM25.t.lag, na.rm=TRUE),
-              DM0.t.lag = mean(DM0.t.lag, na.rm=TRUE)) %>%
-        ungroup() %>%
-        mutate(Generation=as.factor(Generation))
-        return(growth.summary)
+  growth.summary <- growth %>%
+  group_by(SampleType, Generation, ParentClone,
+           Founder, Environment, Dataset, Name) %>%
+           summarise(DM25.r.glucose = mean(DM25.r.glucose, na.rm=TRUE),
+                     DM25.r.citrate = mean(DM25.r.citrate, na.rm=TRUE),
+                     DM0.r.citrate = mean(DM0.r.citrate, na.rm=TRUE),
+                     DM25.t.lag = mean(DM25.t.lag, na.rm=TRUE),
+                     DM0.t.lag = mean(DM0.t.lag, na.rm=TRUE)) %>%
+                     ungroup() %>%
+                     mutate(Generation=as.factor(Generation))
+  return(growth.summary)
 }
 
 calc.growth.log.ratios <- function(growth.summary) {
-    ## calculate the log ratio of evolved growth to ancestral growth for rate,
-    ## and time lags,
-    ## and then calculate a confidence intervals around the means, using
-    ## BCa bootstraps.
-    ## This is a better statistical test for an increase in rate.
+  ## This one works on my estimates.
+  
+  ## calculate the log ratio of evolved growth to ancestral growth for rate,
+  ## and time lags,
+  ## and then calculate a confidence intervals around the means, using
+  ## BCa bootstraps.
+  ## This is a better statistical test for an increase in rate.
 
-    ## Since the data is small, go ahead and use a for loop
-    ## to make vectors corresponding to ancestral R
-    ## in DM0 and DM25.
+  ## Since the data is small, go ahead and use a for loop
+  ## to make vectors corresponding to ancestral R
+  ## in DM0 and DM25.
 
-    ## growthcurver estimates
-    anc.DM0.r <- rep(-1,nrow(growth.summary))
-    anc.DM0.t_mid <- rep(-1,nrow(growth.summary))
-    anc.DM25.r <- rep(-1,nrow(growth.summary))
-    anc.DM25.t_mid <- rep(-1,nrow(growth.summary))
+  ## my methods' estimates
+  anc.DM0.r.citrate <- rep(-1,nrow(growth.summary))
+  anc.DM0.t.lag <- rep(-1,nrow(growth.summary))
 
-    ## my methods' estimates
-    anc.DM0.r.citrate <- rep(-1,nrow(growth.summary))
-    anc.DM0.t.lag <- rep(-1,nrow(growth.summary))
+  anc.DM25.r.citrate <- rep(-1,nrow(growth.summary))
+  anc.DM25.r.glucose <- rep(-1,nrow(growth.summary))
+  anc.DM25.t.lag <- rep(-1,nrow(growth.summary))
 
-    anc.DM25.r.citrate <- rep(-1,nrow(growth.summary))
-    anc.DM25.r.glucose <- rep(-1,nrow(growth.summary))
-    anc.DM25.t.lag <- rep(-1,nrow(growth.summary))
+  for (index in 1:nrow(growth.summary)) {
+    my.row <- growth.summary[index, ]
+    my.anc <- filter(growth.summary,Name==my.row$Founder)
 
-    for (index in 1:nrow(growth.summary)) {
-        my.row <- growth.summary[index, ]
-        my.anc <- filter(growth.summary,Name==my.row$Founder)
+    anc.DM0.r.citrate[index] <- my.anc$DM0.r.citrate
+    anc.DM0.t.lag[index] <- my.anc$DM0.t.lag
+    anc.DM25.r.citrate[index] <- my.anc$DM25.r.citrate
+    anc.DM25.r.glucose[index] <- my.anc$DM25.r.glucose
+    anc.DM25.t.lag[index] <- my.anc$DM25.t.lag
+  }
 
-        anc.DM0.r[index] <- my.anc$DM0.r
-        anc.DM0.t_mid[index] <- my.anc$DM0.t_mid
-        anc.DM25.r[index] <- my.anc$DM25.r
-        anc.DM25.t_mid[index] <- my.anc$DM25.t_mid
+  growth.summary2 <- growth.summary %>%
+  mutate(log.DM0.r.citrate.ratio=log(DM0.r.citrate/anc.DM0.r.citrate)) %>%
+  mutate(log.DM0.t.lag.ratio=log(DM0.t.lag/anc.DM0.t.lag)) %>%
+  mutate(log.DM25.r.citrate.ratio=log(DM25.r.citrate/anc.DM25.r.citrate)) %>%
+  mutate(log.DM25.r.glucose.ratio=log(DM25.r.glucose/anc.DM25.r.glucose)) %>%
+  mutate(log.DM25.t.lag.ratio=log(DM25.t.lag/anc.DM25.t.lag))
 
-        anc.DM0.r.citrate[index] <- my.anc$DM0.r.citrate
-        anc.DM0.t.lag[index] <- my.anc$DM0.t.lag
-        anc.DM25.r.citrate[index] <- my.anc$DM25.r.citrate
-        anc.DM25.r.glucose[index] <- my.anc$DM25.r.glucose
-        anc.DM25.t.lag[index] <- my.anc$DM25.t.lag
-    }
-
-    growth.summary2 <- growth.summary %>%
-        mutate(log.DM0.r.ratio=log(DM0.r/anc.DM0.r)) %>%
-        mutate(log.DM0.t_mid.ratio=log(DM0.t_mid/anc.DM0.t_mid)) %>%
-        mutate(log.DM25.r.ratio=log(DM25.r/anc.DM25.r)) %>%
-        mutate(log.DM25.t_mid.ratio=log(DM25.t_mid/anc.DM25.t_mid)) %>%
-        mutate(log.DM0.r.citrate.ratio=log(DM0.r.citrate/anc.DM0.r.citrate)) %>%
-        mutate(log.DM0.t.lag.ratio=log(DM0.t.lag/anc.DM0.t.lag)) %>%
-        mutate(log.DM25.r.citrate.ratio=log(DM25.r.citrate/anc.DM25.r.citrate)) %>%
-        mutate(log.DM25.r.glucose.ratio=log(DM25.r.glucose/anc.DM25.r.glucose)) %>%
-        mutate(log.DM25.t.lag.ratio=log(DM25.t.lag/anc.DM25.t.lag))
-
-    return(growth.summary2)
+  return(growth.summary2)
 }
 
-run.ratio.confint.bootstrapping <- function(final.growth.summary) {
+calc.growthcurver.log.ratios <- function(growth.summary) {
+  ## calculate the log ratio of evolved growth to ancestral growth for rate,
+  ## and time lags,
+  ## and then calculate a confidence intervals around the means, using
+  ## BCa bootstraps.
+  ## This is a better statistical test for an increase in rate.
 
-    evolved.growth.summary <- filter(final.growth.summary, Name != Founder)
+  ## Since the data is small, go ahead and use a for loop
+  ## to make vectors corresponding to ancestral R
+  ## in DM0 and DM25.
 
-    log.DM0.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.r.ratio)
-    mean.log.DM0.r.ratio <- mean(evolved.growth.summary$log.DM0.r.ratio,na.rm=TRUE)
+  ## growthcurver estimates
+  anc.DM0.r <- rep(-1,nrow(growth.summary))
+  anc.DM0.t_mid <- rep(-1,nrow(growth.summary))
+  anc.DM25.r <- rep(-1,nrow(growth.summary))
+  anc.DM25.t_mid <- rep(-1,nrow(growth.summary))
 
-    log.DM0.t_mid.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.t_mid.ratio)
-    mean.log.DM0.t_mid.ratio <- mean(evolved.growth.summary$log.DM0.t_mid.ratio)
+  for (index in 1:nrow(growth.summary)) {
+    my.row <- growth.summary[index, ]
+    my.anc <- filter(growth.summary,Name==my.row$Founder)
 
-    log.DM25.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.ratio)
-    mean.log.DM25.r.ratio <- mean(evolved.growth.summary$log.DM25.r.ratio,na.rm=TRUE)
+    anc.DM0.r[index] <- my.anc$DM0.r
+    anc.DM0.t_mid[index] <- my.anc$DM0.t_mid
+    anc.DM25.r[index] <- my.anc$DM25.r
+    anc.DM25.t_mid[index] <- my.anc$DM25.t_mid
+  }
 
-    log.DM25.t_mid.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t_mid.ratio)
-    mean.log.DM25.t_mid.ratio <- mean(evolved.growth.summary$log.DM25.t_mid.ratio)
+  growth.summary2 <- growth.summary %>%
+  mutate(log.DM0.r.ratio=log(DM0.r/anc.DM0.r)) %>%
+  mutate(log.DM0.t_mid.ratio=log(DM0.t_mid/anc.DM0.t_mid)) %>%
+  mutate(log.DM25.r.ratio=log(DM25.r/anc.DM25.r)) %>%
+  mutate(log.DM25.t_mid.ratio=log(DM25.t_mid/anc.DM25.t_mid))
 
-    log.DM0.r.citrate.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.r.citrate.ratio)
-    mean.log.DM0.r.citrate.ratio <- mean(evolved.growth.summary$log.DM0.r.citrate.ratio,na.rm=TRUE)
+  return(growth.summary2)
+}
 
-    log.DM25.r.citrate.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.citrate.ratio)
-    mean.log.DM25.r.citrate.ratio <- mean(evolved.growth.summary$log.DM25.r.citrate.ratio,na.rm=TRUE)
+run.growth.ratio.confint.bootstrapping <- function(final.growth.summary) {
 
-    log.DM25.r.glucose.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.glucose.ratio)
-    mean.log.DM25.r.glucose.ratio <- mean(evolved.growth.summary$log.DM25.r.glucose.ratio,na.rm=TRUE)
+  evolved.growth.summary <- filter(final.growth.summary, Name != Founder)
+  
+  log.DM0.r.citrate.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.r.citrate.ratio)
+  mean.log.DM0.r.citrate.ratio <- mean(evolved.growth.summary$log.DM0.r.citrate.ratio,na.rm=TRUE)
 
-    log.DM0.t.lag.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.t.lag.ratio)
-    mean.log.DM0.t.lag.ratio <- mean(evolved.growth.summary$log.DM0.t.lag.ratio)
+  log.DM25.r.citrate.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.citrate.ratio)
+  mean.log.DM25.r.citrate.ratio <- mean(evolved.growth.summary$log.DM25.r.citrate.ratio,na.rm=TRUE)
 
-    log.DM25.t.lag.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t.lag.ratio)
-    mean.log.DM25.t.lag.ratio <- mean(evolved.growth.summary$log.DM25.t.lag.ratio)
+  log.DM25.r.glucose.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.glucose.ratio)
+  mean.log.DM25.r.glucose.ratio <- mean(evolved.growth.summary$log.DM25.r.glucose.ratio,na.rm=TRUE)
+  
+  log.DM0.t.lag.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.t.lag.ratio)
+  mean.log.DM0.t.lag.ratio <- mean(evolved.growth.summary$log.DM0.t.lag.ratio)
 
-    ## Make a figure of these confidence intervals.
+  log.DM25.t.lag.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t.lag.ratio)
+  mean.log.DM25.t.lag.ratio <- mean(evolved.growth.summary$log.DM25.t.lag.ratio)
+  
+  bootstrap.results <- data.frame (
+    Parameter = c(
+      "log.DM0.r.citrate.ratio",
+      "log.DM25.r.citrate.ratio",
+      "log.DM25.r.glucose.ratio",
+      "log.DM0.t.lag.ratio",
+      "log.DM25.t.lag.ratio"),
+    Estimate = c(
+      mean.log.DM0.r.citrate.ratio,
+      mean.log.DM25.r.citrate.ratio,
+      mean.log.DM25.r.glucose.ratio,
+      mean.log.DM0.t.lag.ratio,
+      mean.log.DM25.t.lag.ratio),
+    Left = c(
+      log.DM0.r.citrate.ratio.conf.int[1],
+      log.DM25.r.citrate.ratio.conf.int[1],
+      log.DM25.r.glucose.ratio.conf.int[1],
+      log.DM0.t.lag.ratio.conf.int[1],
+      log.DM25.t.lag.ratio.conf.int[1]),
+    Right = c(
+      log.DM0.r.citrate.ratio.conf.int[2],
+      log.DM25.r.citrate.ratio.conf.int[2],
+      log.DM25.r.glucose.ratio.conf.int[2],
+      log.DM0.t.lag.ratio.conf.int[2],
+      log.DM25.t.lag.ratio.conf.int[2]),
+    stringsAsFactors=FALSE)
+  
+  return(bootstrap.results)
+}
 
-    bootstrap.results <- data.frame (
-        Parameter = c("log.DM0.r.ratio",
-                      "log.DM25.r.ratio",
-                      "log.DM0.r.citrate.ratio",
-                      "log.DM25.r.citrate.ratio",
-                      "log.DM25.r.glucose.ratio",
-                      "log.DM0.t_mid.ratio",
-                      "log.DM25.t_mid.ratio",
-                      "log.DM0.t.lag.ratio",
-                      "log.DM25.t.lag.ratio"),
-        Estimate = c(mean.log.DM0.r.ratio,
-                     mean.log.DM25.r.ratio,
-                     mean.log.DM0.r.citrate.ratio,
-                     mean.log.DM25.r.citrate.ratio,
-                     mean.log.DM25.r.glucose.ratio,
-                     mean.log.DM0.t_mid.ratio,
-                     mean.log.DM25.t_mid.ratio,
-                     mean.log.DM0.t.lag.ratio,
-                     mean.log.DM25.t.lag.ratio),
-        Left = c(log.DM0.r.ratio.conf.int[1],
-                 log.DM25.r.ratio.conf.int[1],
-                 log.DM0.r.citrate.ratio.conf.int[1],
-                 log.DM25.r.citrate.ratio.conf.int[1],
-                 log.DM25.r.glucose.ratio.conf.int[1],
-                 log.DM0.t_mid.ratio.conf.int[1],
-                 log.DM25.t_mid.ratio.conf.int[1],
-                 log.DM0.t.lag.ratio.conf.int[1],
-                 log.DM25.t.lag.ratio.conf.int[1]),
-        Right = c(log.DM0.r.ratio.conf.int[2],
-                  log.DM25.r.ratio.conf.int[2],
-                  log.DM0.r.citrate.ratio.conf.int[2],
-                  log.DM25.r.citrate.ratio.conf.int[2],
-                  log.DM25.r.glucose.ratio.conf.int[2],
-                  log.DM0.t_mid.ratio.conf.int[2],
-                  log.DM25.t_mid.ratio.conf.int[2],
-                  log.DM0.t.lag.ratio.conf.int[2],
-                  log.DM25.t.lag.ratio.conf.int[2]),
-        stringsAsFactors=FALSE)
-    return(bootstrap.results)
+run.growthcurver.ratio.confint.bootstrapping <- function(final.growth.summary) {
+
+  evolved.growth.summary <- filter(final.growth.summary, Name != Founder)
+  
+  log.DM0.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.r.ratio)
+  mean.log.DM0.r.ratio <- mean(evolved.growth.summary$log.DM0.r.ratio,na.rm=TRUE)
+
+  log.DM0.t_mid.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM0.t_mid.ratio)
+  mean.log.DM0.t_mid.ratio <- mean(evolved.growth.summary$log.DM0.t_mid.ratio)
+
+  log.DM25.r.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.r.ratio)
+  mean.log.DM25.r.ratio <- mean(evolved.growth.summary$log.DM25.r.ratio,na.rm=TRUE)
+  
+  log.DM25.t_mid.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t_mid.ratio)
+  mean.log.DM25.t_mid.ratio <- mean(evolved.growth.summary$log.DM25.t_mid.ratio)
+  
+  bootstrap.results <- data.frame (
+    Parameter = c("log.DM0.r.ratio",
+      "log.DM25.r.ratio",
+      "log.DM0.t_mid.ratio",
+      "log.DM25.t_mid.ratio"),
+    Estimate = c(mean.log.DM0.r.ratio,
+      mean.log.DM25.r.ratio,
+      mean.log.DM0.t_mid.ratio,
+      mean.log.DM25.t_mid.ratio),
+    Left = c(log.DM0.r.ratio.conf.int[1],
+      log.DM25.r.ratio.conf.int[1],
+      log.DM0.t_mid.ratio.conf.int[1],
+      log.DM25.t_mid.ratio.conf.int[1]),
+    Right = c(log.DM0.r.ratio.conf.int[2],
+      log.DM25.r.ratio.conf.int[2],
+      log.DM0.t_mid.ratio.conf.int[2],
+      log.DM25.t_mid.ratio.conf.int[2]),
+    stringsAsFactors=FALSE)
+  
+  return(bootstrap.results)
 }
 
 plot.growth.parameters <- function(growth, plot.CIs=TRUE) {    
-    growth.CI <- bootstrap.my.growth.confints(growth)
-    growth.plot.df <- growth %>%
-        gather(key="Parameter",value="Estimate",
-               DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
-    growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
-    return(growth.plot)    
+  growth.CI <- bootstrap.my.growth.confints(growth)
+  growth.plot.df <- growth %>%
+  gather(key="Parameter",value="Estimate",
+         DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
+  growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
+  return(growth.plot)    
 }
 
 plot.growthcurver.parameters <- function(growth, plot.CIs=TRUE) {    
-    growth.CI <- bootstrap.growthcurver.confints(growth)
-    growth.plot.df <- growth %>%
-        gather(key="Parameter",value="Estimate",
-               DM0.r,DM25.r,DM0.t_mid,DM25.t_mid)
-    growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
-    return(growth.plot)   
+  growth.CI <- bootstrap.growthcurver.confints(growth)
+  growth.plot.df <- growth %>%
+  gather(key="Parameter",value="Estimate",
+         DM0.r,DM25.r,DM0.t_mid,DM25.t_mid)
+  growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
+  return(growth.plot)   
+}
+
+plot.parameter.log.ratios <- function (plot.df, confints.df, recode.param.func) {
+
+  plot.df <- recode.param.func(plot.df)
+  confints.df <- recode.param.func(confints.df) %>% drop_na()
+  
+  the.plot <- ggplot(plot.df, aes(x=Parameter,y=Estimate)) +
+  geom_point(size=1) +
+  geom_errorbar(data=confints.df, aes(ymin=Left,ymax=Right),width=0.5, size=0.5) +
+  theme_classic() +
+  geom_hline(yintercept=0,linetype='dashed') +
+  ylab("log(Evolved/Ancestral)") +
+  xlab("Growth parameter") +
+  theme(axis.text.x=element_text(size=12))
+  
+  return(the.plot)
 }
 
 plot.growth.parameter.log.ratios <- function (plot.df, confints.df) {
 
-    recode.Parameter <- function(df) {
-        df <- mutate(df,
-                     Parameter=recode_factor(
-                         Parameter,
-                         log.DM0.r.citrate.ratio = "DM0 r citrate",
-                         log.DM0.r.ratio = "DM0 r",
-                         log.DM0.t.lag.ratio = "DM0 t_lag",
-                         log.DM0.t_mid.ratio = "DM0 t_mid",
-                         log.DM25.r.citrate.ratio = "DM25 r citrate",
-                         log.DM25.r.ratio = "DM25 r",
-                         log.DM25.r.glucose.ratio = "DM25 r glucose",
-                         log.DM25.t.lag.ratio = "DM25 t_lag",
-                         log.DM25.t_mid.ratio = "DM25 t_mid"
-                     ))
-          return(df)
-    }
+  recode.Growth.Parameter <- function(df) {
+    df <- mutate(df,
+                 Parameter=recode_factor(
+                   Parameter,
+                   log.DM0.r.citrate.ratio = "DM0 r citrate",              
+                   log.DM25.r.citrate.ratio = "DM25 r citrate",
+                   log.DM25.r.glucose.ratio = "DM25 r glucose",
+                   log.DM0.t.lag.ratio = "DM0 t_lag",
+                   log.DM25.t.lag.ratio = "DM25 t_lag"
+                   ))
+    return(df)
+  }
 
-    plot.df <- recode.Parameter(plot.df)
-    confints.df <- recode.Parameter(confints.df) %>% drop_na()
-    
-    the.plot <- ggplot(plot.df, aes(x=Parameter,y=Estimate)) +
-        geom_point(size=1) +
-        geom_errorbar(data=confints.df, aes(ymin=Left,ymax=Right),width=0.5, size=0.5) +
-        geom_hline(yintercept=0,linetype='dashed') +
-        ylab("log(Evolved/Ancestral)") +
-        xlab("Growth parameter") +
-        theme_classic()
-    return(the.plot)
+  return(plot.parameter.log.ratios(plot.df,confints.df,recode.Growth.Parameter))
+}
+
+plot.growthcurver.parameter.log.ratios <- function (plot.df, confints.df) {
+
+  recode.Growthcurver.Parameter <- function(df) {
+    df <- mutate(df,
+                 Parameter=recode_factor(
+                   Parameter,
+                   log.DM0.r.ratio = "DM0 r",
+                   log.DM25.r.ratio = "DM25 r",
+                   log.DM0.t_mid.ratio = "DM0 t_mid",
+                   log.DM25.t_mid.ratio = "DM25 t_mid"
+                   ))
+    return(df)
+  }
+  
+  return(plot.parameter.log.ratios(plot.df,confints.df,recode.Growtcurver.Parameter))
 }
 
 ###############################################
@@ -997,50 +1060,50 @@ plot.growth.parameter.log.ratios <- function (plot.df, confints.df) {
 DM0.pop.growth.data <- read.csv(
   file.path(proj.dir,"results/DM0-evolved-pop-growth.csv"),
   stringsAsFactors=FALSE) %>%
-  left_join(pop.clone.labels, by="Name") %>%
-  prep.growth.df()
+left_join(pop.clone.labels, by="Name") %>%
+prep.growth.df()
 
 ## DM0-evolved clone data.
 DM0.clone.growth.data <- read.csv(
   file.path(proj.dir,"results/DM0-evolved-clone-growth.csv"),
   stringsAsFactors=FALSE) %>%
-  left_join(pop.clone.labels, by="Name") %>%
-  prep.growth.df()
+left_join(pop.clone.labels, by="Name") %>%
+prep.growth.df()
 
 ## DM25-evolved clone data (only have growth in DM25).
 DM25.clone.growth.data <- read.csv(
   file.path(proj.dir, "results/DM25-evolved-clone-growth.csv"),
   stringsAsFactors=FALSE) %>%
-  left_join(pop.clone.labels, by="Name") %>%
-  prep.growth.df()
+left_join(pop.clone.labels, by="Name") %>%
+prep.growth.df()
 
 #######################################
 ## Examine how growth parameters have changed over evolution.
 ## Run calc.growth.rates code.
 clone.growth <- calc.growth.rates(DM0.clone.growth.data) %>%
-    mutate(Dataset='CloneGrowth') %>%
-    reshape.my.growth.df()
+mutate(Dataset='CloneGrowth') %>%
+reshape.my.growth.df()
 
 pop.growth <- calc.growth.rates(DM0.pop.growth.data) %>%
-    mutate(Dataset='PopulationGrowth') %>%
-    reshape.my.growth.df()
+mutate(Dataset='PopulationGrowth') %>%
+reshape.my.growth.df()
 
 DM25.clone.growth <- calc.growth.rates(DM25.clone.growth.data) %>%
-    mutate(Dataset='CloneGrowth') %>%
-    reshape.my.growth.df()
+mutate(Dataset='CloneGrowth') %>%
+reshape.my.growth.df()
 
 ## use growthcurver to fit logistic curves.
 clone.growth.curve.fits <- map.reduce.growth.curve(DM0.clone.growth.data) %>%
-    mutate(Dataset='CloneGrowth') %>%
-    reshape.growth.curve.fits()
+mutate(Dataset='CloneGrowth') %>%
+reshape.growth.curve.fits()
 
 pop.growth.curve.fits <- map.reduce.growth.curve(DM0.pop.growth.data)%>%
-    mutate(Dataset='PopulationGrowth') %>%
-    reshape.growth.curve.fits()
+mutate(Dataset='PopulationGrowth') %>%
+reshape.growth.curve.fits()
 
 DM25.clone.growth.curve.fits <- map.reduce.growth.curve(DM25.clone.growth.data) %>%
-    mutate(Dataset='CloneGrowth') %>%
-    reshape.growth.curve.fits()
+mutate(Dataset='CloneGrowth') %>%
+reshape.growth.curve.fits()
 
 #######################################
 ## Plot growth curves.
@@ -1048,20 +1111,16 @@ DM25.clone.growth.curve.fits <- map.reduce.growth.curve(DM25.clone.growth.data) 
 ## plot ZDBp874 data to calibrate citrate interval.
 ZDBp874.df <- filter(DM0.clone.growth.data,Name %in% c('ZDBp874','CZB151'))
 ZDBp874.plot <- plot.single.growthcurve(ZDBp874.df,'ZDBp874','CZB151', logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/ZDBp874_growth.pdf"),ZDBp874.plot,base_height=2,base_width=3)
 
 ## plot rest of CZB151-descended isolates. Can do good fitness competitions on these.
 ZDBp871.df <- filter(DM0.clone.growth.data, Name %in% c('ZDBp871','CZB151'))
 ZDBp871.plot <- plot.single.growthcurve(ZDBp871.df,'ZDBp871','CZB151', logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/ZDBp871_growth.pdf"),ZDBp871.plot,base_height=2,base_width=3)
 
 ZDBp889.df <- filter(DM0.clone.growth.data, Name %in% c('ZDBp889','CZB151'))
 ZDBp889.plot <- plot.single.growthcurve(ZDBp889.df,'ZDBp889','CZB151', logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/ZDBp889_growth.pdf"),ZDBp889.plot,base_height=2,base_width=3)
 
 ZDBp892.df <- filter(DM0.clone.growth.data, Name %in% c('ZDBp892','CZB151'))
 ZDBp892.plot <- plot.single.growthcurve(ZDBp892.df,'ZDBp892','CZB151', logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/ZDBp892_growth.pdf"),ZDBp892.plot,base_height=2,base_width=3)
 
 ## SUPER COOL! ZDBp874 grows WORSE than ancestor in DM25!!!!
 ## ZDBp871 and ZDBp889 also grow worse in DM25 than ancestor!
@@ -1071,9 +1130,9 @@ save_plot(file.path(proj.dir,"results/figures/ZDBp892_growth.pdf"),ZDBp892.plot,
 S3Fig.plot <- plot.growthcurve.figure(filter(DM0.clone.growth.data,Hours<=24), logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height=7,base_width=11)
 
-## S5 Fig: Plot growth curves for DM0-evolved populations.
-S5Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/S5Fig.pdf"), S5Fig.plot,base_height=7,base_width=11)
+## S6 Fig: Plot growth curves for DM0-evolved populations.
+S6Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
+save_plot(file.path(proj.dir,"results/figures/S6Fig.pdf"), S6Fig.plot,base_height=7,base_width=11)
 
 ## S7 Figure. Plot growth curves for DM25-evolved clones.
 S7Figoutf <- file.path(proj.dir,"results/figures/S7Fig.pdf")
@@ -1103,58 +1162,154 @@ filtered.log.Fig2B.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logs
 ## plot estimates with confidence interval of mean.
 ## Do the same for the growthcurver fits. Note different confint function needed.
 
+## Figure 3.
+Fig3outf <- file.path(proj.dir,"results/figures/Fig3.pdf")
 clone.growth.plot <- plot.growth.parameters(clone.growth)
-clone.growthcurver.plot <- plot.growthcurver.parameters(clone.growth.curve.fits)
-clone.growth.parameter.plot <- plot_grid(clone.growth.plot,
-                                         clone.growthcurver.plot,
-                                         ncol=1,
-                                         rel_heights = c(1, 1),rel_widths=c(1.5,1),
-                                         labels=c('A','B'))
-
-pop.growth.plot <- plot.growth.parameters(pop.growth)
-pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
-pop.growth.parameter.plot <- plot_grid(pop.growth.plot,
-                                       pop.growthcurver.plot,
-                                       ncol=1,
-                                       labels=c('A','B'))
-
-DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth)
-DM25.clone.growthcurver.plot <- plot.growthcurver.parameters(DM25.clone.growth.curve.fits)
-DM25.clone.growth.parameter.plot <- plot_grid(DM25.clone.growth.plot,
-                                              DM25.clone.growthcurver.plot,
-                                              ncol=1,
-                                              labels=c('A','B'))
-
-## summarize and take averages over clone and population samples.
 clone.growth.summary <- summarize.growth.results(clone.growth)
-pop.growth.summary <- summarize.growth.results(pop.growth)
-growth.summary <- full_join(clone.growth.summary, pop.growth.summary)
+final.clone.growth.summary <- calc.growth.log.ratios(clone.growth.summary)
 
-pop.growthcurver.summary <- summarize.growthcurver.results(pop.growth.curve.fits)
+## Exclude the Cit- ZDBp874 strain from these calculations.
+clone.bootstrap.CI <- run.growth.ratio.confint.bootstrapping(filter(
+  final.clone.growth.summary,Name!='ZDBp874'))
+
+Fig3B.plot.df <- final.clone.growth.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
+       log.DM25.t.lag.ratio, log.DM0.t.lag.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+
+Fig3B <- plot.growth.parameter.log.ratios(Fig3B.plot.df, clone.bootstrap.CI)
+
+Fig3 <- plot_grid(clone.growth.plot,Fig3B,labels=c('A','B'),ncol=1,
+                  rel_heights = c(1, 1),rel_widths=c(1,1))
+save_plot(Fig3outf,Fig3, base_width=11, base_height=7.5)
+
+## Supplementary Figure S5.
+S5Figoutf <- file.path(proj.dir,"results/figures/S5Fig.pdf")
+clone.growthcurver.plot <- plot.growthcurver.parameters(clone.growth.curve.fits)
 clone.growthcurver.summary <- summarize.growthcurver.results(clone.growth.curve.fits) %>%
-    ## ZDBp874 is Cit-, so exclude.
-    filter(Name != 'ZDBp874')
-growthcurver.summary <- full_join(pop.growthcurver.summary, clone.growthcurver.summary)
+## ZDBp874 is Cit-, so exclude.
+filter(Name != 'ZDBp874')
+final.clone.growthcurver.summary <- calc.growthcurver.log.ratios(clone.growthcurver.summary)
+
+## Exclude the Cit- ZDBp874 strain from these calculations.
+clone.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(filter(
+  final.clone.growthcurver.summary,Name!='ZDBp874'))
+
+S5BFig.plot.df <- final.clone.growthcurver.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM0.r.ratio, log.DM25.r.ratio,
+       log.DM0.t_mid.ratio, log.DM25.t_mid.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+
+S5BFig <- plot.growth.parameter.log.ratios(S5BFig.plot.df, clone.growthcurver.bootstrap.CI)
+
+S5Fig <- plot_grid(clone.growthcurver.plot, S5BFig,labels=c('A','B'), ncol=1,
+                   rel_heights = c(1, 1),rel_widths=c(1,1))
+save_plot(S5Figoutf,S5Fig, base_width=11, base_height=7.5)
+
+## Figure 4.
+Fig4outf <- file.path(proj.dir,"results/figures/Fig4.pdf")
+pop.growth.plot <- plot.growth.parameters(pop.growth)
+pop.growth.summary <- summarize.growth.results(pop.growth)
+final.pop.growth.summary <- calc.growth.log.ratios(pop.growth.summary)
+
+pop.bootstrap.CI <- run.growth.ratio.confint.bootstrapping(final.pop.growth.summary)
+Fig4B.plot.df <- final.pop.growth.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
+       log.DM25.t.lag.ratio, log.DM0.t.lag.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+Fig4B <- plot.growth.parameter.log.ratios(Fig4B.plot.df, pop.bootstrap.CI)
+
+Fig4 <- plot_grid(pop.growth.plot,Fig4B,labels=c('A','B'),ncol=1,
+                  rel_heights = c(1, 1))
+save_plot(Fig4outf,Fig4, base_width=11, base_height=7.5)
+
+## Supplementary Figure S8.
+S8Figoutf <- file.path(proj.dir,"results/figures/S8Fig.pdf")
+pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
+pop.growthcurver.summary <- summarize.growthcurver.results(pop.growth.curve.fits)
+final.pop.growthcurver.summary <- calc.growthcurver.log.ratios(pop.growthcurver.summary)
+
+pop.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(
+  final.pop.growthcurver.summary
+  )
+
+S8BFig.plot.df <- final.pop.growthcurver.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM0.r.ratio, log.DM25.r.ratio,
+       log.DM0.t_mid.ratio, log.DM25.t_mid.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+
+S8BFig <- plot.growth.parameter.log.ratios(S8BFig.plot.df, pop.growthcurver.bootstrap.CI)
+
+S8Fig <- plot_grid(pop.growthcurver.plot, S8BFig,labels=c('A','B'), ncol=1,
+                   rel_heights = c(1, 1),rel_widths=c(1,1))
+save_plot(S8Figoutf,S8Fig, base_width=11, base_height=7.5)
+
 
 ## growth results for DM25-evolved clones.
+## Supplementary Figure S11.
+S11Figoutf <- file.path(proj.dir,"results/figures/S11Fig.pdf")
+DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth)
 DM25.growth.summary <- summarize.growth.results(DM25.clone.growth)
+final.DM25.growth.summary <- calc.growth.log.ratios(DM25.growth.summary)
+DM25.clone.bootstrap.CI <- run.ratio.confint.bootstrapping(final.DM25.growth.summary)
+
+S11BFig.plot.df <- final.DM25.growth.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
+       log.DM25.t.lag.ratio, log.DM0.t.lag.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+S11BFig <- plot.growth.parameter.log.ratios(S11BFig.plot.df, DM25.clone.bootstrap.CI)
+
+S11Fig <- plot_grid(DM25.clone.growth.plot,S11BFig,labels=c('A','B'),ncol=1,
+                    rel_heights = c(1, 1))
+save_plot(S11Figoutf,S11Fig, base_width=11, base_height=7.5)
+
+
+## Supplementary Figure S12. supplementary fig of DM25-evolved clone growth.
+S12Figoutf <- file.path(proj.dir,"results/figures/S12Fig.pdf")
+DM25.clone.growthcurver.plot <- plot.growthcurver.parameters(DM25.clone.growth.curve.fits)
 DM25.growthcurver.summary <- summarize.growthcurver.results(DM25.clone.growth.curve.fits)
+final.DM25.growthcurver.summary <- calc.growthcurver.log.ratios(DM25.growthcurver.summary)
+DM25.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(final.DM25.growthcurver.summary)
+
+S12FigB.plot.df <- final.DM25.growthcurver.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+
+S12FigB <- plot.growth.parameter.log.ratios(S12FigB.plot.df, DM25.growthcurver.bootstrap.CI)
+
+S12Fig <- plot_grid(DM25.clone.growthcurver.plot,
+                    S12FigB,
+                    labels=c('A','B'),ncol=1,
+                    rel_heights = c(1, 1))
+
+save_plot(S12Figoutf,S12Fig, base_width=11, base_height=7.5)
 
 ##################### Supplementary figure:
 ## Compare growthcurver estimates to my estimates,
 ## in order to show consistent results between the two methods.
-growth.estimate.comp.df <- full_join(
-    growth.summary,
-    growthcurver.summary) %>%
-    ungroup()
 
-pop.estimates <- filter(growth.estimate.comp.df,Dataset=='PopulationGrowth')
+growth.summary <- full_join(clone.growth.summary, pop.growth.summary)
+growthcurver.summary <- full_join(pop.growthcurver.summary, clone.growthcurver.summary)
+
+growth.estimate.comp.df <- full_join(
+  growth.summary,
+  growthcurver.summary) %>%
+ungroup()
+
 clone.estimates <- filter(growth.estimate.comp.df,Dataset=='CloneGrowth')
+pop.estimates <- filter(growth.estimate.comp.df,Dataset=='PopulationGrowth')
 
 DM25.growth.estimate.comp.df <- full_join(
-    DM25.growth.summary,
-    DM25.growthcurver.summary) %>%
-    ungroup()
+  DM25.growth.summary,
+  DM25.growthcurver.summary) %>%
+ungroup()
+
 
 ## r = 0.68, 0.70, -0.14, 0.92, 0.59 respectively.
 cor(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs")
@@ -1189,67 +1344,67 @@ cor(clone.estimates$DM25.t_mid, clone.estimates$DM25.t.lag,use="complete.obs")
 ## Note: the following are for the DM0-evolved clones.
 rate.comp.plot1 <- ggplot(growth.estimate.comp.df,
                           aes(x=DM0.r,y=DM0.r.citrate,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    xlim(0,2) +
-    ylim(0,2) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM0 r") +
-    ylab("DM0 r citrate")
+scale_color_manual(values=c('purple','green')) +
+geom_point() +
+theme_classic() +
+guides(color=FALSE) +
+xlim(0,2) +
+ylim(0,2) +
+geom_abline(slope=1,intercept=0,linetype='dotted') +
+xlab("DM0 r") +
+ylab("DM0 r citrate")
 
 rate.comp.plot2 <- ggplot(growth.estimate.comp.df,
-                              aes(x=DM25.r,y=DM25.r.citrate,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    xlim(0,2) +
-    ylim(0,2) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM25 r") +
-    ylab("DM25 r citrate")
+                          aes(x=DM25.r,y=DM25.r.citrate,color=Dataset)) +
+scale_color_manual(values=c('purple','green')) +
+geom_point() +
+theme_classic() +
+guides(color=FALSE) +
+xlim(0,2) +
+ylim(0,2) +
+geom_abline(slope=1,intercept=0,linetype='dotted') +
+xlab("DM25 r") +
+ylab("DM25 r citrate")
 
 rate.comp.plot3 <- ggplot(growth.estimate.comp.df,
                           aes(x=DM25.r,y=DM25.r.glucose,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    xlim(0,2) +
-    ylim(0,2) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM25 r") +
-    ylab("DM25 r glucose")
+scale_color_manual(values=c('purple','green')) +
+geom_point() +
+theme_classic() +
+guides(color=FALSE) +
+xlim(0,2) +
+ylim(0,2) +
+geom_abline(slope=1,intercept=0,linetype='dotted') +
+xlab("DM25 r") +
+ylab("DM25 r glucose")
 
 rate.comp.plot4 <- ggplot(growth.estimate.comp.df,
                           aes(x=DM0.t_mid,y=DM0.t.lag,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM0 t_mid") +
-    ylab("DM0 t_lag")
+scale_color_manual(values=c('purple','green')) +
+geom_point() +
+theme_classic() +
+guides(color=FALSE) +
+geom_abline(slope=1,intercept=0,linetype='dotted') +
+xlab("DM0 t_mid") +
+ylab("DM0 t_lag")
 
 rate.comp.plot5 <- ggplot(growth.estimate.comp.df,
                           aes(x=DM25.t_mid,y=DM25.t.lag,color=Dataset)) +
-    scale_color_manual(values=c('purple','green')) +
-    geom_point() +
-    theme_classic() +
-    guides(color=FALSE) +
-    geom_abline(slope=1,intercept=0,linetype='dotted') +
-    xlab("DM25 t_mid") +
-    ylab("DM25 t_lag")
+scale_color_manual(values=c('purple','green')) +
+geom_point() +
+theme_classic() +
+guides(color=FALSE) +
+geom_abline(slope=1,intercept=0,linetype='dotted') +
+xlab("DM25 t_mid") +
+ylab("DM25 t_lag")
 
 ## Save figure for the Supplement. 
 S10Fig <- plot_grid(rate.comp.plot1,
-                                rate.comp.plot2,
-                                rate.comp.plot3,
-                                rate.comp.plot4,
-                                rate.comp.plot5,
-                                labels=c('A','B','C','D','E'), ncol=1)
+                    rate.comp.plot2,
+                    rate.comp.plot3,
+                    rate.comp.plot4,
+                    rate.comp.plot5,
+                    labels=c('A','B','C','D','E'), ncol=1)
 S10Fig.outf <- file.path(proj.dir, "results/figures/S10Fig.pdf")
 save_plot(S10Fig.outf, S10Fig, base_height=10,base_width=4)
 
@@ -1273,170 +1428,151 @@ cor.test(x=clone.estimates$DM25.r,y=clone.estimates$DM0.r,method="pearson")
 cor.test(x=pop.estimates$DM25.r,y=pop.estimates$DM0.r,method="pearson")
 
 cit.glucose.cor.plot <- ggplot(growth.summary,
-                aes(x=DM25.r.citrate,y=DM25.r.glucose, color=Founder, shape=Generation)) +
-    facet_wrap(Founder~Dataset,nrow=1) +
-    geom_point() +
-    theme_classic() +
-    xlab("DM25 r citrate") +
-    ylab("DM25 r glucose") +
-    scale_color_manual(values=cbbPalette) +
-    guides(color=FALSE,shape=FALSE)
+                               aes(x=DM25.r.citrate,y=DM25.r.glucose, color=Founder, shape=Generation)) +
+facet_wrap(Founder~Dataset,nrow=1) +
+geom_point() +
+theme_classic() +
+xlab("DM25 r citrate") +
+ylab("DM25 r glucose") +
+scale_color_manual(values=cbbPalette) +
+guides(color=FALSE,shape=FALSE)
 
 ## Think more about correlation between growth on citrate in DM0 and growth on citrate in DM25.
 cit.cit.cor.plot <- ggplot(growth.summary,
-                aes(x=DM25.r.citrate,y=DM0.r.citrate,color=Founder, shape=Generation)) +
-    facet_wrap(Founder~Dataset,nrow=1) +
-    geom_point() +
-    theme_classic() +
-    xlab("DM25 r citrate") +
-    ylab("DM0 r citrate") +
-    scale_color_manual(values=cbbPalette) +
-    guides(color=FALSE,shape=FALSE)
+                           aes(x=DM25.r.citrate,y=DM0.r.citrate,color=Founder, shape=Generation)) +
+facet_wrap(Founder~Dataset,nrow=1) +
+geom_point() +
+theme_classic() +
+xlab("DM25 r citrate") +
+ylab("DM0 r citrate") +
+scale_color_manual(values=cbbPalette) +
+guides(color=FALSE,shape=FALSE)
 
 ## Compare with cit.cit.cor.plot. Very nice! Results look robust.
 r.r.cor.plot <- ggplot(growthcurver.summary,
-                aes(x=DM25.r,y=DM0.r,color=Founder, shape=Generation)) +
-    facet_wrap(Founder~Dataset,nrow=1) +
-    geom_point() +
-    theme_classic() +
-    xlab("DM25 r") +
-    ylab("DM0 r") +
-    scale_color_manual(values=cbbPalette) +
-    guides(color=FALSE,shape=FALSE)
+                       aes(x=DM25.r,y=DM0.r,color=Founder, shape=Generation)) +
+facet_wrap(Founder~Dataset,nrow=1) +
+geom_point() +
+theme_classic() +
+xlab("DM25 r") +
+ylab("DM0 r") +
+scale_color_manual(values=cbbPalette) +
+guides(color=FALSE,shape=FALSE)
 
 ## Save figure for the Supplement. 
 S11Fig <- plot_grid(cit.glucose.cor.plot,
-                          cit.cit.cor.plot,
-                          r.r.cor.plot, labels=c('A','B','C'), ncol=1)
+                    cit.cit.cor.plot,
+                    r.r.cor.plot, labels=c('A','B','C'), ncol=1)
 S11Fig.outf <- file.path(proj.dir,"results/figures/S11Fig.pdf")
 save_plot(S11Fig.outf, S11Fig, base_height=8, base_width=12)
 ######################################################################
-final.pop.growth.summary <- calc.growth.log.ratios(pop.estimates)
-final.clone.growth.summary <- calc.growth.log.ratios(clone.estimates)
-
-Fig2outf <- file.path(proj.dir,"results/figures/Fig2.pdf")
-Fig3outf <- file.path(proj.dir,"results/figures/Fig3.pdf")
-
-## Exclude the Cit- ZDBp874 strain from these calculations.
-clone.bootstrap.CI <- run.ratio.confint.bootstrapping(filter(
-    final.clone.growth.summary,Name!='ZDBp874'))
-
-Fig2C.plot.df <- final.clone.growth.summary %>%
-    gather(key="Parameter", value="Estimate",
-           log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
-           log.DM25.t.lag.ratio, log.DM0.t.lag.ratio, log.DM0.r.ratio, log.DM0.t_mid.ratio,
-           log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
-    filter(Name != Founder) ## ancestors always have a ratio of zero.
-
-Fig2C <- plot.growth.parameter.log.ratios(Fig2C.plot.df, clone.bootstrap.CI)
-
-Fig2 <- plot_grid(clone.growth.parameter.plot,Fig2C,labels=c('','C'),ncol=1,
-                  rel_heights = c(2, 1),rel_widths=c(1.5,1))
-save_plot(Fig2outf,Fig2, base_width=11, base_height=7.5)
-
-pop.bootstrap.CI <- run.ratio.confint.bootstrapping(final.pop.growth.summary)
-Fig3C.plot.df <- final.pop.growth.summary %>%
-    gather(key="Parameter", value="Estimate",
-           log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio, log.DM0.r.citrate.ratio,
-           log.DM25.t.lag.ratio, log.DM0.t.lag.ratio, log.DM0.r.ratio, log.DM0.t_mid.ratio,
-           log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
-    filter(Name != Founder) ## ancestors always have a ratio of zero.
-Fig3C <- plot.growth.parameter.log.ratios(Fig3C.plot.df, pop.bootstrap.CI)
-
-Fig3 <- plot_grid(pop.growth.parameter.plot,Fig3C,labels=c('','C'),ncol=1,
-                     rel_heights = c(2, 1), rel_widths=c(1.5,1))
-save_plot(Fig3outf,Fig3, base_width=11, base_height=7.5)
-
-DM25.final.clone.growth.summary <- calc.growth.log.ratios(DM25.growth.estimate.comp.df)
-DM25.clone.bootstrap.CI <- run.ratio.confint.bootstrapping(DM25.final.clone.growth.summary)
-
-S8FigC.plot.df <- DM25.final.clone.growth.summary %>%
-    gather(key="Parameter", value="Estimate",
-           log.DM25.r.glucose.ratio, log.DM25.r.citrate.ratio,
-           log.DM25.t.lag.ratio, log.DM25.r.ratio, log.DM25.t_mid.ratio) %>%
-    filter(Name != Founder) ## ancestors always have a ratio of zero.
-
-S8FigC <- plot.growth.parameter.log.ratios(S8FigC.plot.df, DM25.clone.bootstrap.CI)
-
-S8Fig <- plot_grid(DM25.clone.growth.parameter.plot,
-                          S8FigC,
-                          labels=c('','C'),ncol=1,
-                          rel_heights = c(1.8, 1))
-
-## supplementary fig of DM25-evolved clone growth.
-S8Figoutf <- file.path(proj.dir,"results/figures/S8Fig.pdf")
-save_plot(S8Figoutf,S8Fig,base_height=7.5)
-
-
 ####### Figure 4: Nkrumah's cell death results.
-
-### Figure 5 (AFTER cell death results): plot CFU results.
+######################################################################
+### Figure 5: plot CFU results.
 ## After looking at the growth curves, let's examine the CFUs in DM25.
 calc.CFU.log.ratios <- function(CFU.summary) {
-    anc.Counts <- rep(-1,nrow(CFU.summary))
-    for (index in 1:nrow(CFU.summary)) {
-        my.row <- CFU.summary[index, ]
-        my.anc <- filter(CFU.summary,Name==my.row$Founder)
-        anc.Counts[index] <- my.anc$Counts
-    }
-    CFU.summary2 <- CFU.summary %>%
-        mutate(log.Count.ratio=log(Counts/anc.Counts))
-    return(CFU.summary2)
+  anc.Counts <- rep(-1,nrow(CFU.summary))
+  for (index in 1:nrow(CFU.summary)) {
+    my.row <- CFU.summary[index, ]
+    my.anc <- filter(CFU.summary,Name==my.row$Founder)
+    anc.Counts[index] <- my.anc$Counts
+  }
+  CFU.summary2 <- CFU.summary %>%
+  mutate(log.Count.ratio=log(Counts/anc.Counts))
+  return(CFU.summary2)
 }
 
 bootstrap.CFU.CI <- function(CFU) {
-    evolved.CFU.summary <- filter(CFU, Name != Founder)
-    log.CFU.ratio.conf.int <- calc.bootstrap.conf.int(evolved.CFU.summary$log.Count.ratio)
-    mean.log.CFU.ratio <- mean(evolved.CFU.summary$log.Count.ratio)
+  evolved.CFU.summary <- filter(CFU, Name != Founder)
+  log.CFU.ratio.conf.int <- calc.bootstrap.conf.int(evolved.CFU.summary$log.Count.ratio)
+  mean.log.CFU.ratio <- mean(evolved.CFU.summary$log.Count.ratio)
 
-    confint.df <- data.frame (
-        Founder = unique(CFU$Founder),
-        Environment = unique(CFU$Environment),
-        log.Count.ratio = c(mean.log.CFU.ratio),
-        Left = c(log.CFU.ratio.conf.int[1]),
-        Right = c(log.CFU.ratio.conf.int[2]),
-        stringsAsFactors = FALSE
+  confint.df <- data.frame (
+    Founder = unique(CFU$Founder),
+    Environment = unique(CFU$Environment),
+    log.Count.ratio = c(mean.log.CFU.ratio),
+    Left = c(log.CFU.ratio.conf.int[1]),
+    Right = c(log.CFU.ratio.conf.int[2]),
+    stringsAsFactors = FALSE
     )
-    return(confint.df)
+  return(confint.df)
 }
 
-CFU.data <- read.csv(file.path(proj.dir,"data/rohan-formatted/DM25-Cell-Counts-6-5-19.csv"),
-                     stringsAsFactors=FALSE) %>%
-    left_join(pop.clone.labels, by="Name") %>%
-    filter(Name != "BLANK") %>% mutate(Generation=as.factor(Generation))
+DM0.CFU.data <- read.csv(
+  file.path(proj.dir,"data/rohan-formatted/Jess-DM0-evolved-CFUs.csv"),
+  stringsAsFactors=FALSE) %>%
+left_join(pop.clone.labels, by="Name") %>%
+mutate(Generation=as.factor(Generation))
 
-CFU.plotA <- ggplot(CFU.data,aes(x=Name,y=Counts,shape=Environment,color=Generation)) +
-    geom_point() +
-    facet_grid(.~Founder,scales='free') +
-    scale_color_manual(values=cbbPalette) +
-    guides(color=FALSE,shape=FALSE) +
-    xlab("Sequenced isolate") +
-    ylab("Viable cell counts") +
-    theme(axis.text.x  = element_text(angle=90, vjust=-0.5, size=5))
+DM25.CFU.data <- read.csv(
+  file.path(proj.dir,"data/rohan-formatted/DM25-Cell-Counts-6-5-19.csv"),
+  stringsAsFactors=FALSE
+  ) %>%
+left_join(pop.clone.labels, by="Name") %>%
+filter(Name != "BLANK") %>% mutate(Generation=as.factor(Generation))
 
-CFU.summary <- CFU.data %>%
-    filter(Name != 'ZDBp874') %>%
-    group_by(Founder,Environment,Generation,Name) %>%
-    summarise(Counts=mean(Counts)) %>%
-    ungroup() %>%
-    calc.CFU.log.ratios()
+make.CFU.plotA <- function(CFU.data, my.title) {
+  CFU.plot <- ggplot(CFU.data,aes(x=Name,y=Counts,shape=Environment,color=Generation)) +
+  geom_point() +
+  theme_classic() +
+  ggtitle(my.title) +
+  facet_grid(.~Founder,scales='free') +
+  scale_color_manual(values=cbbPalette) +
+  guides(color=FALSE,shape=FALSE) +
+  xlab("Sequenced isolate") +
+  ylab("Viable cell counts") +
+  theme(axis.text.x  = element_text(angle=45,vjust=1,hjust=1))
+  return(CFU.plot)
+}
 
-CFU.bootstrap.CI <- CFU.summary %>%
-    droplevels() %>% ## don't run on empty subsets
-    split(list(.$Founder, .$Environment)) %>%
-    map_dfr(.f=bootstrap.CFU.CI)
+DM25.CFU.plotA <- make.CFU.plotA(DM25.CFU.data,'CFUs in DM25 media')
+DM0.CFU.plotA <- make.CFU.plotA(DM0.CFU.data, 'CFUs in DM0 media')
 
-CFU.plotB <- ggplot(CFU.summary, aes(x=Environment,y=log.Count.ratio)) +
-    geom_point(size=1) +
-    geom_errorbar(data=CFU.bootstrap.CI, aes(ymin=Left,ymax=Right),width=0.5, size=0.5) +
-    facet_wrap(.~Founder) +
-    geom_hline(yintercept=0,linetype='dashed') +
-    ylab("log(Evolved/Ancestral)") +
-    xlab("Experimental evolution treatment")
+DM25.CFU.summary <- DM25.CFU.data %>%
+filter(Name != 'ZDBp874') %>%
+group_by(Founder,Environment,Generation,Name) %>%
+summarise(Counts=mean(Counts)) %>%
+ungroup() %>%
+calc.CFU.log.ratios()
 
-CFU.Fig <- plot_grid(CFU.plotA,CFU.plotB,ncol=1,labels=c('A','B'))
+DM0.CFU.summary <- DM0.CFU.data %>%
+group_by(Founder,Environment,Generation,Name) %>%
+summarise(Counts=mean(Counts)) %>%
+ungroup() %>%
+calc.CFU.log.ratios()
+
+DM25.CFU.bootstrap.CI <- DM25.CFU.summary %>%
+droplevels() %>% ## don't run on empty subsets
+split(list(.$Founder, .$Environment)) %>%
+map_dfr(.f=bootstrap.CFU.CI)
+
+DM0.CFU.bootstrap.CI <- DM0.CFU.summary %>%
+droplevels() %>% ## don't run on empty subsets
+split(list(.$Founder, .$Environment)) %>%
+map_dfr(.f=bootstrap.CFU.CI)
+
+make.CFU.plotB <- function(CFU.summary,CFU.bootstrap.CI,my.title) {
+  CFU.plot <- ggplot(CFU.summary, aes(x=Environment,y=log.Count.ratio)) +
+  geom_point(size=1) +
+  theme_classic() +
+  ggtitle(my.title) +
+  geom_errorbar(data=CFU.bootstrap.CI, aes(ymin=Left,ymax=Right),width=0.5, size=0.5) +
+  facet_wrap(.~Founder) +
+  geom_hline(yintercept=0,linetype='dashed') +
+  ylab("log(Evolved/Ancestral)") +
+  xlab("Experimental evolution treatment")
+  return(CFU.plot)
+}
+
+DM25.CFU.plotB <- make.CFU.plotB(DM25.CFU.summary,DM25.CFU.bootstrap.CI, 'CFUs in DM25 media')
+DM0.CFU.plotB <- make.CFU.plotB(DM0.CFU.summary,DM0.CFU.bootstrap.CI, 'CFUs in DM0 media')
+
+DM0.CFU.Fig <- plot_grid(DM0.CFU.plotA,DM0.CFU.plotB,ncol=1,labels=c('A','B'))
+DM25.CFU.Fig <- plot_grid(DM25.CFU.plotA,DM25.CFU.plotB,ncol=1,labels=c('C','D'))
+CFU.Fig <- plot_grid(DM0.CFU.Fig,DM25.CFU.Fig,nrow=1)
+
 CFU.outf <- file.path(proj.dir, "results/figures/CFU_Fig.pdf")
-save_plot(CFU.outf, CFU.Fig,base_height=6,base_width=6)
+save_plot(CFU.outf, CFU.Fig,base_height=5,base_width=9)
 
 ################################################################################
 ## Figure 5: make a matrix plot of genes with mutations in two or more clones.
@@ -1445,170 +1581,185 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              ltee.matrix.file, ltee.50k.labels.file,
                              matrix.outfile, co.occurrence.outfile) {
 
-    raw.matrix <- read.csv(raw.matrix.file, stringsAsFactors=FALSE)
+  raw.matrix <- read.csv(raw.matrix.file, stringsAsFactors=FALSE)
 
-    ## fix the names of the samples.
-    names(raw.matrix) <- map_chr(
-        names(raw.matrix),
-        function (x) str_trunc(x,width=7,side="right",ellipsis=''))
+  ## fix the names of the samples.
+  names(raw.matrix) <- map_chr(
+    names(raw.matrix),
+    function (x) str_trunc(x,width=7,side="right",ellipsis=''))
 
-    #' nice helper function
-    not_any_na <- function(x) {!any(is.na(x))}
+  #' nice helper function
+  not_any_na <- function(x) {!any(is.na(x))}
 
-    #' import rows for the maeA and dctA amplifications.
-    amp.matrix <- read.csv(amp.matrix.file, stringsAsFactors=FALSE)
-    #' and merge with the mutation matrix.
-    #' remove columns that contain any NA values (ZDBp875)
-    merged.with.amps.matrix <- full_join(raw.matrix,amp.matrix) %>%
-        select_if(not_any_na)
+  #' import rows for the maeA and dctA amplifications.
+  amp.matrix <- read.csv(amp.matrix.file, stringsAsFactors=FALSE)
+  #' and merge with the mutation matrix.
+  #' remove columns that contain any NA values (ZDBp875)
+  merged.with.amps.matrix <- full_join(raw.matrix,amp.matrix) %>%
+  select_if(not_any_na)
 
-    DM0.DM25.matrix.data <- gather(merged.with.amps.matrix,"Name","mutation.count",2:ncol(merged.with.amps.matrix)) %>%
-        left_join(pop.clone.labels) %>%
-        select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
-        group_by(Gene) %>% filter(sum(mutation.count)>1)
+  DM0.DM25.matrix.data <- gather(merged.with.amps.matrix,"Name","mutation.count",2:ncol(merged.with.amps.matrix)) %>%
+  left_join(pop.clone.labels) %>%
+  select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
+  group_by(Gene) %>% filter(sum(mutation.count)>1)
 
-    #' print out a table of parallelism across the DM0 and DM25 treatments.
-    parallel.counts <- summarize(DM0.DM25.matrix.data,total.count=sum(mutation.count)) %>%
-        arrange(desc(total.count))
-    print('Parallel hits in genes')
-    print(filter(parallel.counts,total.count>1),n=Inf)
+  #' print out a table of parallelism across the DM0 and DM25 treatments.
+  parallel.counts <- summarize(DM0.DM25.matrix.data,total.count=sum(mutation.count)) %>%
+  arrange(desc(total.count))
+  print('Parallel hits in genes')
+  print(filter(parallel.counts,total.count>1),n=Inf)
 
-    #' add LTEE mutation matrix to figure.
-    ltee.matrix <- read.csv(ltee.matrix.file, stringsAsFactors=FALSE)
+  #' add LTEE mutation matrix to figure.
+  ltee.matrix <- read.csv(ltee.matrix.file, stringsAsFactors=FALSE)
 
-    #' fix the names of the samples.
-    names(ltee.matrix) <- map_chr(
-        names(ltee.matrix),
-        function (x) str_trunc(x,width=8,side="left",ellipsis=''))
+  #' fix the names of the samples.
+  names(ltee.matrix) <- map_chr(
+    names(ltee.matrix),
+    function (x) str_trunc(x,width=8,side="left",ellipsis=''))
 
-    LTEE.50K.labels <- read.csv(ltee.50k.labels.file, stringsAsFactors=FALSE)
+  LTEE.50K.labels <- read.csv(ltee.50k.labels.file, stringsAsFactors=FALSE)
 
-    #' filter on genes mutated in the DM0 and DM25 matrix data.
-    ltee.data <- gather(ltee.matrix,"Name","mutation.count",2:13) %>%
-        left_join(LTEE.50K.labels) %>%
-        group_by(Gene) %>% filter(Gene %in% DM0.DM25.matrix.data$Gene) %>%
-        filter(!is.na(Gene))
+  #' filter on genes mutated in the DM0 and DM25 matrix data.
+  ltee.data <- gather(ltee.matrix,"Name","mutation.count",2:13) %>%
+  left_join(LTEE.50K.labels) %>%
+  group_by(Gene) %>% filter(Gene %in% DM0.DM25.matrix.data$Gene) %>%
+  filter(!is.na(Gene))
 
-    ## keep non-mutators and the Ara-3 50K clone.
-    non.mutators.and.ara.minus.3 <- ltee.data %>%
-        filter(Hypermutator == 0 | PopulationLabel == 'Ara-3') %>%
-        select(-Hypermutator)
+  ## keep non-mutators and the Ara-3 50K clone.
+  non.mutators.and.ara.minus.3 <- ltee.data %>%
+  filter(Hypermutator == 0 | PopulationLabel == 'Ara-3') %>%
+  select(-Hypermutator)
 
-    ## Now join LTEE data to the DM0 and DM25 Cit+ data.
-    ## Give the Ara-3 LTEE clone a special label.
-    matrix.data <- DM0.DM25.matrix.data %>%
-        bind_rows(non.mutators.and.ara.minus.3) %>%
-        mutate(Name=ifelse(Name=='REL11364','Ara-3: REL11364',Name))
+  ## Now join LTEE data to the DM0 and DM25 Cit+ data.
+  ## Give the Ara-3 LTEE clone a special label.
+  matrix.data <- DM0.DM25.matrix.data %>%
+  bind_rows(non.mutators.and.ara.minus.3) %>%
+  mutate(Name=ifelse(Name=='REL11364','Ara-3: REL11364',Name))
 
-    ## For the figure, we want to sort the genes by a
-    ## hierarchical clustering. So convert to a matrix data structure,
-    ## do the clustering, and use that ordering for the figure.
+  ## For the figure, we want to sort the genes by a
+  ## hierarchical clustering. So convert to a matrix data structure,
+  ## do the clustering, and use that ordering for the figure.
 
-    ## Only use the DM0 and DM25 data for this step.
+  ## Only use the DM0 and DM25 data for this step.
 
-    ## note R's strange behavior when casting factors to numbers: have to
-    ## change to character first!
-    mat.data <- DM0.DM25.matrix.data %>%
-        select(-PopulationLabel,-Environment) %>%
-        mutate(mutation.count=as.numeric(as.character(mutation.count)))
+  ## note R's strange behavior when casting factors to numbers: have to
+  ## change to character first!
+  mat.data <- DM0.DM25.matrix.data %>%
+  select(-PopulationLabel,-Environment) %>%
+  mutate(mutation.count=as.numeric(as.character(mutation.count)))
 
-    ## turn these data into a matrix of class "dbCMatrix".
-    mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
+  ## turn these data into a matrix of class "dbCMatrix".
+  mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
 
-    ## convert to regular R matrix class
-    MxG.matrix <- as.matrix(mut.matrix)
-    ## write out to file for analysis in jupyter notebook
-    ## or using the clustergrammer web app:
-    ## http://amp.pharm.mssm.edu/clustergrammer/
-    write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
-    write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
+  ## convert to regular R matrix class
+  MxG.matrix <- as.matrix(mut.matrix)
+  ## write out to file for analysis in jupyter notebook
+  ## or using the clustergrammer web app:
+  ## http://amp.pharm.mssm.edu/clustergrammer/
+  write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
+  write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
 
-    ##and take transpose to turn matrix to Genome x Mutation.
-    GxM.matrix <- as.matrix(t(mut.matrix))
-    ## write out to file for analysis in jupyter notebook.
-    write.csv(GxM.matrix,file="../results/GxM_matrix.csv")
-    write.table(GxM.matrix,file="../results/GxM_matrix.tsv",sep="\t")
+  ##and take transpose to turn matrix to Genome x Mutation.
+  GxM.matrix <- as.matrix(t(mut.matrix))
+  ## write out to file for analysis in jupyter notebook.
+  write.csv(GxM.matrix,file="../results/GxM_matrix.csv")
+  write.table(GxM.matrix,file="../results/GxM_matrix.tsv",sep="\t")
 
-    ## follow this post to use correlation as a distance.
-    ## https://stats.stackexchange.com/questions/165194/using-correlation-as-distance-metric-for-hierarchical-clustering
-    MxM.scaled.cor.matrix <- cor(scale(GxM.matrix))
+  ## follow this post to use correlation as a distance.
+  ## https://stats.stackexchange.com/questions/165194/using-correlation-as-distance-metric-for-hierarchical-clustering
+  MxM.scaled.cor.matrix <- cor(scale(GxM.matrix))
 
-    MxM.heatmap <- heatmap(MxM.scaled.cor.matrix)
-    ## get the gene order from the heatmap,
-    sorted.genes <- sapply(MxM.heatmap$rowInd,function(i) rownames(MxM.scaled.cor.matrix)[i])
-    ## and use this gene ordering for the mutation matrix figure.
-    matrix.data$Gene <- factor(matrix.data$Gene,levels=sorted.genes)
+  MxM.heatmap <- heatmap(MxM.scaled.cor.matrix)
+  ## get the gene order from the heatmap,
+  sorted.genes <- sapply(MxM.heatmap$rowInd,function(i) rownames(MxM.scaled.cor.matrix)[i])
+  ## and use this gene ordering for the mutation matrix figure.
+  matrix.data$Gene <- factor(matrix.data$Gene,levels=sorted.genes)
 
-    ## cast mutation.count into a factor for plotting.
-    matrix.data$mutation.count <- factor(matrix.data$mutation.count)
-
-    matrix.figure <- ggplot(matrix.data,aes(x=Name,
-                                            y=Gene,
-                                            fill=mutation.count,
-                                            frame=Environment)) +
-        geom_tile(color="black",size=0.1) +
-        ylab("Gene") +
-        xlab("Genome") +
-        facet_wrap(~Environment,ncol=3, scales = "free_x") +
-        theme_tufte(base_family='Helvetica') +
-        theme(axis.ticks=element_blank()) +
-        theme(axis.text.x=element_text(size=10,angle=45,hjust=1)) +
-        theme(axis.text.y=element_text(size=10,hjust=1,face="italic")) +
-        theme(legend.text=element_text(size=6)) +
-        theme(legend.position="bottom") +
-        theme(legend.key.size=unit(0.2, "cm")) +
-        theme(legend.key.width=unit(1, "cm")) +
-        guides(fill=FALSE) +
-        scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
+  ## cast mutation.count into a factor for plotting.
+  matrix.data$mutation.count <- factor(matrix.data$mutation.count)
+  
+  make.matrix.panel <- function(mdata,environment) {
+    ggplot(filter(mdata,Environment==environment),
+           aes(x=Name,
+               y=Gene,
+               fill=mutation.count,
+               frame=Environment)
+           ) +
+           geom_tile(color="black",size=0.1) +
+           ylab("Gene") +
+           xlab("Genome") +
+           ggtitle(paste(environment,'genomes')) +
+           theme_tufte(base_family='Helvetica') +
+           theme(axis.ticks = element_blank(),
+                 axis.text.x = element_text(size=10,angle=45,hjust=1),
+                 axis.text.y = element_text(size=10,hjust=1,face="italic"),
+                 axis.title.x = element_blank(),
+                 axis.title.y = element_blank(),
+                 ) +
+                 guides(fill=FALSE) +
+                 scale_y_discrete(drop=FALSE) + ## don't drop missing genes.
+                 scale_fill_manual(values = c("white", "#ffdf00", "#bebada",
                                      "#fb8072", "#80b1d3", "#fdb462"))
+  }
+  
+  DM0.matrix.panel <- make.matrix.panel(matrix.data,'DM0')
+  DM25.matrix.panel <- make.matrix.panel(matrix.data,'DM25')
+  LTEE.matrix.panel <- make.matrix.panel(matrix.data,'LTEE')
 
-    ggsave(matrix.figure, file=matrix.outfile,width=7,height=15)
+  matrix.figure <- plot_grid(DM0.matrix.panel,
+                             DM25.matrix.panel,
+                             LTEE.matrix.panel,
+                             nrow=1,
+                             rel_widths=c(13/12,1,7/12),
+                             align = 'vh')
+                             
+  ggsave(matrix.figure, file=matrix.outfile,width=10,height=10)
+  
+  ## make a mutation co-occurrence matrix.
+  ## nice to have, but I don't see anything interesting.
 
-    ## make a mutation co-occurrence matrix.
-    ## nice to have, but I don't see anything interesting.
+  MxG.presence <- MxG.matrix
+  MxG.presence[MxG.presence > 1] <- 1
+  M.co.occurrence <- MxG.presence %*% t(MxG.presence)
+  M.co.occurrence.heatmap <- heatmap(M.co.occurrence)
 
-    MxG.presence <- MxG.matrix
-    MxG.presence[MxG.presence > 1] <- 1
-    M.co.occurrence <- MxG.presence %*% t(MxG.presence)
-    M.co.occurrence.heatmap <- heatmap(M.co.occurrence)
+  ## get the gene order from the heatmap.
+  M.co.occurrence.sorted.genes <- sapply(M.co.occurrence.heatmap$rowInd,function(i) rownames(M.co.occurrence)[i])
 
-    ## get the gene order from the heatmap.
-    M.co.occurrence.sorted.genes <- sapply(M.co.occurrence.heatmap$rowInd,function(i) rownames(M.co.occurrence)[i])
+  M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
+                                   col=colnames(M.co.occurrence)[col(M.co.occurrence)],
+                                   co.occurrence=c(as.factor(M.co.occurrence)),stringsAsFactors=FALSE)
 
-    M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
-                                     col=colnames(M.co.occurrence)[col(M.co.occurrence)],
-                                     co.occurrence=c(as.factor(M.co.occurrence)),stringsAsFactors=FALSE)
+  M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
+  M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
 
-    M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
-    M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
+  ## plot the co-occurrence matrix.
+  M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) +
+  geom_tile(color='White') +
+  scale_fill_viridis(option="magma",direction=-1) +
+  theme(axis.text.x = element_text(angle=90,vjust=-0.1)) +
+  guides(fill=FALSE)
+  M.co.occurrence.plot
 
-    ## plot the co-occurrence matrix.
-    M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) +
-        geom_tile(color='White') +
-        scale_fill_viridis(option="magma",direction=-1) +
-        theme(axis.text.x = element_text(angle=90,vjust=-0.1)) +
-        guides(fill=FALSE)
-    M.co.occurrence.plot
-
-    ggsave(co.occurrence.outfile,
-           M.co.occurrence.plot,width=12,height=12)
+  ggsave(co.occurrence.outfile,
+         M.co.occurrence.plot,width=12,height=12)
 }
 
 ##### Now run this function!
 #' on all valid mutations
 raw.matrix.f <- file.path(proj.dir,
-        "results/DM0-DM25-comparison-mut-matrix.csv")
+                          "results/DM0-DM25-comparison-mut-matrix.csv")
 
 #' on just non-synonymous mutations
 dN.raw.matrix.f <- file.path(proj.dir,
-        "results/dN-DM0-DM25-comparison-mut-matrix.csv")
+                             "results/dN-DM0-DM25-comparison-mut-matrix.csv")
 
 amp.matrix.f <- file.path(proj.dir,"results/amp_matrix.csv")
 ltee.matrix.f <- file.path(proj.dir,"results/LTEE-mut_matrix.csv")
 dN.ltee.matrix.f <- file.path(proj.dir,"results/dN-LTEE-mut_matrix.csv")
 ltee.50k.labels.f <- file.path(proj.dir, "data/rohan-formatted/LTEE-50K-clones.csv")
-matrix.outf <- "../results/figures/Fig5.pdf"
-dN.matrix.outf <- "../results/figures/Fig5B.pdf"
+matrix.outf <- "../results/figures/mut_matrix.pdf"
+dN.matrix.outf <- "../results/figures/dN_mut_matrix.pdf"
 co.occurrence.outf <- file.path(proj.dir,"results/figures/co_occurrence.pdf")
 dN.co.occurrence.outf <- file.path(proj.dir,"results/figures/dN_co_occurrence.pdf")
 
@@ -1620,7 +1771,7 @@ PlotMatrixFigure(dN.raw.matrix.f, amp.matrix.f, dN.ltee.matrix.f, ltee.50k.label
 ## discuss numbers and finding in the text (no figure.).
 
 bp.parallel.mutations <- evolved.mutations %>% group_by(Position) %>%
-    summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
+summarise(count = n()) %>% filter(count>1) %>% inner_join(evolved.mutations)
 
 parallel.MOB <- filter(bp.parallel.mutations,Mutation=='MOB')
 parallel.DEL <- filter(bp.parallel.mutations,Mutation=='DEL')
@@ -1631,12 +1782,12 @@ parallel.dS <- filter(bp.parallel.mutations,Mutation=='synonymous')
 ## examine basepair-level parallel evolution in the polymorphism runs.
 
 poly.evolved.mutations <- read.csv(
-    file.path(proj.dir,
-        "results/genome-analysis/poly_evolved_mutations.csv"))
+  file.path(proj.dir,
+            "results/genome-analysis/poly_evolved_mutations.csv"))
 
 poly.bp.parallel.mutations <- poly.evolved.mutations %>% filter(Frequency < 1) %>%
-    filter(Frequency > 0.1) %>% group_by(Position) %>% summarise(count = n()) %>%
-    filter(count>1) %>% inner_join(poly.evolved.mutations)
+filter(Frequency > 0.1) %>% group_by(Position) %>% summarise(count = n()) %>%
+filter(count>1) %>% inner_join(poly.evolved.mutations)
 
 poly.parallel.MOB <- filter(poly.bp.parallel.mutations,Mutation=='MOB')
 poly.parallel.DEL <- filter(poly.bp.parallel.mutations,Mutation=='DEL')
@@ -1652,62 +1803,60 @@ citT.poly.mutations <- filter(poly.evolved.mutations,Gene=='citT')
 ################################################
 ## IS element analysis and visualization.
 
-IScbPalette <- c('#d7191c','#fdae61','black','#abd9e9','#2c7bb6')
+IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#0571b0')
 
 IS.insertions <- read.csv(file.path(proj.dir,
-              "results/genome-analysis/IS_insertions.csv")) %>%
-    arrange(genome_start)
+                                    "results/genome-analysis/IS_insertions.csv")) %>%
+arrange(genome_start)
 
 IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element,frame=Environment)) +
-    facet_grid(Environment~.) +
-  geom_histogram(bins=200) +
-    guides(fill=FALSE) +
-  ##scale_fill_manual(values=cbbPalette) +
-  scale_fill_manual(values=IScbPalette) +
-    ylab("Count") +
-    xlab("Position") +
-    theme_tufte(base_family="Helvetica")
+facet_grid(Environment~.) +
+geom_histogram(bins=200) +
+guides(fill=FALSE) +
+scale_fill_manual(values=IS.palette) +
+ylab("Count") +
+xlab("Position") +
+theme_tufte(base_family="Helvetica")
 
 ## 81/213 IS insertions recur at the same locations! 38%!
 parallel.IS.insertions <- IS.insertions %>%
-    group_by(genome_start) %>%
-    filter(n()>1)
+group_by(genome_start) %>%
+filter(n()>1)
 
 parallel.IS.summary <- summarize(parallel.IS.insertions,
                                  IS_element=unique(IS_element),
                                  genes_inactivated=unique(genes_inactivated),
                                  genes_promoter=unique(genes_promoter),
                                  count=n()) %>%
-    mutate(genes_inactivated=as.character(genes_inactivated)) %>%
-    mutate(genes_promoter=as.character(genes_promoter)) %>%
-    mutate(annotation=ifelse(is.na(genes_inactivated),
-                             genes_promoter,
-                             genes_inactivated)) %>%
-    mutate(annotation=ifelse(is.na(annotation),'none',annotation))
+mutate(genes_inactivated=as.character(genes_inactivated)) %>%
+mutate(genes_promoter=as.character(genes_promoter)) %>%
+mutate(annotation=ifelse(is.na(genes_inactivated),
+         genes_promoter,
+         genes_inactivated)) %>%
+mutate(annotation=ifelse(is.na(annotation),'none',annotation))
 
 ## plot parallel IS insertions and their annotation.
 parallel.IS.plot <- ggplot(parallel.IS.summary,aes(x=genome_start,
-                                           y=count,
-                                           color=IS_element,
-                                           label=annotation)) +
-    geom_point() +
-    guides(color=FALSE) +
-  ##scale_color_manual(values=cbbPalette) +
-  scale_color_manual(values=IScbPalette) +
-    theme_classic() +
-    ylab("Count") +
-    xlab("Position") +
-    geom_text_repel(fontface = "italic")
+                                                   y=count,
+                                                   color=IS_element,
+                                                   label=annotation)) +
+geom_point() +
+guides(color=FALSE) +
+scale_color_manual(values = IS.palette) +
+theme_classic() +
+ylab("Count") +
+xlab("Position") +
+geom_text_repel(fontface = "italic")
 
 ########
 ## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
 ## in comparison to the rate of increase of IS-elements in Ara-3.
 
 LTEE.MAE.IS.insertions <- read.csv(
-    file.path(proj.dir,
-              "results/genome-analysis/LTEE_MAE_IS150_insertions.csv"),
-    stringsAsFactors=FALSE) %>%
-    arrange(Position)
+  file.path(proj.dir,
+            "results/genome-analysis/LTEE_MAE_IS150_insertions.csv"),
+  stringsAsFactors=FALSE) %>%
+arrange(Position)
 
 LTEE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='LTEE')
 ## don't bother with MAE comparison, since Jeff Barrick says the rate and spectrum is
@@ -1716,28 +1865,27 @@ LTEE.IS150 <- filter(LTEE.MAE.IS.insertions,Environment=='LTEE')
 Ara.minus.3.IS150 <- filter(LTEE.IS150,Population=='Ara-3')
 
 Ara.minus.3.IS150.by.clone <- group_by(Ara.minus.3.IS150,Clone,Generation,Environment,Population) %>%
-    summarize(total.count=n())
+summarize(total.count=n())
 
 DM0.DM25.over.time <- group_by(IS.insertions,Clone,Generation,Environment,Population) %>%
-    summarize(total.count=n())
+summarize(total.count=n())
 
 IS150.rate.df <- rbind(DM0.DM25.over.time,Ara.minus.3.IS150.by.clone)
-
 IS150.rate.plot <- ggplot(IS150.rate.df,
                           aes(x=Generation,
                               y=total.count,color=Environment,shape=Environment)) +
-    theme_classic() +
-    scale_colour_manual(values=c('#c51b8a','#fa9fb5' ,'#fde0dd')) +
-    ylab(expression(paste('IS',italic('150'),' insertions'))) +
-    geom_jitter(width=50) +
-    guides(color=FALSE,shape=FALSE)
+theme_classic() +
+scale_color_brewer(palette='YlGnBu',direction=-1) +
+ylab(expression(paste('IS',italic('150'),' insertions'))) +
+geom_jitter(width=50) +
+guides(color=FALSE,shape=FALSE)
 
 ########
-## Combine the IS plots with cowplot to make Figure 6.
-Fig6outf <- file.path(proj.dir,"results/figures/Fig6.pdf")
-Fig6 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
+## Combine the IS plots with cowplot to make Figure 8.
+Fig8outf <- file.path(proj.dir,"results/figures/Fig8.pdf")
+Fig8 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
                   labels = c('A', 'B', 'C'), ncol=1)
-save_plot(Fig6outf,Fig6,base_height=10,base_aspect_ratio=0.8)
+save_plot(Fig8outf,Fig8,base_height=7,base_aspect_ratio=0.8)
 
 ########
 ## Conduct the following test for parallel evolution of IS-insertions:
@@ -1751,18 +1899,18 @@ save_plot(Fig6outf,Fig6,base_height=10,base_aspect_ratio=0.8)
 ## filter out mutations in clones on the same lineage
 ## by removing duplicates within the same population.
 LTEE.MAE.IS150.hit.pos <- LTEE.MAE.IS.insertions %>%
-    select(-Clone) %>% distinct() %>%
-    group_by(Position,GenePosition) %>%
-    summarize(count=n()) %>% ungroup()
+select(-Clone) %>% distinct() %>%
+group_by(Position,GenePosition) %>%
+summarize(count=n()) %>% ungroup()
 
 ## again, filter out duplicates on line of descent
 ## by removing duplicates within the same population.
 DM0.DM25.IS150.hit.pos <- IS.insertions %>%
-    filter(IS_element == 'IS150') %>% mutate(Position=genome_start) %>%
-    select(Position,Environment,Population,GeneName,GenePosition) %>%
-    distinct() %>%
-    group_by(Position,GenePosition) %>%
-    summarize(count=n()) %>% ungroup()
+filter(IS_element == 'IS150') %>% mutate(Position=genome_start) %>%
+select(Position,Environment,Population,GeneName,GenePosition) %>%
+distinct() %>%
+group_by(Position,GenePosition) %>%
+summarize(count=n()) %>% ungroup()
 
 ## use GenePosition to match up IS element insertion positions.
 ## number of DM0/DM25 IS150 events with sites in LTEE/MAE: 22.
@@ -1773,31 +1921,31 @@ length(DM0.DM25.IS150.hit.pos$GenePosition)
 
 ## make an empirical mass function over GenePosition.
 total.hit.pos <- rbind(
-    select(DM0.DM25.IS150.hit.pos,-Position),
-    select(LTEE.MAE.IS150.hit.pos,-Position)) %>%
-    group_by(GenePosition) %>% summarize(count2 = sum(count)) %>%
-    arrange(desc(count2)) %>% mutate(prob=count2/sum(count2)) %>%
-    mutate(eCDF=cumsum(prob))
+  select(DM0.DM25.IS150.hit.pos,-Position),
+  select(LTEE.MAE.IS150.hit.pos,-Position)) %>%
+group_by(GenePosition) %>% summarize(count2 = sum(count)) %>%
+arrange(desc(count2)) %>% mutate(prob=count2/sum(count2)) %>%
+mutate(eCDF=cumsum(prob))
 
 ## number of draws for each simulation = IS150 in DM0.
 DM0.IS150 <- IS.insertions %>% filter(IS_element == 'IS150',Environment=='DM0') %>%
-    select(-Clone) %>% distinct()
+select(-Clone) %>% distinct()
 draws <- nrow(DM0.IS150)
 
 null.parallel.hits <- function(total.hit.pos,empirical.parallel=11,replicates=10000) {
 
-    max.hits <- function(total.hit.pos) {
-        my.sample <- sample(x=total.hit.pos$GenePosition,
-                            size=draws,replace=TRUE,prob=total.hit.pos$prob)
-        my.sample.parallel.hits <- data.table(my.sample)[, .N, keyby = my.sample]
-        max.sampled.parallelism <- max(my.sample.parallel.hits$N)
-        return(max.sampled.parallelism)
-    }
+  max.hits <- function(total.hit.pos) {
+    my.sample <- sample(x=total.hit.pos$GenePosition,
+                        size=draws,replace=TRUE,prob=total.hit.pos$prob)
+    my.sample.parallel.hits <- data.table(my.sample)[, .N, keyby = my.sample]
+    max.sampled.parallelism <- max(my.sample.parallel.hits$N)
+    return(max.sampled.parallelism)
+  }
 
-    max.hit.vec <- unlist(map(seq_len(replicates), ~max.hits(total.hit.pos)))
-    max.hit.df.col <- data.frame('max.hit'=max.hit.vec)
-    past.threshold <- nrow(filter(max.hit.df.col,max.hit>=empirical.parallel))
-    return(past.threshold/replicates)
+  max.hit.vec <- unlist(map(seq_len(replicates), ~max.hits(total.hit.pos)))
+  max.hit.df.col <- data.frame('max.hit'=max.hit.vec)
+  past.threshold <- nrow(filter(max.hit.df.col,max.hit>=empirical.parallel))
+  return(past.threshold/replicates)
 }
 
 ## empirical p-value for 11 hits is on the order of 0.0001.
@@ -1810,33 +1958,33 @@ null.parallel.hits(total.hit.pos,empirical.parallel=8)
 ################################################################################
 ## Fitness and growth effects of plasmid-borne maeA expression.
 maeA.fitness.analysis <- function(data, samplesize=6, days.competition=1,rev=FALSE) {
-    ## by diluting stationary phase culture 1:100 on day 0, there is another
-    ## factor of 100 that multiplies the day 0 plating dilution factor.
-    data$D.0 <- 100*data$D.0
-    data$Mr <- log2((data$D.1/data$D.0)*data$Red.1*100^days.competition/data$Red.0)/days.competition
-    data$Mw <- log2((data$D.1/data$D.0)*data$White.1*100^days.competition/data$White.0)/days.competition
-## reverse log ratio when polarity is reversed.
-if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
+  ## by diluting stationary phase culture 1:100 on day 0, there is another
+  ## factor of 100 that multiplies the day 0 plating dilution factor.
+  data$D.0 <- 100*data$D.0
+  data$Mr <- log2((data$D.1/data$D.0)*data$Red.1*100^days.competition/data$Red.0)/days.competition
+  data$Mw <- log2((data$D.1/data$D.0)*data$White.1*100^days.competition/data$White.0)/days.competition
+  ## reverse log ratio when polarity is reversed.
+  if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
 
-my.mean <- mean(data$W, na.rm=T)
-my.sd <- sd(data$W, na.rm=T)
-my.confint <- c(my.mean - 1.96*my.sd/sqrt(samplesize), my.mean + 1.96*my.sd/sqrt(samplesize))
+  my.mean <- mean(data$W, na.rm=T)
+  my.sd <- sd(data$W, na.rm=T)
+  my.confint <- c(my.mean - 1.96*my.sd/sqrt(samplesize), my.mean + 1.96*my.sd/sqrt(samplesize))
 
-print("mean is:")
-print(my.mean)
+  print("mean is:")
+  print(my.mean)
 
-print("confint is:")
-print(my.confint)
+  print("confint is:")
+  print(my.confint)
 
-##return a dataframe of the results for plotting.
-left.error <- c(my.confint[1])
-right.error <- c(my.confint[2])
-results <- data.frame(Fitness=c(my.mean),Left=left.error,Right=right.error)
-return(results)
+  ##return a dataframe of the results for plotting.
+  left.error <- c(my.confint[1])
+  right.error <- c(my.confint[2])
+  results <- data.frame(Fitness=c(my.mean),Left=left.error,Right=right.error)
+  return(results)
 }
 
 maeA.fitness.data <- read.csv(file.path(proj.dir,"data/rohan-formatted/DM0_Fitness2.csv"),
-                      header=TRUE,stringsAsFactors=FALSE)
+                              header=TRUE,stringsAsFactors=FALSE)
 ## these data come from one day competitions that Tanush ran.
 res1 <- filter(maeA.fitness.data,Red.Pop=='ZDB151_with_maeA') %>% maeA.fitness.analysis()
 res2 <- filter(maeA.fitness.data,Red.Pop=='ZDB67_with_maeA') %>% maeA.fitness.analysis(rev=TRUE)
@@ -1869,14 +2017,14 @@ maeA.fitness.plot.data$Strain <- c('CZB151','CZB152')
 maeA.fitness.fig <- "../results/figures/maeAFitness.pdf"
 
 plot.maeA.fitness <- function (results, output.file) {
-    the.plot <- ggplot(results,aes(x=Strain,y=Fitness)) +
-        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
-        geom_line() +
-        geom_point(size=2) +
-        scale_y_continuous(limits=c(1.0,1.30)) +
-        ylab("Fitness of maeA plasmid relative to empty plasmid") +
-        theme_classic()
-    ggsave(the.plot, file=output.file,width=4,height=4)
+  the.plot <- ggplot(results,aes(x=Strain,y=Fitness)) +
+  geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
+  geom_line() +
+  geom_point(size=2) +
+  scale_y_continuous(limits=c(1.0,1.30)) +
+  ylab("Fitness of maeA plasmid relative to empty plasmid") +
+  theme_classic()
+  ggsave(the.plot, file=output.file,width=4,height=4)
 }
 
 plot.maeA.fitness(maeA.fitness.plot.data,maeA.fitness.fig)

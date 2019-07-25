@@ -154,6 +154,7 @@ Fig3B <- D4 %>%
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values=c(SYTO9.color,PI.color)) +
+  theme_classic() +
   facet_wrap(. ~ Clone, nrow=1) +
   guides(fill = FALSE) +
   ylab("Number of cells") +
@@ -212,6 +213,7 @@ Fig3C <- P6 %>%
   ggplot(aes(x = Treatment, y = PropPrime.Dead, label = my.text)) +
   geom_point(size=0.5) +
   facet_wrap(. ~ Clone, nrow = 1) +
+  theme_classic() +
   ylab("Proportion dead cells") +
   geom_errorbar(data=P6.confint.df,aes(x=Treatment,ymin=Left,ymax=Right), width=0.15, size=0.4,inherit.aes=FALSE) +
   geom_crossbar(data=P6.confint.df,aes(x=Treatment,y=PropPrime.Dead,ymin=PropPrime.Dead,ymax=PropPrime.Dead), width= 0.1, size = 0.4,inherit.aes=FALSE)
