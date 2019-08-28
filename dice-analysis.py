@@ -36,7 +36,7 @@ import pandas as pd
 
 class CallDICE:
     def __init__(self, gd_dir, genbank_ref, mutmatrixfile, control_treatment='', excluded=None,dN_only=False):
-        self.number = 1000 #1000000 ## do one million for final submission.
+        self.number = 10000 #1000000 ## do one million for final submission.
         self.promoter_length = 150
         self.genbank_ref = genbank_ref
         self.control_treatment = control_treatment

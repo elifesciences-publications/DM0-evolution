@@ -57,10 +57,10 @@ calc.bootstrap.conf.int <- function(vec) {
   return(final)
 }
 
+###################
+
 ## colorblind-friendly palette.
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
-
-###################
 
 home.dir <- path.expand("~")
 proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
@@ -434,8 +434,8 @@ calc.growth.rates <- function(final.growth.df) {
     
     cit.min.index <- max(min(which(well.df$OD420 > 0.05)), 1)
     cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
-    ## to compare time lags, measure point when OD420 hits 0.05.
-    t.OD.hit.cit.min <- well.df[cit.min.index,]$Hours
+    ## to compare time lags, measure point when OD420 hits 0.01.
+    t.OD.hit.glu.min <- well.df[glu.min.index,]$Hours
     
     if ((glu.max.index <= nrow(well.df)) & (glu.min.index < glu.max.index)) {
       glucose.data <- well.df[glu.min.index:glu.max.index,]
@@ -490,7 +490,7 @@ calc.growth.rates <- function(final.growth.df) {
                                 Founder = unique(well.df$Founder),
                                 r.citrate = get.max.growth.rate(citrate.data),
                                 r.glucose = get.max.growth.rate(glucose.data),
-                                t.lag = t.OD.hit.cit.min,
+                                t.lag = t.OD.hit.glu.min,
                                 stringsAsFactors=FALSE)
 
     return(summarized.df)
@@ -1159,8 +1159,8 @@ save_plot(file.path(proj.dir,"results/figures/S8Fig.pdf"), S8Fig.plot,base_heigh
 filtered.clone.growth.data <- filter.growth.data.on.analysis.domain(DM0.clone.growth.data)
 filtered.pop.growth.data <- filter.growth.data.on.analysis.domain(DM0.pop.growth.data)
 ## filtered log-scale plots, again for debugging purposes.
-filtered.log.Fig2A.plot <- plot.growthcurve.figure(filtered.clone.growth.data,logscale=TRUE)
-filtered.log.Fig2B.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logscale=TRUE)
+filtered.log.clone.plot <- plot.growthcurve.figure(filtered.clone.growth.data,logscale=TRUE)
+filtered.log.pop.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logscale=TRUE)
 
 ################################################################################
 ## plot my growth estimates and growthcurver estimates as well.
@@ -1335,8 +1335,8 @@ DM25.growth.estimate.comp.df <- full_join(
   DM25.growthcurver.summary) %>%
 ungroup()
 
-
-## r = 0.68, 0.70, -0.14, 0.92, 0.59 respectively.
+## 
+## r = 0.68, 0.70, -0.14, 0.86, 0.37 respectively.
 cor(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs")
 cor.test(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs",method="pearson")
 
@@ -1352,14 +1352,14 @@ cor.test(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,us
 cor(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs")
 cor.test(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs",method="pearson")
 
-## r = 0.64, 0.83, -0.04, 0.81, 0.92, respectively.
+## r = 0.64, 0.83, -0.04, 0.77, 0.46, respectively.
 cor(pop.estimates$DM0.r, pop.estimates$DM0.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.glucose,use="complete.obs")
 cor(pop.estimates$DM0.t_mid, pop.estimates$DM0.t.lag,use="complete.obs")
 cor(pop.estimates$DM25.t_mid, pop.estimates$DM25.t.lag,use="complete.obs")
 
-## r = 0.48, 0.60, -0.11, 0.97, 0.68, respectively.
+## r = 0.48, 0.60, -0.11, 0.90, 0.38, respectively.
 cor(clone.estimates$DM0.r, clone.estimates$DM0.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.glucose,use="complete.obs")
@@ -1552,7 +1552,6 @@ DM25.CFU.plotA <- make.CFU.plotA(DM25.CFU.data,'CFUs in DM25 media')
 DM0.CFU.plotA <- make.CFU.plotA(DM0.CFU.data, 'CFUs in DM0 media')
 
 DM25.CFU.summary <- DM25.CFU.data %>%
-filter(Name != 'ZDBp874') %>%
 group_by(Founder,Environment,Generation,Name) %>%
 summarise(Counts=mean(Counts)) %>%
 ungroup() %>%
