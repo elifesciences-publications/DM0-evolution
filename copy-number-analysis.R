@@ -250,6 +250,8 @@ outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
 LCA.gff3 <- file.path(projdir,"genomes/curated-diffs/LCA.gff3")
 all.genomes <- list.files(breseq.output.dir,pattern='^ZDBp|^CZB')
+## omit Cit- oddball ZDBp874 clone from analyses.
+all.genomes <- str_subset(all.genomes,pattern='ZDBp874',negate=TRUE)
 all.genome.paths <- sapply(all.genomes, function(x) file.path(breseq.output.dir,x))
 genome.input.df <- data.frame(Genome=all.genomes,path=all.genome.paths)
 
@@ -283,7 +285,7 @@ write.csv(x=amp.parallelism,file=file.path(outdir,"amp_parallelism.csv"))
 #' (I can do this easily by hand).
 
 copy.number.table <- annotated.amps %>%
-filter(gene %in% c('sfcA','dctA')) %>%
+filter(gene %in% c('citT','sfcA','dctA')) %>%
 #' change sfcA to maeA
 mutate(Gene=replace(gene,gene=='sfcA','maeA')) %>%
 transform(amplified.segment.length=len) %>%
@@ -337,10 +339,10 @@ write.amp.matrix(annotated.amps,clone.labels,file.path(outdir,"amp_matrix.csv"))
 
 #' maeA amplifications tend to occur in CZB151/154 rather than 152 background..
 #' but Tanush's competition data shows that it's beneficial in both backgrounds?
-maeA.dct.amps.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
+maeA.dctA.amps.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
 filter(!(Genome %in% ParentClone)) %>%
 mutate(Genome=factor(Genome)) %>%
 mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
 mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
 filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
-select(Genome,gene,Founder,ParentClone)
+select(Genome,gene,Founder,ParentClone,Environment)

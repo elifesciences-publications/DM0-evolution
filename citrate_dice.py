@@ -685,23 +685,21 @@ def main():
             total_genome_samples = len(master_dict['Total'])
             num_genomes_in_most_mutated_treatment = len(master_dict[most_mutated_treatment])
 
-            '''
-            1 is subtracted from s_c1 because first mutation can't be assigned
-            (see discussion of Fisher's exact test in Deatherage 2017).
-            '''
-            s_c1 = most_mutated_count - 1
+            s_c1 = most_mutated_count
             f_c1 = num_genomes_in_most_mutated_treatment - most_mutated_count
             s_c2 = total_hit_genomes - most_mutated_count
-            f_c2 = total_genome_samples - total_hit_genomes - f_c1
-
+            ## next line: subtract successes in the remaining treatments from
+            ## the number of genomes in the remaining treatments.
+            f_c2 = (total_genome_samples - num_genomes_in_most_mutated_treatment) - s_c2
+            
             assert f_c1 >= 0, "error 1: negative numbers in f_c1!"
             assert f_c2 >= 0, "error 2: negative numbers in f_c2!"
 
             '''
             I believe the idea here is the following contingency table:
-                                                       Ara+ | Ara-   ( or whatever treatment is relevant)
-            Number of genomes w/ mutation in gene x  | s_c1    | f_c1
-            Number of genomes w/o mutation in gene x | s_c2    | f_c2
+                                                       DM0   | DM25   ( or whatever treatment is relevant)
+            Number of genomes w/ mutation in gene x  | s_c1  | f_c1
+            Number of genomes w/o mutation in gene x | s_c2  | f_c2
             '''
 
             if run_fishers_exact([s_c1, f_c1, s_c2, f_c2]) <= args.pvalue:
@@ -712,6 +710,7 @@ def main():
                 assert printable[1:-1].count(1) == 2 or printable[1:-1].count(2) == 1, "unclear state"
 
         print(''.join([f"{x:{10}}" for x in map(str,printable)]))
+        ##print("FISHER\'S EXACT TEST COUNTS BASED ON HIT GENOMES: s1, f1, s2, f2: ",s_c1,f_c1,s_c2,f_c2)
 
     print("Invalid AMP or DEL")
     print(''.join([f"{x:<{23}}" for x in ["Treatment", "Sample", "AMP or DEL", "Size"]]))

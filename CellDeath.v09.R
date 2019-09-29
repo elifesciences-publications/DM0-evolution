@@ -113,14 +113,14 @@ D4 <- D3 %>% group_by(Clone, Treatment, Block) %>%
 ## plot 2: The proportion of death is higher as you approach "negative infinity "0"
 
 ## Plot 1: Distribution showing relative fluorescences (Dead/Alive)
-D3 %>% group_by(Clone, Treatment, Block) %>% 
+plot1 <- D3 %>% group_by(Clone, Treatment, Block) %>% 
   ggplot(aes(x=Block, y=log(RelFluor), color=Treatment)) +
   geom_boxplot(outlier.shape = NA) +
   facet_wrap(~Clone + Treatment) +
   labs(y="Log(ratio dead cells)") 
 
 ## Plot 2 : Boxplots showing the distribution of proportions (Dead/Dead+Alive) 
-D3 %>% group_by(Clone, Treatment, Block) %>% 
+plot2 <- D3 %>% group_by(Clone, Treatment, Block) %>% 
     ggplot(aes(x=Block, y=PropFluor, color=Treatment)) +
     geom_boxplot(outlier.shape = NA) +
     scale_color_manual(values=c('red3','black')) +
@@ -133,7 +133,7 @@ D3 %>% group_by(Clone, Treatment, Block) %>%
 
 ## Plot 3 : density plots showing seperation 
 ## log-value(x) > 1 dead. 
-D3 %>% group_by(Clone, Treatment, Block) %>% 
+plot3 <- D3 %>% group_by(Clone, Treatment, Block) %>% 
   ggplot(aes(x=(log(RelFluor)), y=log(PropFluor), color = RelFluorPrime)) +
   geom_density2d() +
   facet_wrap(~Clone + Treatment) +
@@ -160,7 +160,7 @@ Fig3B <- D4 %>%
   ylab("Number of cells") +
   labs(fill = "Cell viability") #Changes legend title from "RelFluorPrime" to "Cell viability"
 
-D4 %>% group_by(Clone, Treatment) %>% 
+cell.death.barplot <- D4 %>% group_by(Clone, Treatment) %>% 
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") + 
   ylab("Number of cells") +

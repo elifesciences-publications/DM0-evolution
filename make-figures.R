@@ -65,6 +65,10 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"
 home.dir <- path.expand("~")
 proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
 
+## For the sake of clarity in exposition, omit the oddball Cit- ZDBp874 clone from
+## the analyses. Do keep its growth curve in the supplement, as it was used to calibrate
+## those analyses, but omit it from the calculations in the main figures.
+
 pop.clone.labels <- read.csv(
   file.path(proj.dir,
             "data/rohan-formatted/populations-and-clones.csv"),
@@ -74,7 +78,9 @@ evolved.mutations <- read.csv(
   file.path(proj.dir,
             "results/genome-analysis/evolved_mutations.csv"),
   stringsAsFactors=FALSE) %>%
-mutate(Mutation=as.factor(Mutation))
+mutate(Mutation=as.factor(Mutation)) %>%
+## exclude oddball Cit- clone ZDBp874.
+filter(Clone != 'ZDBp874')
 
 ## Notice parallel mutations at base-pair level in citrate synthase!
 filter(evolved.mutations,Gene=='gltA') %>% arrange(Position)
@@ -116,8 +122,6 @@ mous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
 
 ## what about other classes of mutations?
 Table3 <- filter(evolved.mutations, Position %in% non.MOB.parallel$Position) %>% arrange(Position)
-## should I write up these results/dig deeper?
-
 
 ltee.mutations <- read.csv(
   file.path(proj.dir,
@@ -128,15 +132,28 @@ ltee.mutations <- read.csv(
 ## by inspecting evolved.mutations in conjunction with amplified genes, we see that the
 ## dctA amplification anti-correlates with the promoter mutation.
 ## Note that the dctA promoter mutation is in CZB151 and CZB154.
-promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
-transmute(Name=Clone) %>% left_join(pop.clone.labels)
+
 dctA.AMPs <- read.csv(file.path(proj.dir,"results/amplified_genes.csv"),
                       stringsAsFactors=FALSE) %>%
 filter(gene=='dctA') %>% select(Genome) %>% distinct() %>%
 transmute(Name=Genome) %>% left_join(pop.clone.labels)
-## 5/6 dctA AMP genomes lack the promoter mutation.
-## 1/17 with promoter mutation have the AMP.
-## 5/7 without promoter mutation have the AMP.
+
+promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
+transmute(Name=Clone) %>% left_join(pop.clone.labels) %>%
+full_join(filter(pop.clone.labels,Founder %in% c('CZB151','CZB154') & Generation==2500 & SampleType=='Clone' & Sequenced == 1 & Name != 'ZDBp874'))
+
+## out of 24 DM0- and DM25-evolved genomes,
+dctA.AMP.promoter.mut.intersection <- inner_join(dctA.AMPs,promoter.mutant)
+## 1 has both promoter mutant and dctA AMP.
+dctA.AMP.no.promoter.mut <- anti_join(dctA.AMPs,promoter.mutant)
+## 5 have dctA AMP but lack the promoter mutation.
+promoter.mut.no.dctA.AMP <- anti_join(promoter.mutant,dctA.AMPs)
+## 16 have the promoter mutation, and not the dctA AMP.
+neither.dctA.AMP.nor.promoter <- filter(pop.clone.labels,Founder == 'CZB152' & Generation==2500 & SampleType=='Clone') %>%
+anti_join(dctA.AMPs) %>%
+anti_join(promoter.mutant)
+## 2 do not have either mutation.
+
 ## Fisher's exact test: p = 0.0027.
 fisher.test(matrix(c(1,5,16,2),2))
 
@@ -1135,7 +1152,6 @@ save_plot(file.path(proj.dir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height
 S4Fig.plot <- plot.growthcurve.figure(DM0.clone.growth.data,logscale=TRUE)
 save_plot(file.path(proj.dir,"results/figures/S4Fig.pdf"),S4Fig.plot,base_height=7,base_width=11)
 
-
 ## S5 Fig: Plot growth curves for DM0-evolved populations.
 S5Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
 save_plot(file.path(proj.dir,"results/figures/S5Fig.pdf"), S5Fig.plot,base_height=7,base_width=11)
@@ -1167,6 +1183,9 @@ filtered.log.pop.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logsca
 ## plot estimates with confidence interval of mean.
 ## Do the same for the growthcurver fits. Note different confint function needed.
 
+## Filter oddball Cit- ZDBp874 from the clones before estimation.
+clone.growth <- filter(clone.growth,Name != 'ZDBp874')
+
 ## Figure 3.
 Fig3outf <- file.path(proj.dir,"results/figures/Fig3.pdf")
 clone.growth.plot <- plot.growth.parameters(clone.growth)
@@ -1175,10 +1194,7 @@ no.CI.clone.growth.plot <- plot.growth.parameters(clone.growth, plot.CIs=FALSE)
 
 clone.growth.summary <- summarize.growth.results(clone.growth)
 final.clone.growth.summary <- calc.growth.log.ratios(clone.growth.summary)
-
-## Exclude the Cit- ZDBp874 strain from these calculations.
-clone.bootstrap.CI <- run.growth.ratio.confint.bootstrapping(filter(
-  final.clone.growth.summary,Name!='ZDBp874'))
+clone.bootstrap.CI <- run.growth.ratio.confint.bootstrapping(final.clone.growth.summary)
 
 Fig3B.plot.df <- final.clone.growth.summary %>%
 gather(key="Parameter", value="Estimate",
@@ -1201,15 +1217,14 @@ save_plot(no.CI.Fig3outf, no.CI.Fig3, base_width=11, base_height=7.5)
 
 ## Supplementary Figure S10. (since growthcurver results are in its own section.)
 S10Figoutf <- file.path(proj.dir,"results/figures/S10Fig.pdf")
-clone.growthcurver.plot <- plot.growthcurver.parameters(clone.growth.curve.fits)
-clone.growthcurver.summary <- summarize.growthcurver.results(clone.growth.curve.fits) %>%
-## ZDBp874 is Cit-, so exclude.
-filter(Name != 'ZDBp874')
-final.clone.growthcurver.summary <- calc.growthcurver.log.ratios(clone.growthcurver.summary)
 
-## Exclude the Cit- ZDBp874 strain from these calculations.
-clone.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(filter(
-  final.clone.growthcurver.summary,Name!='ZDBp874'))
+## Filter oddball Cit- ZDBp874 from the clones before estimation.
+clone.growth.curve.fits <- filter(clone.growth.curve.fits, Name != 'ZDBp874')
+
+clone.growthcurver.plot <- plot.growthcurver.parameters(clone.growth.curve.fits)
+clone.growthcurver.summary <- summarize.growthcurver.results(clone.growth.curve.fits)
+final.clone.growthcurver.summary <- calc.growthcurver.log.ratios(clone.growthcurver.summary)
+clone.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(final.clone.growthcurver.summary)
 
 S10BFig.plot.df <- final.clone.growthcurver.summary %>%
 gather(key="Parameter", value="Estimate",
@@ -1489,9 +1504,12 @@ S14Fig <- plot_grid(cit.glucose.cor.plot,
 S14Fig.outf <- file.path(proj.dir,"results/figures/S14Fig.pdf")
 save_plot(S14Fig.outf, S14Fig, base_height=8, base_width=12)
 ######################################################################
-####### Figure 5: Nkrumah's cell death results.
+####### Figure 5: Nkrumah's cell death results. See CellDeath R script
+#######           for analyses and figures.
 ######################################################################
-### Figure 6: plot CFU results.
+### plot CFU results. This figure will not go into this paper;
+###                   we can revisit this after studying cell death in
+###                    more detail).
 ## After looking at the growth curves, let's examine the CFUs in DM25.
 calc.CFU.log.ratios <- function(CFU.summary) {
   anc.Counts <- rep(-1,nrow(CFU.summary))
@@ -1597,7 +1615,7 @@ CFU.outf <- file.path(proj.dir, "results/figures/CFU_Fig.pdf")
 save_plot(CFU.outf, CFU.Fig,base_height=5,base_width=9)
 
 ################################################################################
-## Figure 7: make a matrix plot of genes with mutations in two or more clones.
+## Figure 6: make a matrix plot of genes with mutations in two or more clones.
 
 PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              ltee.matrix.file, ltee.50k.labels.file,
@@ -1823,14 +1841,16 @@ citT.mutations <- filter(evolved.mutations,Gene=='citT')
 citT.poly.mutations <- filter(poly.evolved.mutations,Gene=='citT')
 
 ################################################
-## Figure 8. IS element analysis and visualization.
+## Figure 7. IS element analysis and visualization.
 ################################################
 
 IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#0571b0')
 
 IS.insertions <- read.csv(file.path(proj.dir,
                                     "results/genome-analysis/IS_insertions.csv")) %>%
-arrange(genome_start)
+arrange(genome_start) %>%
+## filter oddball Cit- clone ZDBp874.
+filter(Clone != 'ZDBp874')
 
 IS.plot <- ggplot(IS.insertions,aes(x=genome_start,fill=IS_element,frame=Environment)) +
 facet_grid(Environment~.) +
@@ -1841,22 +1861,27 @@ ylab("Count") +
 xlab("Position") +
 theme_tufte(base_family="Helvetica")
 
-## 81/213 IS insertions recur at the same locations! 38%!
+## 75/202 IS insertions recur at the same locations! 37.1%!
 parallel.IS.insertions <- IS.insertions %>%
 group_by(genome_start) %>%
 filter(n()>1)
 
-parallel.IS.summary <- summarize(parallel.IS.insertions,
-                                 IS_element=unique(IS_element),
-                                 genes_inactivated=unique(genes_inactivated),
-                                 genes_promoter=unique(genes_promoter),
-                                 count=n()) %>%
-mutate(genes_inactivated=as.character(genes_inactivated)) %>%
-mutate(genes_promoter=as.character(genes_promoter)) %>%
-mutate(annotation=ifelse(is.na(genes_inactivated),
-         genes_promoter,
-         genes_inactivated)) %>%
-mutate(annotation=ifelse(is.na(annotation),'none',annotation))
+summarize.IS.func <- function(parallel.IS.ins) {
+  summarize(parallel.IS.ins,
+            IS_element=unique(IS_element),
+            genes_inactivated=unique(genes_inactivated),
+            genes_promoter=unique(genes_promoter),
+            count=n()) %>%
+            arrange(desc(count)) %>%
+            mutate(genes_inactivated=as.character(genes_inactivated)) %>%
+            mutate(genes_promoter=as.character(genes_promoter)) %>%
+            mutate(annotation=ifelse(is.na(genes_inactivated),
+                     genes_promoter,
+                     genes_inactivated)) %>%
+                     mutate(annotation=ifelse(is.na(annotation),'none',annotation))
+}
+
+parallel.IS.summary <- summarize.IS.func(parallel.IS.insertions)
 
 ## plot parallel IS insertions and their annotation.
 parallel.IS.plot <- ggplot(parallel.IS.summary,aes(x=genome_start,
@@ -1870,6 +1895,14 @@ theme_classic() +
 ylab("Count") +
 xlab("Position") +
 geom_text_repel(fontface = "italic")
+
+## Now just consider IS parallelism in the DM0 environment.
+parallel.DM0.IS.insertions <- IS.insertions %>%
+filter(Environment == 'DM0') %>%
+group_by(genome_start) %>%
+filter(n()>1)
+
+parallel.DM0.IS.summary <- summarize.IS.func(parallel.DM0.IS.insertions) 
 
 ########
 ## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
@@ -1904,11 +1937,11 @@ geom_jitter(width=50) +
 guides(color=FALSE,shape=FALSE)
 
 ########
-## Combine the IS plots with cowplot to make Figure 8.
-Fig8outf <- file.path(proj.dir,"results/figures/Fig8.pdf")
-Fig8 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
+## Combine the IS plots with cowplot to make Figure 7.
+Fig7outf <- file.path(proj.dir,"results/figures/Fig7.pdf")
+Fig7 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
                   labels = c('A', 'B', 'C'), ncol=1)
-save_plot(Fig8outf,Fig8,base_height=7,base_aspect_ratio=0.8)
+save_plot(Fig7outf,Fig7,base_height=7,base_aspect_ratio=0.8)
 
 ########
 ## Conduct the following test for parallel evolution of IS-insertions:
@@ -1916,15 +1949,16 @@ save_plot(Fig8outf,Fig8,base_height=7,base_aspect_ratio=0.8)
 ## probability = empirical mass distribution over LTEE/MAE/DM0/DM25.
 ## Set the number of samples to the number of IS150 insertions
 ## in the DM0 genomes. For 10000 replicates,
-## count how often some site gets hit 11 times. I could also repeat this test for the
-## chance that a particular site gets hit 11 times (for instance).
+## count how often some site gets hit 9 times. I could also repeat this test for the
+## chance that a particular site gets hit 9 times (for instance).
 
 ## filter out mutations in clones on the same lineage
 ## by removing duplicates within the same population.
 LTEE.MAE.IS150.hit.pos <- LTEE.MAE.IS.insertions %>%
 select(-Clone) %>% distinct() %>%
 group_by(Position,GenePosition) %>%
-summarize(count=n()) %>% ungroup()
+summarize(count=n()) %>% ungroup() %>%
+arrange(desc(count))
 
 ## again, filter out duplicates on line of descent
 ## by removing duplicates within the same population.
@@ -1933,7 +1967,8 @@ filter(IS_element == 'IS150') %>% mutate(Position=genome_start) %>%
 select(Position,Environment,Population,GeneName,GenePosition) %>%
 distinct() %>%
 group_by(Position,GenePosition) %>%
-summarize(count=n()) %>% ungroup()
+summarize(count=n()) %>% ungroup() %>%
+arrange(desc(count))
 
 ## use GenePosition to match up IS element insertion positions.
 ## number of DM0/DM25 IS150 events with sites in LTEE/MAE: 22.
@@ -1955,7 +1990,7 @@ DM0.IS150 <- IS.insertions %>% filter(IS_element == 'IS150',Environment=='DM0') 
 select(-Clone) %>% distinct()
 draws <- nrow(DM0.IS150)
 
-null.parallel.hits <- function(total.hit.pos,empirical.parallel=11,replicates=10000) {
+null.parallel.hits <- function(total.hit.pos,empirical.parallel=9,replicates=10000) {
 
   max.hits <- function(total.hit.pos) {
     my.sample <- sample(x=total.hit.pos$GenePosition,
@@ -1971,11 +2006,15 @@ null.parallel.hits <- function(total.hit.pos,empirical.parallel=11,replicates=10
   return(past.threshold/replicates)
 }
 
-## empirical p-value for 11 hits is on the order of 0.0001.
-null.parallel.hits(total.hit.pos,replicates=10000)
+## empirical p-value for 9 hits is ~ 0.0128.
 null.parallel.hits(total.hit.pos,replicates=100000)
 
-## empirical p-value for 8 hits is on the order of 0.01.
+## NOTE that this test is really stringent. 9 IS150 insertions in DM0 at position
+## 3501576 in the yhiO promoter, 1 in DM0 at position 3501577,
+## and ZDBp901 has an insertion annotated as yhiO at position 3501352.
+## So, 11/12 have IS150 insertions annotated as yhiO, and 9/12 are at the exact same site.
+
+## empirical p-value for 8 hits is ~ 0.04.
 null.parallel.hits(total.hit.pos,empirical.parallel=8)
 
 ################################################################################
@@ -1991,7 +2030,10 @@ maeA.fitness.analysis <- function(data, samplesize=6, days.competition=1,rev=FAL
 
   my.mean <- mean(data$W, na.rm=T)
   my.sd <- sd(data$W, na.rm=T)
-  my.confint <- c(my.mean - 1.96*my.sd/sqrt(samplesize), my.mean + 1.96*my.sd/sqrt(samplesize))
+  ## see: https://www.cyclismo.org/tutorial/R/confidence.html#calculating-a-confidence-interval-from-a-t-distribution
+  my.t.dist.error <- qt(0.975,df=samplesize-1) * my.sd/sqrt(samplesize)
+  
+  my.confint <- c(my.mean - my.t.dist.error, my.mean + my.t.dist.error)
 
   print("mean is:")
   print(my.mean)
@@ -2018,14 +2060,17 @@ res4 <- filter(maeA.fitness.data,Red.Pop=='ZDB68_with_maeA') %>% maeA.fitness.an
 ## does not depend on Ara polarity or genetic background.
 
 ## let's combine data from the switched polarity competitions (since Ara marker is neutral)
-d1 <- filter(maeA.fitness.data,Red.Pop=='ZDB151_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-d2 <- filter(maeA.fitness.data,Red.Pop=='ZDB67_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d1 <- maeA.fitness.data %>%
+filter(Red.Pop=='ZDB151_with_maeA') %>%
+dplyr::select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+
+d2 <- filter(maeA.fitness.data,Red.Pop=='ZDB67_with_maeA') %>% dplyr::select(Red.0,Red.1,White.0,White.1,D.0,D.1)
 ## now switch column labels.
 d2X <- dplyr::rename(d2,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
 ZDB151.data <- rbind(d1,d2X)
 
-d3 <- filter(maeA.fitness.data,Red.Pop=='ZDB152_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
-d4 <- filter(maeA.fitness.data,Red.Pop=='ZDB68_with_maeA') %>% select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d3 <- filter(maeA.fitness.data,Red.Pop=='ZDB152_with_maeA') %>% dplyr::select(Red.0,Red.1,White.0,White.1,D.0,D.1)
+d4 <- filter(maeA.fitness.data,Red.Pop=='ZDB68_with_maeA') %>% dplyr::select(Red.0,Red.1,White.0,White.1,D.0,D.1)
 ## switch column labels.
 d4X <- dplyr::rename(d4,Red.0=White.0,Red.1=White.1,White.0=Red.0,White.1=Red.1)
 ZDB152.data <- rbind(d3,d4X)

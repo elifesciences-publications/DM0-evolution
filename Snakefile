@@ -1,3 +1,8 @@
+
+rule dice_analysis:
+     shell:
+	'python dice-analysis.py'
+
 rule prep_growth_data:
      shell:
 	'python prep-growth-data.py'

@@ -9,7 +9,6 @@ to plot the counts and types of mutations in each population.
 
 This script also makes table of the IS insertions in the LTEE and in the MAE,
 using the genomes in Jeff Barrick's LTEE-Ecoli GitHub repository.
-
 '''
 
 from os.path import join, basename, exists, isfile, expanduser, dirname
@@ -109,9 +108,6 @@ def contamination_check(pathdict, pop_clone_labels,resultsdir):
 def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdir):
     ''' First copy annotated genomediffs into a nice directory structure, filtering out
         mutations in the ancestral strains.
-
-        In addition, remove the yhiO/uspA mutation from ZDBp874 to make ZDBp874 and ZDBp875
-        evolutionarily independent.
     '''
     evol_genomes = [x for x in pathdict.keys() if x.startswith('ZDBp')]
     evol_pop_clone_labels = pop_clone_labels[pop_clone_labels['Name'].isin(evol_genomes)]
@@ -140,8 +136,6 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
         Q48Q mutation in insE-3 or insE-5 (uncertain genomic variation in insE transposon).
         '''
         all_conditions = ['gene_name==rrlA','gene_name==rhsA','gene_name==rhsB','gene_name==insE-3','gene_name==insE-5']
-        if evolname == 'ZDBp874': 
-            all_conditions.append('gene_name==yhiO/uspA')
         while len(all_conditions): ## run gdtools REMOVE for each condition to remove all matches.
             clist = [all_conditions.pop(0)]
             ## add a digit to the temp outfile name to keep them distinct.
@@ -274,7 +268,11 @@ def make_LCA_IS_insertion_csv(evol_pop_clone_labels, inputdir, outf, gff):
         outfh.write(','.join([IS_element_name, start_coord, end_coord]) + "\n")
 
 def organize_diffs(analysisdir):
-    ''' automatically organize files for the dice analysis.'''
+    ''' automatically organize files for the dice analysis.
+        Omit the oddball Cit- ZDBp874 strain, and use ZDBp875 instead,
+        for the sake of clarity in exposition
+        (this choice does not affect the reported results.)
+    '''
 
     CZB151_paths = list(Path(join(analysisdir,'CZB151')).rglob("*.gd"))
     CZB152_paths = list(Path(join(analysisdir,'CZB152')).rglob("*.gd"))
@@ -285,6 +283,9 @@ def organize_diffs(analysisdir):
 
     def cp_files(comparisontype,treatment,paths):
         for x in paths:
+            if 'ZDBp874' in x:
+                ## skip ZDBp874.
+                continue
             y = join(analysisdir, comparisontype, treatment, x.name)
             my_args = ['cp',str(x),y]
             my_cmd = ' '.join(my_args)

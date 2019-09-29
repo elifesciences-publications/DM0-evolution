@@ -79,31 +79,31 @@ def main():
     print("********************************** LTEE Dice analysis for valid mutations **********************************")
     ltee_gddir = join(projdir,"genomes/annotated-LTEE-50K-diffs")
     LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
-    ##print(LTEE_DiceRun)
-    ##LTEE_DiceRun.call()
+    print(LTEE_DiceRun)
+    LTEE_DiceRun.call()
 
     ## run citrate_dice.py on just the 50K Ara-3 clone to get valid mutations for
     ## the Recapitulation Index analysis.
     print("********************************** 50K Ara-3 clone run for valid mutations  **********************************")
     ara_minus3_gddir = join(projdir,"genomes/curated-diffs")
     ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/ara3_mut_matrix.csv')
-    ##ara_minus3_DiceRun.call()
+    ara_minus3_DiceRun.call()
 
     ## just analyse dN in the DM0/DM25 treatments.
     print("********************************** DM0/DM25 Dice analysis: dN only **********************************")
     dNDiceRun = CallDICE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/dN-DM0-DM25-comparison-mut-matrix.csv', ctl_treat, dN_only=True)
     print(dNDiceRun)
-    ##dNDiceRun.call()
+    dNDiceRun.call()
 
     ##  dN in the LTEE.
     print("********************************** LTEE Dice analysis for valid dN **********************************")
     dN_LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/dN-LTEE-mut_matrix.csv','Ara+', dN_only=True)
     print(dN_LTEE_DiceRun)
-    ##dN_LTEE_DiceRun.call()
+    dN_LTEE_DiceRun.call()
 
     ## run 50K Ara-3 clone to get valid dN for the Recapitulation Index analysis.
     print("********************************** 50K Ara-3 clone for valid dN  **********************************")
     dN_ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/dN-ara3_mut_matrix.csv', dN_only=True)
-    ##dN_ara_minus3_DiceRun.call()
+    dN_ara_minus3_DiceRun.call()
 
 main()
