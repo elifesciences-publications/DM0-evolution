@@ -15,8 +15,6 @@ library(scales)
 library(gridExtra)
 library(lubridate)
 library(assertthat)
-library(tidytext)
-library(Matrix)
 library(growthcurver) ## use growthcurver package to fit r from growth data.
 ## Cite the growthcurver package. https://www.ncbi.nlm.nih.gov/pubmed/27094401
 
@@ -135,7 +133,7 @@ ltee.mutations <- read.csv(
 
 dctA.AMPs <- read.csv(file.path(proj.dir,"results/amplified_genes.csv"),
                       stringsAsFactors=FALSE) %>%
-filter(gene=='dctA') %>% select(Genome) %>% distinct() %>%
+filter(gene=='dctA') %>% dplyr::select(Genome) %>% distinct() %>%
 transmute(Name=Genome) %>% left_join(pop.clone.labels)
 
 promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
@@ -273,7 +271,7 @@ mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
 rowwise() %>%
 ## average the replicate blanks.
 mutate(Blank = lift_vd(mean)(DM25.1,DM25.2,DM25.3,DM25.4,DM25.5,DM25.6)) %>%
-select(-DM25.1,-DM25.2,-DM25.3,-DM25.4,-DM25.5,-DM25.6) %>%
+dplyr::select(-DM25.1,-DM25.2,-DM25.3,-DM25.4,-DM25.5,-DM25.6) %>%
 ## subtract Blank from well readings.
 mutate(REL606.1 = REL606.1 - Blank) %>%
 mutate(REL606.2 = REL606.2 - Blank) %>%
@@ -282,7 +280,7 @@ mutate(REL606.4 = REL606.4 - Blank) %>%
 mutate(REL606.5 = REL606.5 - Blank) %>%
 ## zero out negative values.
 mutate_at(vars(REL606.1:REL606.5),function(x)ifelse(x<0,0,x)) %>%
-select(-Blank) %>%
+dplyr::select(-Blank) %>%
 gather("Replicate","OD420",-Hours,-Time) %>%
 mutate(Name='REL606') %>%
 mutate(log.OD420=log(OD420)) %>%
@@ -475,7 +473,7 @@ calc.growth.rates <- function(final.growth.df) {
       ## find max growth rate for glucose or citrate data.
       
       if (is.null(subdata)) return(NA)
-      rel.subdata <- select(subdata,c('log.OD420','Hours')) %>%
+      rel.subdata <- dplyr::select(subdata,c('log.OD420','Hours')) %>%
       ##Remove rows that contain nans
       drop_na()
       
@@ -771,13 +769,13 @@ reshape.growth.curve.fits <- function(growth.curve.fits) {
                                   Experiment=='DM0-growth') %>%
                                   mutate(DM0.r = r) %>%
                                   mutate(DM0.t_mid = t_mid) %>%
-                                  select(-r,-t_mid,-Experiment)
+                                  dplyr::select(-r,-t_mid,-Experiment)
 
   DM25.growth.curve.fits <- filter(growth.curve.fits,
                                    Experiment=='DM25-growth') %>%
                                    mutate(DM25.r = r) %>%
                                    mutate(DM25.t_mid = t_mid) %>%
-                                   select(-r,-t_mid,-Experiment)
+                                   dplyr::select(-r,-t_mid,-Experiment)
 
   reshaped.growth.curve.fits <- full_join(DM0.growth.curve.fits,
                                           DM25.growth.curve.fits)
@@ -789,13 +787,13 @@ reshape.my.growth.df <- function(growth) {
   DM0.growth <- filter(growth, Experiment=='DM0-growth') %>%
   mutate(DM0.r.citrate=r.citrate) %>%
   mutate(DM0.t.lag=t.lag) %>%
-  select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+  dplyr::select(-r.glucose,-r.citrate,-t.lag,-Experiment)
 
   DM25.growth <- filter(growth, Experiment=='DM25-growth') %>%
   mutate(DM25.r.citrate=r.citrate) %>%
   mutate(DM25.r.glucose=r.glucose) %>%
   mutate(DM25.t.lag=t.lag) %>%
-  select(-r.glucose,-r.citrate,-t.lag,-Experiment)
+  dplyr::select(-r.glucose,-r.citrate,-t.lag,-Experiment)
 
   reshaped.growth <- full_join(DM0.growth, DM25.growth)
   return(reshaped.growth)
@@ -1020,7 +1018,7 @@ plot.growthcurver.parameters <- function(growth, plot.CIs=TRUE) {
 plot.parameter.log.ratios <- function (plot.df, confints.df, recode.param.func) {
 
   plot.df2 <- recode.param.func(plot.df) %>%
-  select(SampleType, Generation, ParentClone, Founder, Environment,
+  dplyr::select(SampleType, Generation, ParentClone, Founder, Environment,
          Dataset, Name, Parameter, Estimate) %>% drop_na()
 
   confints.df2 <- recode.param.func(confints.df) %>% drop_na()
@@ -1619,7 +1617,7 @@ save_plot(CFU.outf, CFU.Fig,base_height=5,base_width=9)
 
 PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              ltee.matrix.file, ltee.50k.labels.file,
-                             matrix.outfile, co.occurrence.outfile) {
+                             matrix.outfile, co.occurrence.outfile, pop.clone.labels) {
 
   raw.matrix <- read.csv(raw.matrix.file, stringsAsFactors=FALSE)
 
@@ -1636,11 +1634,11 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
   #' and merge with the mutation matrix.
   #' remove columns that contain any NA values (ZDBp875)
   merged.with.amps.matrix <- full_join(raw.matrix,amp.matrix) %>%
-  select_if(not_any_na)
+  dplyr::select_if(not_any_na)
 
   DM0.DM25.matrix.data <- gather(merged.with.amps.matrix,"Name","mutation.count",2:ncol(merged.with.amps.matrix)) %>%
   left_join(pop.clone.labels) %>%
-  select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
+  dplyr::select(Gene,Name,mutation.count,Environment,PopulationLabel) %>%
   group_by(Gene) %>% filter(sum(mutation.count)>1)
 
   #' print out a table of parallelism across the DM0 and DM25 treatments.
@@ -1668,7 +1666,7 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
   ## keep non-mutators and the Ara-3 50K clone.
   non.mutators.and.ara.minus.3 <- ltee.data %>%
   filter(Hypermutator == 0 | PopulationLabel == 'Ara-3') %>%
-  select(-Hypermutator)
+  dplyr::select(-Hypermutator)
 
   ## Now join LTEE data to the DM0 and DM25 Cit+ data.
   ## Give the Ara-3 LTEE clone a special label.
@@ -1676,45 +1674,11 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
   bind_rows(non.mutators.and.ara.minus.3) %>%
   mutate(Name=ifelse(Name=='REL11364','Ara-3: REL11364',Name))
 
-  ## For the figure, we want to sort the genes by a
-  ## hierarchical clustering. So convert to a matrix data structure,
-  ## do the clustering, and use that ordering for the figure.
-
-  ## Only use the DM0 and DM25 data for this step.
-
-  ## note R's strange behavior when casting factors to numbers: have to
-  ## change to character first!
-  mat.data <- DM0.DM25.matrix.data %>%
-  select(-PopulationLabel,-Environment) %>%
-  mutate(mutation.count=as.numeric(as.character(mutation.count)))
-
-  ## turn these data into a matrix of class "dbCMatrix".
-  mut.matrix <- cast_sparse(mat.data,Gene,Name,mutation.count)
-
-  ## convert to regular R matrix class
-  MxG.matrix <- as.matrix(mut.matrix)
-  ## write out to file for analysis in jupyter notebook
-  ## or using the clustergrammer web app:
-  ## http://amp.pharm.mssm.edu/clustergrammer/
-  write.csv(MxG.matrix,file="../results/MxG_matrix.csv")
-  write.table(MxG.matrix,file="../results/MxG_matrix.tsv",sep="\t",quote=FALSE)
-
-  ##and take transpose to turn matrix to Genome x Mutation.
-  GxM.matrix <- as.matrix(t(mut.matrix))
-  ## write out to file for analysis in jupyter notebook.
-  write.csv(GxM.matrix,file="../results/GxM_matrix.csv")
-  write.table(GxM.matrix,file="../results/GxM_matrix.tsv",sep="\t")
-
-  ## follow this post to use correlation as a distance.
-  ## https://stats.stackexchange.com/questions/165194/using-correlation-as-distance-metric-for-hierarchical-clustering
-  MxM.scaled.cor.matrix <- cor(scale(GxM.matrix))
-
-  MxM.heatmap <- heatmap(MxM.scaled.cor.matrix)
-  ## get the gene order from the heatmap,
-  sorted.genes <- sapply(MxM.heatmap$rowInd,function(i) rownames(MxM.scaled.cor.matrix)[i])
-  ## and use this gene ordering for the mutation matrix figure.
-  matrix.data$Gene <- factor(matrix.data$Gene,levels=sorted.genes)
-
+  ## sort genes by number of mutations in each row.
+  gene.hit.sort <- group_by(matrix.data,Gene) %>% summarize(hits=sum(mutation.count)) %>%
+  arrange(desc(hits))
+  matrix.data$Gene <- factor(matrix.data$Gene,levels=rev(gene.hit.sort$Gene))
+  
   ## cast mutation.count into a factor for plotting.
   matrix.data$mutation.count <- factor(matrix.data$mutation.count)
   
@@ -1754,35 +1718,7 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              align = 'vh')
                              
   ggsave(matrix.figure, file=matrix.outfile,width=10,height=10)
-  
-  ## make a mutation co-occurrence matrix.
-  ## nice to have, but I don't see anything interesting.
 
-  MxG.presence <- MxG.matrix
-  MxG.presence[MxG.presence > 1] <- 1
-  M.co.occurrence <- MxG.presence %*% t(MxG.presence)
-  M.co.occurrence.heatmap <- heatmap(M.co.occurrence)
-
-  ## get the gene order from the heatmap.
-  M.co.occurrence.sorted.genes <- sapply(M.co.occurrence.heatmap$rowInd,function(i) rownames(M.co.occurrence)[i])
-
-  M.co.occurrence.df <- data.frame(row=rownames(M.co.occurrence)[row(M.co.occurrence)],
-                                   col=colnames(M.co.occurrence)[col(M.co.occurrence)],
-                                   co.occurrence=c(as.factor(M.co.occurrence)),stringsAsFactors=FALSE)
-
-  M.co.occurrence.df$row <- factor(M.co.occurrence.df$row,levels=M.co.occurrence.sorted.genes)
-  M.co.occurrence.df$col <- factor(M.co.occurrence.df$col,levels=M.co.occurrence.sorted.genes)
-
-  ## plot the co-occurrence matrix.
-  M.co.occurrence.plot <- ggplot(M.co.occurrence.df,aes(row,col,fill=co.occurrence)) +
-  geom_tile(color='White') +
-  scale_fill_viridis(option="magma",direction=-1) +
-  theme(axis.text.x = element_text(angle=90,vjust=-0.1)) +
-  guides(fill=FALSE)
-  M.co.occurrence.plot
-
-  ggsave(co.occurrence.outfile,
-         M.co.occurrence.plot,width=12,height=12)
 }
 
 ##### Now run this function!
@@ -1803,8 +1739,8 @@ dN.matrix.outf <- "../results/figures/dN_mut_matrix.pdf"
 co.occurrence.outf <- file.path(proj.dir,"results/figures/co_occurrence.pdf")
 dN.co.occurrence.outf <- file.path(proj.dir,"results/figures/dN_co_occurrence.pdf")
 
-PlotMatrixFigure(raw.matrix.f, amp.matrix.f, ltee.matrix.f, ltee.50k.labels.f, matrix.outf,co.occurrence.outf)
-PlotMatrixFigure(dN.raw.matrix.f, amp.matrix.f, dN.ltee.matrix.f, ltee.50k.labels.f, dN.matrix.outf,dN.co.occurrence.outf)
+PlotMatrixFigure(raw.matrix.f, amp.matrix.f, ltee.matrix.f, ltee.50k.labels.f, matrix.outf,co.occurrence.outf, pop.clone.labels)
+PlotMatrixFigure(dN.raw.matrix.f, amp.matrix.f, dN.ltee.matrix.f, ltee.50k.labels.f, dN.matrix.outf,dN.co.occurrence.outf, pop.clone.labels)
 
 ################################################################################
 ## analysis of parallel evolution at the same nucleotide.
@@ -1955,7 +1891,7 @@ save_plot(Fig7outf,Fig7,base_height=7,base_aspect_ratio=0.8)
 ## filter out mutations in clones on the same lineage
 ## by removing duplicates within the same population.
 LTEE.MAE.IS150.hit.pos <- LTEE.MAE.IS.insertions %>%
-select(-Clone) %>% distinct() %>%
+dplyr::select(-Clone) %>% distinct() %>%
 group_by(Position,GenePosition) %>%
 summarize(count=n()) %>% ungroup() %>%
 arrange(desc(count))
@@ -1964,7 +1900,7 @@ arrange(desc(count))
 ## by removing duplicates within the same population.
 DM0.DM25.IS150.hit.pos <- IS.insertions %>%
 filter(IS_element == 'IS150') %>% mutate(Position=genome_start) %>%
-select(Position,Environment,Population,GeneName,GenePosition) %>%
+dplyr::select(Position,Environment,Population,GeneName,GenePosition) %>%
 distinct() %>%
 group_by(Position,GenePosition) %>%
 summarize(count=n()) %>% ungroup() %>%
@@ -1979,15 +1915,15 @@ length(DM0.DM25.IS150.hit.pos$GenePosition)
 
 ## make an empirical mass function over GenePosition.
 total.hit.pos <- rbind(
-  select(DM0.DM25.IS150.hit.pos,-Position),
-  select(LTEE.MAE.IS150.hit.pos,-Position)) %>%
+  dplyr::select(DM0.DM25.IS150.hit.pos,-Position),
+  dplyr::select(LTEE.MAE.IS150.hit.pos,-Position)) %>%
 group_by(GenePosition) %>% summarize(count2 = sum(count)) %>%
 arrange(desc(count2)) %>% mutate(prob=count2/sum(count2)) %>%
 mutate(eCDF=cumsum(prob))
 
 ## number of draws for each simulation = IS150 in DM0.
 DM0.IS150 <- IS.insertions %>% filter(IS_element == 'IS150',Environment=='DM0') %>%
-select(-Clone) %>% distinct()
+dplyr::select(-Clone) %>% distinct()
 draws <- nrow(DM0.IS150)
 
 null.parallel.hits <- function(total.hit.pos,empirical.parallel=9,replicates=10000) {

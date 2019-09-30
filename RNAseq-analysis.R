@@ -27,6 +27,9 @@ metadata <- read.csv(
 metadata <- metadata %>%
     mutate(path = file.path(proj.dir,"results","RNAseq-analysis",sample,"abundance.h5"))
 
+## CRITICAL BUG TO FIX: HORRIBLE PARSING PROBLEMS WITH STRINGS IN
+## transcript.df. TOP PRIORITY TO FIX!!!
+
 make.transcript.table <- function(s) {
   
   data <- read.table(
@@ -34,9 +37,12 @@ make.transcript.table <- function(s) {
     header=TRUE, sep="\t", stringsAsFactors=FALSE) %>%
       select(target_id, tpm) %>%
           mutate(temp = target_id) %>%
-            extract(temp,
-                    c("locus_tag", "gene", "note"),
-                    regex=".+=(.+)\\|.+=(.+)\\|.+=(.+)") %>%
+          extract(temp,
+                  c("locus_tag", "gene"),
+                    ##c("locus_tag", "gene", "note"),
+                    ##regex=".+=(.+)\\|.+=(.+)\\|.+=(.+)") %>%
+                  ##regex="locus_tag=(.+)\\|gene=(.+)\\|Note=(.+)") %>%
+                  regex="^locus_tag=(.+)\\|gene=(.+)\\|") %>%
                       rename(!! s := tpm)
   return(data)
 }
@@ -46,30 +52,18 @@ transcript.df <- map(metadata$sample, make.transcript.table) %>%
   reduce(left_join) %>%
   gather(key='Sample',
          value='tpm',
-         -target_id, -locus_tag, -gene, -note) %>%
-  separate(Sample, c('Clone','Run'))
-
-total.run.transcripts.df <- transcript.df %>%
-  group_by(Clone, Run) %>%
-  summarize(total.run.transcripts=sum(tpm,na.rm=TRUE))
-
-total.clone.transcripts.df <- total.run.transcripts.df %>%
-  summarize(total.transcripts=sum(total.run.transcripts))
-
-total.run.transcripts.df %<>% left_join(total.clone.transcripts.df) %>%
-  mutate(weights = total.run.transcripts/total.transcripts)
-
-## weigh the mean by the number of transcripts in each transcriptome.
-mean.transcript.df <- transcript.df %>%
-  left_join(total.run.transcripts.df) %>%
-  group_by(target_id, locus_tag, gene, note, Clone) %>%
-  summarize(mean_tpm=weighted.mean(tpm,weights,na.rm=TRUE)) %>%
-  ungroup()
+         -target_id, -locus_tag, -gene) ##%>%
+         ##-target_id, -locus_tag, -gene, -note) %>%
+  ##separate(Sample, c('Clone','Run'))
 
 ## get gene annotation from the kallisto output (target_id already has annotation).
 my.annotation <- transcript.df %>%
   select(target_id,locus_tag, gene, note) %>%
   distinct()
+
+## for debugging, write my.annotation to file.
+write.csv(transcript.df,file='/Users/Rohandinho/Desktop/transcript_df.csv')
+write.csv(my.annotation,file="/Users/Rohandinho/Desktop/annotation.csv")
 
 so <- sleuth_prep(metadata, target_mapping = my.annotation,
                   extra_bootstrap_summary = TRUE) %>%
@@ -84,69 +78,33 @@ lrt.results <- sleuth_results(so, 'reduced:full', 'lrt', show_all = TRUE) %>%
 wt.results <- sleuth_results(so,'TreatmentEvolved') %>%
     filter(qval < 0.05) %>% distinct()
 
-sleuth_live(so)
+##sleuth_live(so)
 
-## NOTE: I am uncertain whether the following results are
-## correct or not. Am I calculating average counts properly??
-## check out apparent variability in fadB..
-## seems like my calculations are way too naive.
-## Hold off on reporting for now, and stick to the sleuth results.
+## use this function to plot heatmap.
+## plot_transcript_heatmap
+## see documentation at:
+## https://www.rdocumentation.org/packages/sleuth/versions/0.30.0/topics/plot_transcript_heatmap
 
-## make a heatmap with clustergrammer.
-## filter on RNAs differently expressed between
-## ancestors and evolved clones.
-clustergrammer.df <- mean.transcript.df %>%
-  filter(target_id %in% results.table$target_id) %>%
-  mutate(locus = str_c(locus_tag,gene,sep='-')) %>%
-  select(-target_id,-locus_tag,-gene,-note) %>%
-  drop_na() %>%
-  spread(Clone, mean_count) %>%
-  column_to_rownames('locus')
+## see general documentation at:
+## https://www.rdocumentation.org/packages/sleuth/versions/0.30.0/
 
-## log ratio of evolved with CZB151.
-clustergrammer.df2 <- mean.transcript.df %>%
-  filter(target_id %in% results.table$target_id) %>%
-  mutate(locus = str_c(locus_tag,gene,sep='-')) %>%
-  select(-target_id,-locus_tag,-gene,-note) %>%
-  spread(Clone, mean_count) %>%
-  mutate(ZDBp889 = log2(ZDBp889/CZB151)) %>%
-  mutate(ZDBp883 = log2(ZDBp883/CZB151)) %>%
-  mutate(ZDBp877 = log2(ZDBp877/CZB151)) %>%
-  select(-CZB151, -CZB152) %>%
-  filter(is.finite(ZDBp889)) %>%
-  filter(is.finite(ZDBp883)) %>%
-  filter(is.finite(ZDBp877)) %>%
-  drop_na() %>%
-  column_to_rownames('locus')
-  
-## NOTE: add a tab to first row by hand, then save as "tab_clustergrammer.tsv"
-## so that not overwritten.
-write.table(clustergrammer.df,
-            file.path(proj.dir, "results", "sleuth-results", "clustergrammer.tsv"),
-            sep='\t', quote= FALSE)
+## vector of genes that are discussed in the text.
 
-write.table(clustergrammer.df2,
-            file.path(proj.dir, "results", "sleuth-results", "clustergrammer2.tsv"),
-            sep='\t', quote= FALSE)
+all.genes <- sort(my.annotation$gene)
 
-clustergrammer.df3 <- mean.transcript.df %>%
-  filter(target_id %in% results.table$target_id) %>%
-  mutate(locus = str_c(locus_tag,gene,sep='-')) %>%
-  select(-target_id,-locus_tag,-gene,-note) %>%
-  spread(Clone, mean_count) %>%
-  mutate(ZDBp889 = log2(ZDBp889/CZB151)) %>%
-  mutate(ZDBp883 = log2(ZDBp883/CZB151)) %>%
-  mutate(ZDBp877 = log2(ZDBp877/CZB151)) %>%
-  select(-CZB151, -CZB152) %>%
-  filter(is.finite(ZDBp889)) %>%
-  filter(is.finite(ZDBp883)) %>%
-  filter(is.finite(ZDBp877)) %>%
-  drop_na() %>%
+##discussed.genes <- c('fadA', 'fadB', 'fadH', 'fadR',
+##                     'cyoE', 'cyoD','cyoC', 'cyoB', 'cyoA',
+##                     'yhiO',
+##                     'rpsB')
 
-  filter( ((ZDBp877 > 0) & ((ZDBp883 < 0) | (ZDBp889 < 0))) |
-         ((ZDBp877 < 0) & ((ZDBp883 > 0) | (ZDBp889 > 0)))
-         )
-
-## ycfR anticorrelates with a lot of genes: rpoB, rps, rpl genes.
-## this is a stress response gene that affects outer membrane.
-## ycdQ anticorrelates with aceB, pheA, murF, lpdA.
+results.matrix <- sleuth_to_matrix(so, "obs_norm", "tpm")
+## change the row names of this matrix for better plotting.
+## first turn into a dataframe, 
+results.matrix.2 <- data.frame(results.matrix) %>%
+rownames_to_column(var = 'target_id') %>%
+left_join(my.annotation) %>%
+## then filter on genes that are discussed in the text,
+####filter(gene %in% discussed.genes) %>%
+## and convert back into matrix to plot a heatmap.
+####select(-target_id, -locus_tag, -note) %>%
+####column_to_rownames(var = 'gene')

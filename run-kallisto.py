@@ -44,13 +44,18 @@ def generateORF_fasta(ref_file,outf):
             except KeyError:
                 print('warning: note missing')
                 
-            outfh.write(">locus_tag=%s|gene=%s|Note=%s|Location=%s\n%s\n" % (
+            outfh.write(">locus_tag=%s|gene=%s\n%s\n" % (
                 locus_tag,
                 gene,
-                note,
-                location,
                 ORF_seq
             ))
+            ##outfh.write(">locus_tag=%s|gene=%s|Note=%s|Location=%s\n%s\n" % (
+            ##    locus_tag,
+            ##    gene,
+            ##    note,
+            ##    location,
+            ##    ORF_seq
+            ##))
 
 def generate_kallisto_quant_cmds(RNAseqdir,samples_f,outdir):
     cmd_strings = []    
@@ -73,7 +78,7 @@ def generate_kallisto_quant_cmds(RNAseqdir,samples_f,outdir):
             
 def main():
     homedir = expanduser("~")
-    projdir = join(homedir,"BoxSync/DM0-evolution")
+    projdir = join(homedir,"BoxSync/active-projects/DM0-evolution")
     RNAseq_analysis_dir = join(projdir,"results/RNAseq-analysis")
 
     if not exists(RNAseq_analysis_dir):
@@ -89,6 +94,15 @@ def main():
     raw_RNAseq_dir = join(projdir,"Kenyon-RNAseq")
     RNAseq_samples_f = join(projdir,"data/rohan-formatted/Kenyon-RNAseq-samples.csv")
 
+    ## run kallisto index.
+    fasta_input = join(projdir, 'results/RNAseq-analysis/LCA_ORFs.fasta')
+    idx_output = join(projdir, 'results/RNAseq-analysis/LCA_ORFs.idx')
+
+    index_cmd = ' '.join(['kallisto index --make-unique -i', idx_output, fasta_input])
+    ## only run if the index doesn't exist.
+    if not exists(idx_output):
+        subprocess.run(index_cmd,shell=True,executable='/bin/bash')
+    
     quant_cmds = generate_kallisto_quant_cmds(raw_RNAseq_dir,RNAseq_samples_f, RNAseq_analysis_dir)
 
     for qcmd in quant_cmds:
