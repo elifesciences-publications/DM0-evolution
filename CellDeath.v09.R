@@ -1,11 +1,9 @@
 ## Authors: Nkrumah Grant and Rohan Maddamsetti
 ## Michigan State University 
-## 2019-06-25 
-## The following script was used to analyze cell death for the manuscript titled
-## "Genome instability and evolved cell death during adaptation to of Escherichia coli to a citrate-only
-## resource environment
-## from the DM0 evolution project. 
-## https://www.datacamp.com/community/tutorials/pca-analysis-r #Tutorial for PCA
+## 2019-10-11 
+## The following script was used to analyze cell death for the paper
+## "Genomic and phenotypic evolution of Escherichia coli to a citrate-only
+## resource environment".
 
 ##Load libraries
 library(boot)
@@ -56,7 +54,7 @@ home.dir <- path.expand("~")
 proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
 
 ## Load data 
-setwd(file.path(proj.dir, "MicroscopyData_DM0_project/"))
+setwd(file.path(proj.dir, "Nkrumah_MicroscopyData_DM0_project/"))
 
 ## Here I create a list of all .txt files as produced by segger output.
 seg.dat <- list.files(pattern = "*.txt")

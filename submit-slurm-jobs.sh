@@ -1,23 +1,23 @@
 #!/bin/bash
 ## This script should be run in the DM0 folder on Turing.
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB151_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB151_R2.fastq.gz -o consensus/CZB151"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB151_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB151_R2.fastq.gz -o polymorphism/CZB151"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB151_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB151_R2.fastq.gz -o consensus/CZB151"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB151_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB151_R2.fastq.gz -o polymorphism/CZB151"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB152_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB152_R2.fastq.gz sequence-data/CZB152_combined_reads.fastq -o consensus/CZB152"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB152_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB152_R2.fastq.gz sequence-data/CZB152_combined_reads.fastq -o polymorphism/CZB152"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB152_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB152_R2.fastq.gz sequence-data/CZB152_combined_reads.fastq -o consensus/CZB152"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB152_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB152_R2.fastq.gz sequence-data/CZB152_combined_reads.fastq -o polymorphism/CZB152"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB154_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB154_R2.fastq.gz sequence-data/CZB154_reads.fastq -o consensus/CZB154"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB154_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/CZB154_R2.fastq.gz sequence-data/CZB154_reads.fastq -o polymorphism/CZB154"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB154_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB154_R2.fastq.gz sequence-data/CZB154_reads.fastq -o consensus/CZB154"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB154_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB154_R2.fastq.gz sequence-data/CZB154_reads.fastq -o polymorphism/CZB154"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB67_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB67_R2.fastq.gz -o consensus/ZDB67"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB67_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB67_R2.fastq.gz -o polymorphism/ZDB67"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDB67_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDB67_R2.fastq.gz -o consensus/ZDB67"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDB67_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDB67_R2.fastq.gz -o polymorphism/ZDB67"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB68_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB68_R2.fastq.gz -o consensus/ZDB68"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB68_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB68_R2.fastq.gz -o polymorphism/ZDB68"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDB68_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDB68_R2.fastq.gz -o consensus/ZDB68"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDB68_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDB68_R2.fastq.gz -o polymorphism/ZDB68"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB69_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB69_R2.fastq.gz -o consensus/ZDB69"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB69_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDB69_R2.fastq.gz -o polymorphism/ZDB69"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDB69_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDB69_R2.fastq.gz -o consensus/ZDB69"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDB69_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDB69_R2.fastq.gz -o polymorphism/ZDB69"
 
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/ZDBp871_combined_reads.fastq -o consensus/ZDBp871"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/ZDBp871_combined_reads.fastq -o polymorphism/ZDBp871"
@@ -25,29 +25,29 @@ sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/ZDBp874_combined_reads.fastq -o consensus/ZDBp874"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/ZDBp874_combined_reads.fastq -o polymorphism/ZDBp874"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp875_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp875_R2.fastq.gz -o consensus/ZDBp875"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp875_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp875_R2.fastq.gz -o polymorphism/ZDBp875"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp875_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp875_R2.fastq.gz -o consensus/ZDBp875"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp875_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp875_R2.fastq.gz -o polymorphism/ZDBp875"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp877_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp877_R2.fastq.gz sequence-data/ZDBp877.solexa.fastq -o consensus/ZDBp877"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp877_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp877_R2.fastq.gz sequence-data/ZDBp877.solexa.fastq -o polymorphism/ZDBp877"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp877_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp877_R2.fastq.gz sequence-data/ZDBp877.solexa.fastq -o consensus/ZDBp877"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp877_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp877_R2.fastq.gz sequence-data/ZDBp877.solexa.fastq -o polymorphism/ZDBp877"
 
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/ZDBp880_combined_reads.fastq -o consensus/ZDBp880"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/ZDBp880_combined_reads.fastq -o polymorphism/ZDBp880"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp883_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp883_R2.fastq.gz sequence-data/ZDBp883_combined_reads.fastq -o consensus/ZDBp883"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp883_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp883_R2.fastq.gz sequence-data/ZDBp883_combined_reads.fastq -o polymorphism/ZDBp883"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp883_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp883_R2.fastq.gz sequence-data/ZDBp883_combined_reads.fastq -o consensus/ZDBp883"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp883_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp883_R2.fastq.gz sequence-data/ZDBp883_combined_reads.fastq -o polymorphism/ZDBp883"
 
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/ZDBp886_combined_reads.fastq -o consensus/ZDBp886"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/ZDBp886_combined_reads.fastq -o polymorphism/ZDBp886"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp889_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp889_R2.fastq.gz sequence-data/ZDBp889_reads.fastq -o consensus/ZDBp889"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp889_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp889_R2.fastq.gz sequence-data/ZDBp889_reads.fastq -o polymorphism/ZDBp889"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp889_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp889_R2.fastq.gz sequence-data/ZDBp889_reads.fastq -o consensus/ZDBp889"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp889_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp889_R2.fastq.gz sequence-data/ZDBp889_reads.fastq -o polymorphism/ZDBp889"
 
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/ZDBp892_combined_reads.fastq -o consensus/ZDBp892"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/ZDBp892_combined_reads.fastq -o polymorphism/ZDBp892"
 
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp895_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp895_R2.fastq.gz sequence-data/ZDBp895_reads.fastq  -o consensus/ZDBp895"
-sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp895_R1.fastq.gz sequence-data/DM0\ evolved\ re-runs\ \(Rohan\)/ZDBp895_R2.fastq.gz sequence-data/ZDBp895_reads.fastq  -o polymorphism/ZDBp895"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp895_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp895_R2.fastq.gz sequence-data/ZDBp895_reads.fastq  -o consensus/ZDBp895"
+sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/ZDBp895_R1.fastq.gz sequence-data/DM0-evolved-reruns/ZDBp895_R2.fastq.gz sequence-data/ZDBp895_reads.fastq  -o polymorphism/ZDBp895"
 
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/ZDBp898_combined_reads.fastq -o consensus/ZDBp898"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/ZDBp898_combined_reads.fastq -o polymorphism/ZDBp898"

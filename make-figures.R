@@ -1509,7 +1509,7 @@ save_plot(S14Fig.outf, S14Fig, base_height=8, base_width=12)
 
 PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              ltee.matrix.file, ltee.50k.labels.file,
-                             matrix.outfile, co.occurrence.outfile, pop.clone.labels) {
+                             matrix.outfile, pop.clone.labels) {
 
   raw.matrix <- read.csv(raw.matrix.file, stringsAsFactors=FALSE)
 
@@ -1610,7 +1610,6 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              align = 'vh')
                              
   ggsave(matrix.figure, file=matrix.outfile,width=10,height=10)
-
 }
 
 ##### Now run this function!
@@ -1628,11 +1627,9 @@ dN.ltee.matrix.f <- file.path(proj.dir,"results/dN-LTEE-mut_matrix.csv")
 ltee.50k.labels.f <- file.path(proj.dir, "data/rohan-formatted/LTEE-50K-clones.csv")
 matrix.outf <- "../results/figures/mut_matrix.pdf"
 dN.matrix.outf <- "../results/figures/dN_mut_matrix.pdf"
-co.occurrence.outf <- file.path(proj.dir,"results/figures/co_occurrence.pdf")
-dN.co.occurrence.outf <- file.path(proj.dir,"results/figures/dN_co_occurrence.pdf")
 
-PlotMatrixFigure(raw.matrix.f, amp.matrix.f, ltee.matrix.f, ltee.50k.labels.f, matrix.outf,co.occurrence.outf, pop.clone.labels)
-PlotMatrixFigure(dN.raw.matrix.f, amp.matrix.f, dN.ltee.matrix.f, ltee.50k.labels.f, dN.matrix.outf,dN.co.occurrence.outf, pop.clone.labels)
+PlotMatrixFigure(raw.matrix.f, amp.matrix.f, ltee.matrix.f, ltee.50k.labels.f, matrix.outf, pop.clone.labels)
+PlotMatrixFigure(dN.raw.matrix.f, amp.matrix.f, dN.ltee.matrix.f, ltee.50k.labels.f, dN.matrix.outf, pop.clone.labels)
 
 ################################################################################
 ## analysis of parallel evolution at the same nucleotide.
