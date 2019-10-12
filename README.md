@@ -1,13 +1,9 @@
 # README by Rohan Maddamsetti (rmaddams _AT_ ODU _DOT_ edu)
-# Last edited on 10/11/2019.
+### Last edited on 10/12/2019.
 
-IMPORTANT CAVEAT: the code here was written and tested on a Mac running Mac OS 10.13, and genomes
-                  were resequenced using breseq on a cluster running Linux. My code is provided
-		  as is, and may not as portable as hoped to untested environments such
-		  as Windows. You may have to lightly edit source files to get them working on your machine.
+IMPORTANT CAVEAT: the code here was written and tested on a Mac running Mac OS 10.13, and genomes were resequenced using breseq on a cluster running Linux. You may have to lightly edit source files to get them working on your machine.
 
-# How to run the analyses for the manuscript 'Genomic and phenotypic evolution of
-# Escherichia coli in a citrate-only resource environment.
+# How to run the analyses for the manuscript 'Genomic and phenotypic evolution of Escherichia coli in a citrate-only resource environment.
 
 I expect that users will be running these scripts within the 'src' directory of this project.
 So, using the Terminal on Mac/Linux, run this command:
@@ -69,22 +65,19 @@ To compare genome environment across environments and calculate related statisti
 'python dice-analysis.py'
 
 dice-analysis.py controls the arguments being passed to citrate_dice.py, which does all the actual analysis and statistics.
-citrate_dice.py is a fork of Daniel Deatherage's TEE.py; see supplement to Deatherage et al. (2017) in PNAS for original source code.
+citrate_dice.py is a fork of Daniel Deatherage's TEE.py; see supplement to Deatherage et al. (2017) in PNAS for original source code.  
 
-To do the FBA analysis, run the following jupyter notebook (using a python 3 kernel):
+To do the FBA analysis, run the following jupyter notebook (using a python 3 kernel):  
 
-'jupyter notebook FBA-analysis.ipynb'.
+'jupyter notebook FBA-analysis.ipynb'.  
 
-The R analysis scripts should be run interactively in your favorite R environment.
-I use Emacs Speaks Statistics (ESS) to run R within Emacs, but you may prefer RStudio or something else.
+The R analysis scripts should be run interactively in your favorite R environment. I use Emacs Speaks Statistics (ESS) to run R within Emacs, but you may prefer RStudio or something else.  
 
 Nkrumah wrote CellDeath.v09.R to analyze his cell death experiment.
-Rohan made modifications, mainly to use bias-corrected and accelerated bootstrap confidence intervals,
-weighted by the number of cells per sample in the analyzed micrographs.
-
+Rohan made modifications, mainly to use bias-corrected and accelerated bootstrap confidence intervals, weighted by the number of cells per sample in the analyzed micrographs.  
 
 copy-number-analysis.R examines the sequencing coverage distributions output
-by breseq, and tests positions over the chromosome for significantly elevated overage indicative of copy number variation/gene amplification. Statistical tests are carried out on positions that are further apart than the maximum sequencing read length, in order to carry out independent statistical tests and reduce the number of statistical tests (by reducing the correction for multiple testing I increase statistical power).
+by breseq, and tests positions over the chromosome for significantly elevated overage indicative of copy number variation/gene amplification. Statistical tests are carried out on positions that are further apart than the maximum sequencing read length, in order to carry out independent statistical tests and reduce the number of statistical tests (by reducing the correction for multiple testing I increase statistical power).  
 
 make-figures.R depends on output from copy-number-analysis.R as well as
 dice-analysis.py (and therefore citrate_dice.py).  

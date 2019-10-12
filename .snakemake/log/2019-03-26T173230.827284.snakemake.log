@@ -1,5 +1,0 @@
-Building DAG of jobs...
-ChildIOException:
-File/directory is a child to another output:
-/Users/rmaddams/Box Sync/DM0-evolution/results/RNAseq-analysis
-/Users/rmaddams/Box Sync/DM0-evolution/results/RNAseq-analysis/LCA_ORFs.fasta
