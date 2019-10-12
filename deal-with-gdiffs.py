@@ -11,7 +11,7 @@ This script also makes table of the IS insertions in the LTEE and in the MAE,
 using the genomes in Jeff Barrick's LTEE-Ecoli GitHub repository.
 '''
 
-from os.path import join, basename, exists, isfile, expanduser, dirname
+from os.path import join, basename, exists, isfile, dirname, realpath
 from os import listdir, getcwd, makedirs, walk
 from pathlib import Path
 import pandas as pd
@@ -21,8 +21,14 @@ from pprint import pprint
 
 ## add genomediff parser to path.
 import sys
-sys.path.append("external/genomediff-python/")
+sys.path.append(join("external","genomediff-python"))
 import genomediff
+
+def quote_string(x):
+    ''' add double quotes to a string, in case it contains spaces or
+        other weirdness. This is required for system calls using the
+        shell, but not when working within python itself. '''
+    return('\"' + x + '\"')
 
 class CallGDtools:
 
@@ -31,14 +37,19 @@ class CallGDtools:
             print('ERROR: NOT IMPLEMENTED.')
             quit()
         self.calltype = calltype
-        self.outfile = outfile
-        self.infiles = infiles
+        ## add double quotes to arguments to prevent bugs caused by
+        ## spaces in pathnames.
+        self.outfile = quote_string(outfile)
+        self.infiles = [quote_string(x) for x in infiles]
         self.overwrite = overwrite
-        self.refgenome = refgenome
+        if refgenome is not None:
+            self.refgenome = quote_string(refgenome)
+        else:
+            self.refgenome = None
         self.args = ['gdtools', self.calltype, '-o', self.outfile] + self.infiles
 
         if calltype == 'ANNOTATE': ## only genomediff output format implemented.
-            self.args = ['gdtools', self.calltype, '-o', self.outfile] + ['-r', refgenome, '-f', 'GD'] + self.infiles
+            self.args = ['gdtools', self.calltype, '-o', self.outfile] + ['-r', self.refgenome, '-f', 'GD'] + self.infiles
         elif calltype == 'REMOVE':
             self.conditions = conditions
             if mut_type is not None:
@@ -58,7 +69,7 @@ class CallGDtools:
             print(self.outfile,"already exists-- not overwritten.")
             return None
         else:
-            return run(self.cmd,shell=True,executable='/bin/bash')
+            return run(self.cmd,shell=True,executable='bash')
 
     def __str__(self):
         return self.cmd
@@ -76,9 +87,9 @@ def contamination_check(pathdict, pop_clone_labels,resultsdir):
     assert set(pop_clone_labels.Name) == set([x for x in pathdict])
 
     for k in pathdict.keys():
-        child_gd = join(pathdict[k],"output/evidence/annotated.gd")
+        child_gd = join(pathdict[k],"output","evidence","annotated.gd")
         parent = pop_clone_labels[pop_clone_labels['Name']==k].ParentClone.item()
-        parent_gd = join(pathdict[parent],"output/evidence/annotated.gd")
+        parent_gd = join(pathdict[parent],"output","evidence","annotated.gd")
         assert isfile(child_gd)
         assert isfile(parent_gd)
 
@@ -114,10 +125,10 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
     grouped_evol_labels = evol_pop_clone_labels.groupby(['Name'])
     for poplabel, group_df in grouped_evol_labels:
         evolname = group_df.Name.unique().item()
-        evol_gd = join(pathdict[evolname],"output/evidence/annotated.gd")
+        evol_gd = join(pathdict[evolname],"output","evidence","annotated.gd")
         
         anc = group_df.ParentClone.unique().item()
-        anc_gd = join(pathdict[anc],"output/evidence/annotated.gd")
+        anc_gd = join(pathdict[anc],"output","evidence","annotated.gd")
         assert isfile(evol_gd)
         assert isfile(anc_gd)
         infiles = [evol_gd, anc_gd]
@@ -147,7 +158,9 @@ def subtract_ancestors_and_filter_mutations(pathdict,pop_clone_labels, resultsdi
             remove_cmd = CallGDtools('REMOVE',tempoutf,[tempf],conditions=clist)
             remove_cmd.call()
             ## remove the temporary infile.
-            run("rm "+tempf,shell=True,executable='/bin/bash')
+            ## put the infile in double quotes to deal with spaces or
+            ## other weirdness in the pathname.
+            run("rm "+ quote_string(tempf),shell=True,executable='bash')
             tempf = tempoutf
 
 def write_evolved_mutations(evol_pop_clone_labels, inputdir, outf,polymorphism=False):
@@ -283,14 +296,16 @@ def organize_diffs(analysisdir):
 
     def cp_files(comparisontype,treatment,paths):
         for x in paths:
-            if 'ZDBp874' in x:
+            if 'ZDBp874' in str(x): ## cast PosixPath to str for this cmp.
                 ## skip ZDBp874.
                 continue
             y = join(analysisdir, comparisontype, treatment, x.name)
-            my_args = ['cp',str(x),y]
+            ## add double quotes around paths to prevent bugs caused
+            ## by spaces in path names.
+            my_args = ['cp',quote_string(str(x)),quote_string(y)]
             my_cmd = ' '.join(my_args)
             makedirs(dirname(y), exist_ok=True)
-            run(my_cmd ,executable='/bin/bash',shell=True)
+            run(my_cmd ,executable='bash',shell=True)
 
     cp_files("genotype-comparison","CZB151",CZB151_paths)
     cp_files("genotype-comparison","CZB152",CZB152_paths)
@@ -348,18 +363,21 @@ def annotate_LTEE_MAE_genomes(LTEE_Ecoli_dir, outdir, refgen):
             out_f = join(outdir,f)
             annotate_cmd = CallGDtools('ANNOTATE',out_f,[full_f],refgenome=refgen)
             annotate_cmd.call()
-
-
+            
 def main():
 
-    homedir = expanduser("~")
-    projdir = join(homedir,"BoxSync/active-projects/DM0-evolution")
-    resultsdir = join(projdir,"results/genome-analysis")
-    poly_resultsdir = join(projdir,"results/genome-analysis/polymorphism")
-    breseqoutput_dir = join(projdir,"genomes/consensus")
-    poly_breseqoutput_dir = join(projdir,"genomes/polymorphism")
+    srcdir = dirname(realpath(__file__))
+    assert srcdir.endswith('src')
+    projdir = dirname(srcdir)
+    assert projdir.endswith('DM0-evolution')
 
-    pop_clone_label_f = join(projdir,"data/rohan-formatted","populations-and-clones.csv")
+    resultsdir = join(projdir,"results","genome-analysis")
+    poly_resultsdir = join(projdir,"results","genome-analysis","polymorphism")
+    breseqoutput_dir = join(projdir,"genomes","consensus")
+    poly_breseqoutput_dir = join(projdir,"genomes", "polymorphism")
+
+    pop_clone_label_f = join(projdir,"data","rohan-formatted","populations-and-clones.csv")
+    
     all_pop_clone_labels = pd.read_csv(pop_clone_label_f)
     '''only keep rows for sequenced clones.'''
     all_pop_clone_labels = all_pop_clone_labels[all_pop_clone_labels['Sequenced']==1]
@@ -405,13 +423,13 @@ def main():
 
     ''' make a table of IS elements in LCA (including REL606).'''
     LCA_table_outf = join(resultsdir,"LCA_IS_insertions.csv")
-    LCAgff = join(projdir,"genomes/curated-diffs/LCA.gff3")
+    LCAgff = join(projdir,"genomes","curated-diffs","LCA.gff3")
     make_LCA_IS_insertion_csv(evol_pop_clone_labels, resultsdir, LCA_table_outf, LCAgff)
 
     ''' run gdtools ANNOTATE on the LTEE and MAE genomes.'''
-    LTEE_MAE_dir = join(projdir,"genomes/LTEE-Ecoli")
+    LTEE_MAE_dir = join(projdir,"genomes","LTEE-Ecoli")
     annotated_LTEE_MAE_dir = join(resultsdir,"annotated-LTEE-Ecoli")
-    REL606ref = join(projdir,"genomes/REL606.7.gbk")
+    REL606ref = join(projdir,"genomes","REL606.7.gbk")
     if not exists(annotated_LTEE_MAE_dir):
         makedirs(annotated_LTEE_MAE_dir)
     annotate_LTEE_MAE_genomes(LTEE_MAE_dir,annotated_LTEE_MAE_dir,REL606ref)

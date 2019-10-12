@@ -11,7 +11,7 @@ Then write the growth curve experiment data into one table
 in the results directory. Data in this table will be used by make-figures.R.
 '''
 
-from os.path import join
+from os.path import join, dirname, realpath
 import pandas as pd
 
 def read_plate_labels(f):
@@ -56,21 +56,26 @@ def read_growth_data(f):
     return pd.DataFrame(cols)
 
 def prep_growth_data(plate_layout_file, raw_DM0_growth_file, raw_DM25_growth_file, outf):
-    proj_dir = "/Users/Rohandinho/BoxSync/active-projects/DM0-evolution/"
-    data_dir = "data/rohan-formatted/"
 
-    wellfile = join(proj_dir,data_dir, plate_layout_file)
+    srcdir = dirname(realpath(__file__))
+    assert srcdir.endswith('src')
+    projdir = dirname(srcdir)
+    assert projdir.endswith('DM0-evolution')
+    
+    data_dir = join(projdir, "data","rohan-formatted")
+
+    wellfile = join(data_dir, plate_layout_file)
     plate_labels = read_plate_labels(wellfile)
 
     if raw_DM0_growth_file is not None:
-        raw_DM0_data = join(proj_dir,data_dir, raw_DM0_growth_file)
+        raw_DM0_data = join(data_dir, raw_DM0_growth_file)
         tidy_DM0_data = read_growth_data(raw_DM0_data)
         ## label the samples using plate_labels.
         tidy_DM0_data = pd.merge(tidy_DM0_data,plate_labels,how='outer',on='Well')
         ## label by experiment.
         tidy_DM0_data['Experiment'] = pd.Series(['DM0-growth' for x in range(len(tidy_DM0_data.index))], index=tidy_DM0_data.index)
 
-    raw_DM25_data = join(proj_dir,data_dir, raw_DM25_growth_file)
+    raw_DM25_data = join(data_dir, raw_DM25_growth_file)
     tidy_DM25_data = read_growth_data(raw_DM25_data)
     ## label the samples. using plate_labels.
     tidy_DM25_data = pd.merge(tidy_DM25_data,plate_labels,how='outer',on='Well')
@@ -84,7 +89,7 @@ def prep_growth_data(plate_layout_file, raw_DM0_growth_file, raw_DM25_growth_fil
         full_table = tidy_DM25_data
 
     ## now write to results directory.
-    outfile = join(proj_dir,"results/", outf)
+    outfile = join(projdir,"results", outf)
     full_table.to_csv(outfile)
 
 

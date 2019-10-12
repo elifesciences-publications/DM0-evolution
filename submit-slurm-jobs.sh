@@ -1,5 +1,6 @@
 #!/bin/bash
-## This script should be run in the DM0 folder on Turing.
+## This script should be run in the DM0 folder on Turing (or your friendly local high-performance computing cluster).
+## This script uses the slurm job scheduler. Edit throughout if your HPC uses something other than slurm to schedule jobs on the cluster.
 
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB151_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB151_R2.fastq.gz -o consensus/CZB151"
 sbatch -p main -t 24:00:00 --mem=12G --wrap="breseq -p -r LCA.gff3 sequence-data/DM0-evolved-reruns/CZB151_R1.fastq.gz sequence-data/DM0-evolved-reruns/CZB151_R2.fastq.gz -o polymorphism/CZB151"

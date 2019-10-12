@@ -60,20 +60,22 @@ calc.bootstrap.conf.int <- function(vec) {
 ## colorblind-friendly palette.
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
-home.dir <- path.expand("~")
-proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
+## assert that we are in the src directory, such that
+## projdir is the parent of the current directory.
+stopifnot(endsWith(getwd(), file.path("DM0-evolution","src")))
+projdir <- file.path("..")
 
 ## For the sake of clarity in exposition, omit the oddball Cit- ZDBp874 clone from
 ## the analyses. Do keep its growth curve in the supplement, as it was used to calibrate
 ## those analyses, but omit it from the calculations in the main figures.
 
 pop.clone.labels <- read.csv(
-  file.path(proj.dir,
+  file.path(projdir,
             "data/rohan-formatted/populations-and-clones.csv"),
   stringsAsFactors=FALSE)
 
 evolved.mutations <- read.csv(
-  file.path(proj.dir,
+  file.path(projdir,
             "results/genome-analysis/evolved_mutations.csv"),
   stringsAsFactors=FALSE) %>%
 mutate(Mutation=as.factor(Mutation)) %>%
@@ -122,7 +124,7 @@ mous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
 Table3 <- filter(evolved.mutations, Position %in% non.MOB.parallel$Position) %>% arrange(Position)
 
 ltee.mutations <- read.csv(
-  file.path(proj.dir,
+  file.path(projdir,
             "data/rohan-formatted/nature18959-s4.csv"),
   stringsAsFactors=FALSE
   )
@@ -131,7 +133,7 @@ ltee.mutations <- read.csv(
 ## dctA amplification anti-correlates with the promoter mutation.
 ## Note that the dctA promoter mutation is in CZB151 and CZB154.
 
-dctA.AMPs <- read.csv(file.path(proj.dir,"results/amplified_genes.csv"),
+dctA.AMPs <- read.csv(file.path(projdir,"results/amplified_genes.csv"),
                       stringsAsFactors=FALSE) %>%
 filter(gene=='dctA') %>% dplyr::select(Genome) %>% distinct() %>%
 transmute(Name=Genome) %>% left_join(pop.clone.labels)
@@ -265,7 +267,7 @@ ggsave(fig2, file=fig2.output,width=7,height=7)
 ## This file indicates that this is 96 hour data, but appears to go
 ## for 166 hours (one week)??
 REL606.DM25.growth.data <- read.csv(
-  file.path(proj.dir, "data/rohan-formatted/REL606-DM25-96-hours.csv"),
+  file.path(projdir, "data/rohan-formatted/REL606-DM25-96-hours.csv"),
   stringsAsFactors=FALSE) %>%
 mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
 rowwise() %>%
@@ -328,7 +330,7 @@ log.REL606.plot <- plot.REL606.DM25.growth(filter(REL606.DM25.growth.data,Hours<
 
 S2Fig <- plot_grid(REL606.plot,log.REL606.plot,labels=c('A','B'),ncol=1)
 
-save_plot(file.path(proj.dir,"results/figures/S2Fig.pdf"),S2Fig,base_height=4,base_width=3)
+save_plot(file.path(projdir,"results/figures/S2Fig.pdf"),S2Fig,base_height=4,base_width=3)
 
 ########################################
 prep.growth.df <- function(growth.df) {
@@ -1074,21 +1076,21 @@ plot.growthcurver.parameter.log.ratios <- function (plot.df, confints.df) {
 ## Load the growth data from the plate reader.
 ## DM0-evolved population data.
 DM0.pop.growth.data <- read.csv(
-  file.path(proj.dir,"results/DM0-evolved-pop-growth.csv"),
+  file.path(projdir,"results/DM0-evolved-pop-growth.csv"),
   stringsAsFactors=FALSE) %>%
 left_join(pop.clone.labels, by="Name") %>%
 prep.growth.df()
 
 ## DM0-evolved clone data.
 DM0.clone.growth.data <- read.csv(
-  file.path(proj.dir,"results/DM0-evolved-clone-growth.csv"),
+  file.path(projdir,"results/DM0-evolved-clone-growth.csv"),
   stringsAsFactors=FALSE) %>%
 left_join(pop.clone.labels, by="Name") %>%
 prep.growth.df()
 
 ## DM25-evolved clone data (only have growth in DM25).
 DM25.clone.growth.data <- read.csv(
-  file.path(proj.dir, "results/DM25-evolved-clone-growth.csv"),
+  file.path(projdir, "results/DM25-evolved-clone-growth.csv"),
   stringsAsFactors=FALSE) %>%
 left_join(pop.clone.labels, by="Name") %>%
 prep.growth.df()
@@ -1144,29 +1146,29 @@ ZDBp892.plot <- plot.single.growthcurve(ZDBp892.df,'ZDBp892','CZB151', logscale=
 
 ## S3 Fig: Plot growth curves for DM0-evolved clones.
 S3Fig.plot <- plot.growthcurve.figure(filter(DM0.clone.growth.data,Hours<=24), logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height=7,base_width=11)
+save_plot(file.path(projdir,"results/figures/S3Fig.pdf"),S3Fig.plot,base_height=7,base_width=11)
 
 ## S4 Fig: growth curves for DM0-evolved clones on log-scale.
 S4Fig.plot <- plot.growthcurve.figure(DM0.clone.growth.data,logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/S4Fig.pdf"),S4Fig.plot,base_height=7,base_width=11)
+save_plot(file.path(projdir,"results/figures/S4Fig.pdf"),S4Fig.plot,base_height=7,base_width=11)
 
 ## S5 Fig: Plot growth curves for DM0-evolved populations.
 S5Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data, logscale=FALSE)
-save_plot(file.path(proj.dir,"results/figures/S5Fig.pdf"), S5Fig.plot,base_height=7,base_width=11)
+save_plot(file.path(projdir,"results/figures/S5Fig.pdf"), S5Fig.plot,base_height=7,base_width=11)
 
 ## S6 Fig: growth curves for DM0-evolved populations on log-scale.
 S6Fig.plot <- plot.growthcurve.figure(DM0.pop.growth.data,logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/S6Fig.pdf"),S6Fig.plot,base_height=7,base_width=11)
+save_plot(file.path(projdir,"results/figures/S6Fig.pdf"),S6Fig.plot,base_height=7,base_width=11)
 
 ## S7 Figure. Plot growth curves for DM25-evolved clones.
-S7Figoutf <- file.path(proj.dir,"results/figures/S7Fig.pdf")
+S7Figoutf <- file.path(projdir,"results/figures/S7Fig.pdf")
 S7Fig.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=FALSE)
 save_plot(S7Figoutf, S7Fig.plot,base_height=7,base_width=11)
 
 
 ## S8 Figure. Plot growth curves for DM25-evolved clones on a log-scale.
 S8Fig.plot <- plot.growthcurve.figure(DM25.clone.growth.data, logscale=TRUE)
-save_plot(file.path(proj.dir,"results/figures/S8Fig.pdf"), S8Fig.plot,base_height=7,base_width=11)
+save_plot(file.path(projdir,"results/figures/S8Fig.pdf"), S8Fig.plot,base_height=7,base_width=11)
 
 ## data filtering to plot data included in my growth rate estimation.
 ## This code is useful for debugging and making sure the rate estimation works right.
@@ -1185,7 +1187,7 @@ filtered.log.pop.plot <- plot.growthcurve.figure(filtered.pop.growth.data,logsca
 clone.growth <- filter(clone.growth,Name != 'ZDBp874')
 
 ## Figure 3.
-Fig3outf <- file.path(proj.dir,"results/figures/Fig3.pdf")
+Fig3outf <- file.path(projdir,"results/figures/Fig3.pdf")
 clone.growth.plot <- plot.growth.parameters(clone.growth)
 ## See what the figure looks like without CIs.
 no.CI.clone.growth.plot <- plot.growth.parameters(clone.growth, plot.CIs=FALSE)
@@ -1207,14 +1209,14 @@ Fig3 <- plot_grid(clone.growth.plot,Fig3B,labels=c('A','B'),ncol=1,
 save_plot(Fig3outf,Fig3, base_width=11, base_height=7.5)
 
 ## See what the figure looks like without CIs.
-no.CI.Fig3outf <- file.path(proj.dir,"results/figures/noCI.Fig3.pdf")
+no.CI.Fig3outf <- file.path(projdir,"results/figures/noCI.Fig3.pdf")
 no.CI.Fig3 <- plot_grid(no.CI.clone.growth.plot,Fig3B,labels=c('A','B'),ncol=1,
                   rel_heights = c(1, 1),rel_widths=c(1,1))
 save_plot(no.CI.Fig3outf, no.CI.Fig3, base_width=11, base_height=7.5)
 
 
 ## Supplementary Figure S10. (since growthcurver results are in its own section.)
-S10Figoutf <- file.path(proj.dir,"results/figures/S10Fig.pdf")
+S10Figoutf <- file.path(projdir,"results/figures/S10Fig.pdf")
 
 ## Filter oddball Cit- ZDBp874 from the clones before estimation.
 clone.growth.curve.fits <- filter(clone.growth.curve.fits, Name != 'ZDBp874')
@@ -1237,7 +1239,7 @@ S10Fig <- plot_grid(clone.growthcurver.plot, S10BFig,labels=c('A','B'), ncol=1,
 save_plot(S10Figoutf,S10Fig, base_width=11, base_height=7.5)
 
 ## Figure 4.
-Fig4outf <- file.path(proj.dir,"results/figures/Fig4.pdf")
+Fig4outf <- file.path(projdir,"results/figures/Fig4.pdf")
 pop.growth.plot <- plot.growth.parameters(pop.growth)
 ## See what the figure looks like without CIs.
 no.CI.pop.growth.plot <- plot.growth.parameters(pop.growth, plot.CIs=FALSE)
@@ -1258,14 +1260,14 @@ Fig4 <- plot_grid(pop.growth.plot,Fig4B,labels=c('A','B'),ncol=1,
 save_plot(Fig4outf,Fig4, base_width=11, base_height=7.5)
 
 ## See what the figure looks like without CIs.
-no.CI.Fig4outf <- file.path(proj.dir,"results/figures/noCI.Fig4.pdf")
+no.CI.Fig4outf <- file.path(projdir,"results/figures/noCI.Fig4.pdf")
 no.CI.Fig4 <- plot_grid(no.CI.pop.growth.plot,Fig4B,labels=c('A','B'),ncol=1,
                   rel_heights = c(1, 1),rel_widths=c(1,1))
 save_plot(no.CI.Fig4outf, no.CI.Fig4, base_width=11, base_height=7.5)
 
 
 ## Supplementary Figure S11 (because in separate section of supplement).
-S11Figoutf <- file.path(proj.dir,"results/figures/S11Fig.pdf")
+S11Figoutf <- file.path(projdir,"results/figures/S11Fig.pdf")
 pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
 pop.growthcurver.summary <- summarize.growthcurver.results(pop.growth.curve.fits)
 final.pop.growthcurver.summary <- calc.growthcurver.log.ratios(pop.growthcurver.summary)
@@ -1289,7 +1291,7 @@ save_plot(S11Figoutf,S11Fig, base_width=11, base_height=7.5)
 
 ## growth results for DM25-evolved clones.
 ## Supplementary Figure S9.
-S9Figoutf <- file.path(proj.dir,"results/figures/S9Fig.pdf")
+S9Figoutf <- file.path(projdir,"results/figures/S9Fig.pdf")
 DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth)
 DM25.growth.summary <- summarize.growth.results(DM25.clone.growth)
 final.DM25.growth.summary <- calc.growth.log.ratios(DM25.growth.summary)
@@ -1308,7 +1310,7 @@ save_plot(S9Figoutf,S9Fig, base_width=11, base_height=7.5)
 
 
 ## Supplementary Figure S12. supplementary fig of DM25-evolved clone growth.
-S12Figoutf <- file.path(proj.dir,"results/figures/S12Fig.pdf")
+S12Figoutf <- file.path(projdir,"results/figures/S12Fig.pdf")
 DM25.clone.growthcurver.plot <- plot.growthcurver.parameters(DM25.clone.growth.curve.fits)
 DM25.growthcurver.summary <- summarize.growthcurver.results(DM25.clone.growth.curve.fits)
 final.DM25.growthcurver.summary <- calc.growthcurver.log.ratios(DM25.growthcurver.summary)
@@ -1441,7 +1443,7 @@ S13Fig <- plot_grid(param.comp.plot1,
                     param.comp.plot4,
                     param.comp.plot5,
                     labels=c('A','B','C','D','E'), ncol=1)
-S13Fig.outf <- file.path(proj.dir, "results/figures/S13Fig.pdf")
+S13Fig.outf <- file.path(projdir, "results/figures/S13Fig.pdf")
 save_plot(S13Fig.outf, S13Fig, base_height=10,base_width=4)
 
 ####################################
@@ -1499,7 +1501,7 @@ guides(color=FALSE,shape=FALSE)
 S14Fig <- plot_grid(cit.glucose.cor.plot,
                     cit.cit.cor.plot,
                     r.r.cor.plot, labels=c('A','B','C'), ncol=1)
-S14Fig.outf <- file.path(proj.dir,"results/figures/S14Fig.pdf")
+S14Fig.outf <- file.path(projdir,"results/figures/S14Fig.pdf")
 save_plot(S14Fig.outf, S14Fig, base_height=8, base_width=12)
 ######################################################################
 ####### Figure 5: Nkrumah's cell death results. See CellDeath R script
@@ -1614,17 +1616,17 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
 
 ##### Now run this function!
 #' on all valid mutations
-raw.matrix.f <- file.path(proj.dir,
+raw.matrix.f <- file.path(projdir,
                           "results/DM0-DM25-comparison-mut-matrix.csv")
 
 #' on just non-synonymous mutations
-dN.raw.matrix.f <- file.path(proj.dir,
+dN.raw.matrix.f <- file.path(projdir,
                              "results/dN-DM0-DM25-comparison-mut-matrix.csv")
 
-amp.matrix.f <- file.path(proj.dir,"results/amp_matrix.csv")
-ltee.matrix.f <- file.path(proj.dir,"results/LTEE-mut_matrix.csv")
-dN.ltee.matrix.f <- file.path(proj.dir,"results/dN-LTEE-mut_matrix.csv")
-ltee.50k.labels.f <- file.path(proj.dir, "data/rohan-formatted/LTEE-50K-clones.csv")
+amp.matrix.f <- file.path(projdir,"results/amp_matrix.csv")
+ltee.matrix.f <- file.path(projdir,"results/LTEE-mut_matrix.csv")
+dN.ltee.matrix.f <- file.path(projdir,"results/dN-LTEE-mut_matrix.csv")
+ltee.50k.labels.f <- file.path(projdir, "data/rohan-formatted/LTEE-50K-clones.csv")
 matrix.outf <- "../results/figures/mut_matrix.pdf"
 dN.matrix.outf <- "../results/figures/dN_mut_matrix.pdf"
 
@@ -1647,7 +1649,7 @@ parallel.dS <- filter(bp.parallel.mutations,Mutation=='synonymous')
 ## examine basepair-level parallel evolution in the polymorphism runs.
 
 poly.evolved.mutations <- read.csv(
-  file.path(proj.dir,
+  file.path(projdir,
             "results/genome-analysis/poly_evolved_mutations.csv"))
 
 poly.bp.parallel.mutations <- poly.evolved.mutations %>% filter(Frequency < 1) %>%
@@ -1671,7 +1673,7 @@ citT.poly.mutations <- filter(poly.evolved.mutations,Gene=='citT')
 
 IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#0571b0')
 
-IS.insertions <- read.csv(file.path(proj.dir,
+IS.insertions <- read.csv(file.path(projdir,
                                     "results/genome-analysis/IS_insertions.csv")) %>%
 arrange(genome_start) %>%
 ## filter oddball Cit- clone ZDBp874.
@@ -1734,7 +1736,7 @@ parallel.DM0.IS.summary <- summarize.IS.func(parallel.DM0.IS.insertions)
 ## in comparison to the rate of increase of IS-elements in Ara-3.
 
 LTEE.MAE.IS.insertions <- read.csv(
-  file.path(proj.dir,
+  file.path(projdir,
             "results/genome-analysis/LTEE_MAE_IS150_insertions.csv"),
   stringsAsFactors=FALSE) %>%
 arrange(Position)
@@ -1763,7 +1765,7 @@ guides(color=FALSE,shape=FALSE)
 
 ########
 ## Combine the IS plots with cowplot to make Figure 7.
-Fig7outf <- file.path(proj.dir,"results/figures/Fig7.pdf")
+Fig7outf <- file.path(projdir,"results/figures/Fig7.pdf")
 Fig7 <- plot_grid(parallel.IS.plot, IS.plot, IS150.rate.plot,
                   labels = c('A', 'B', 'C'), ncol=1)
 save_plot(Fig7outf,Fig7,base_height=7,base_aspect_ratio=0.8)
@@ -1873,7 +1875,7 @@ maeA.fitness.analysis <- function(data, samplesize=6, days.competition=1,rev=FAL
   return(results)
 }
 
-maeA.fitness.data <- read.csv(file.path(proj.dir,"data/rohan-formatted/DM0_Fitness2.csv"),
+maeA.fitness.data <- read.csv(file.path(projdir,"data/rohan-formatted/DM0_Fitness2.csv"),
                               header=TRUE,stringsAsFactors=FALSE)
 ## these data come from one day competitions that Tanush ran.
 res1 <- filter(maeA.fitness.data,Red.Pop=='ZDB151_with_maeA') %>% maeA.fitness.analysis()

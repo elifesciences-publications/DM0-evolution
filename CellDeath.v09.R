@@ -50,11 +50,13 @@ calc.w.bootstrap.conf.int <- function(vec,w) {
 }
 ###################
 
-home.dir <- path.expand("~")
-proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
+## assert that we are in the src directory, such that
+## projdir is the parent of the current directory.
+stopifnot(endsWith(getwd(), file.path("DM0-evolution","src")))
+projdir <- file.path("..")
 
 ## Load data 
-setwd(file.path(proj.dir, "Nkrumah_MicroscopyData_DM0_project/"))
+setwd(file.path(projdir, "Nkrumah_MicroscopyData_DM0_project/"))
 
 ## Here I create a list of all .txt files as produced by segger output.
 seg.dat <- list.files(pattern = "*.txt")
@@ -217,7 +219,7 @@ Fig3C <- P6 %>%
   geom_crossbar(data=P6.confint.df,aes(x=Treatment,y=PropPrime.Dead,ymin=PropPrime.Dead,ymax=PropPrime.Dead), width= 0.1, size = 0.4,inherit.aes=FALSE)
 
 Fig3BC <- plot_grid(Fig3B, Fig3C, labels=c('B','C'),ncol=1)
-save_plot(file.path(proj.dir,"results/figures/nkrumah-figures/Fig3BC.pdf"),Fig3BC,base_height=6,base_width=9)
+save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig3BC.pdf"),Fig3BC,base_height=6,base_width=9)
 
 ## Here I take the P6 dataset and plot the proportion of dead cells for each replicate. MAIN TEXT
 ## Standard error of the mean = SEM = S/√N = 0.035

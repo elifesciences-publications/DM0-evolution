@@ -243,9 +243,11 @@ plot.amp.segments <- function(annotated.amps,clone.labels) {
   return(segmentplot)
 }
 
+## assert that we are in the src directory, such that
+## proj.dir is the parent of the current directory.
+stopifnot(endsWith(getwd(), file.path("DM0-evolution","src")))
+projdir <- file.path("..")
 
-home.dir <- path.expand("~")
-projdir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
 outdir <- file.path(projdir,"results")
 breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
 LCA.gff3 <- file.path(projdir,"genomes/curated-diffs/LCA.gff3")

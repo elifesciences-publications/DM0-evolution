@@ -30,7 +30,7 @@ args = parser.parse_args()
 
 from pathlib import Path
 from os import makedirs
-from os.path import join, expanduser
+from os.path import join, dirname, realpath
 from subprocess import run
 import pandas as pd
 
@@ -58,9 +58,13 @@ class CallDICE:
         return ' '.join(self.args)
 
 def main():
-    homedir = expanduser("~")
-    projdir = join(homedir,"BoxSync/active-projects/DM0-evolution")
-    analysis_dir = join(projdir,"results/genome-analysis")
+
+    srcdir = dirname(realpath(__file__))
+    assert srcdir.endswith('src')
+    projdir = dirname(srcdir)
+    assert projdir.endswith('DM0-evolution')
+
+    analysis_dir = join(projdir,"results","genome-analysis")
 
     do_environment = True
     if do_environment:
@@ -71,39 +75,47 @@ def main():
         ctl_treat = 'CZB151'
 
     print("********************************** DM0/DM25 Dice analysis **********************************")
-    DiceRun = CallDICE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/DM0-DM25-comparison-mut-matrix.csv', ctl_treat)
+    lca_ref = join('..','genomes','curated-diffs','LCA.gbk')
+    mutmatrix = join('..','results','DM0-DM25-comparison-mut-matrix.csv')
+    DiceRun = CallDICE(gddir, lca_ref, mutmatrix, ctl_treat)
     print(DiceRun)
     DiceRun.call()
 
     ## For comparison, run citrate_dice.py on the LTEE to make a matrix for Fig. 1C.
     print("********************************** LTEE Dice analysis for valid mutations **********************************")
-    ltee_gddir = join(projdir,"genomes/annotated-LTEE-50K-diffs")
-    LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/LTEE-mut_matrix.csv','Ara+')
+    ltee_gddir = join(projdir,"genomes","annotated-LTEE-50K-diffs")
+    rel606ref = join('..','genomes','REL606.7.gbk')
+    LTEE_mutmatrix = join('..','results','LTEE-mut_matrix.csv')
+    LTEE_DiceRun = CallDICE(ltee_gddir,rel606ref,LTEE_mutmatrix,'Ara+')
     print(LTEE_DiceRun)
     LTEE_DiceRun.call()
 
     ## run citrate_dice.py on just the 50K Ara-3 clone to get valid mutations for
     ## the Recapitulation Index analysis.
     print("********************************** 50K Ara-3 clone run for valid mutations  **********************************")
-    ara_minus3_gddir = join(projdir,"genomes/curated-diffs")
-    ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/ara3_mut_matrix.csv')
+    ara_minus3_gddir = join(projdir,"genomes","curated-diffs")
+    ara3mutmatrix = join('..','results','ara3_mut_matrix.csv')
+    ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,rel606ref,ara3mutmatrix)
     ara_minus3_DiceRun.call()
 
     ## just analyse dN in the DM0/DM25 treatments.
     print("********************************** DM0/DM25 Dice analysis: dN only **********************************")
-    dNDiceRun = CallDICE(gddir,'../genomes/curated-diffs/LCA.gbk', '../results/dN-DM0-DM25-comparison-mut-matrix.csv', ctl_treat, dN_only=True)
+    dNmutmatrix = join('..','results','dN-DM0-DM25-comparison-mut-matrix.csv')
+    dNDiceRun = CallDICE(gddir,lca_ref, dNmutmatrix, ctl_treat, dN_only=True)
     print(dNDiceRun)
     dNDiceRun.call()
 
     ##  dN in the LTEE.
     print("********************************** LTEE Dice analysis for valid dN **********************************")
-    dN_LTEE_DiceRun = CallDICE(ltee_gddir,'../genomes/REL606.7.gbk','../results/dN-LTEE-mut_matrix.csv','Ara+', dN_only=True)
+    dN_LTEE_mutmatrix = join('..','results','dN-LTEE-mut_matrix.csv')
+    dN_LTEE_DiceRun = CallDICE(ltee_gddir,rel606ref,dN_LTEE_mutmatrix,'Ara+', dN_only=True)
     print(dN_LTEE_DiceRun)
     dN_LTEE_DiceRun.call()
 
     ## run 50K Ara-3 clone to get valid dN for the Recapitulation Index analysis.
     print("********************************** 50K Ara-3 clone for valid dN  **********************************")
-    dN_ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,'../genomes/REL606.7.gbk','../results/dN-ara3_mut_matrix.csv', dN_only=True)
+    dN_ara3mutmatrix = join('..','results','dN-ara3_mut_matrix.csv')
+    dN_ara_minus3_DiceRun = CallDICE(ara_minus3_gddir,rel606ref,dN_ara3mutmatrix, dN_only=True)
     dN_ara_minus3_DiceRun.call()
 
 main()
