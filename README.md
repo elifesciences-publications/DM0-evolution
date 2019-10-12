@@ -3,7 +3,7 @@
 
 IMPORTANT CAVEAT: the code here was written and tested on a Mac running Mac OS 10.13, and genomes were resequenced using breseq on a cluster running Linux. You may have to lightly edit source files to get them working on your machine.
 
-# How to run the analyses for the manuscript 'Genomic and phenotypic evolution of Escherichia coli in a citrate-only resource environment.
+# How to run the analyses for the manuscript 'Genomic and phenotypic evolution of Escherichia coli in a citrate-only resource environment'.
 
 I expect that users will be running these scripts within the 'src' directory of this project.
 So, using the Terminal on Mac/Linux, run this command:
