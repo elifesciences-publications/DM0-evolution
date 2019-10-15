@@ -74,88 +74,19 @@ pop.clone.labels <- read.csv(
             "data/rohan-formatted/populations-and-clones.csv"),
   stringsAsFactors=FALSE)
 
+
 evolved.mutations <- read.csv(
   file.path(projdir,
             "results/genome-analysis/evolved_mutations.csv"),
   stringsAsFactors=FALSE) %>%
-mutate(Mutation=as.factor(Mutation)) %>%
-## exclude oddball Cit- clone ZDBp874.
-filter(Clone != 'ZDBp874')
+mutate(Mutation=as.factor(Mutation))
 
-## Notice parallel mutations at base-pair level in citrate synthase!
-filter(evolved.mutations,Gene=='gltA') %>% arrange(Position)
-## but remember that fine-tuning was already reported by Erik Quandt.
-
-## any other parallel dN at base-pair level?
-parallel.dN <- evolved.mutations %>% filter(Mutation=='nonsynonymous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
-
-parallel.dN.Table <- filter(evolved.mutations, Position %in% parallel.dN$Position) %>%
-arrange(Position)
-
-## 3/5 parallel bp mutations are in citrate synthase, gltA!
-## 735765, 735797, 735941.
-## These are M172I, A162T, I114F, respectively.
-## A162V is reported in Quandt et al. (2015) in eLife as affecting NADH-binding.
-## The other two have not been reported before.
-
-## From methods section of Quandt et al. (2015):
-## Dimeric models of ligand-free and NADH-bound E. coli citrate synthase (PDB: 1NXE and 1NXG) (Maurus et al., 2003)
-## were prepared for analysis by reverting alanine-383 to phenylalanine and processing with the Structure
-## Preparation application within MOE (Molecular Operating Environment).
-
-## the other parallel bp mutations are:
-## 2209801 is in atoS, 2630053 is in ygaF.
-
-## atoS annotation from Ecocyc:
-## AtoS is the sensor histidine kinase of the AtoS/AtoC two-component signal transduction pathway which is best characterised by its induction of the ato operon for metabolism of short chain fatty acids in response to the presence of acetoacetate. AtoS is a homo-dimeric transmembrane protein consisting of an amino-terminal periplasmic sensing domain coupled to a carboxy-terminal cytoplasmic kinase domain [Lioliou05, Filippou08]. AtoS autophosphorylates on a conserved histidine residue by trans-phosphorylation between the monomers of the homodimer [Filippou08]. AtoS tranfers a phosphoryl group to the cytoplasmic response regulator AtoC which controls transcriptional expression of the operon (atoDAEB) involved in short-chain fatty acid catabolism [Jenkins87a, Lioliou04, Lioliou05].
-
-## ygaF annotation from Ecocyc:
-## L-2-hydroxyglutarate dehydrogenase (LhgD) is an electron transport chain-coupled dehydrogenase that feeds electrons from the reaction into the membrane quinone pool [Knorr18]. LhgD contains an FAD cofactor which is not covalently attached, and whose reduction potential is relatively high at -25 mV [Kalliri08].
-## LhgD was initially thought to be an oxidase, i.e. using molecular oxygen for oxidation of L-2-hydroxyglutarate and producing hydrogen peroxide [Kalliri08].
-
-## LhgD is associated with the cytoplasmic membrane [Zhang07], and its activity is only found in the membrane fraction [Knorr18].
-
-## lhgD is part of an operon whose expression is induced upon carbon starvation and in stationary phase [Marschall98, Becker01, Germer01, Metzner04].
-
-non.MOB.parallel <- evolved.mutations %>% filter(Mutation!='MOB') %>% filter(Mutation!= 'nonsynony
-mous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
-
-## what about other classes of mutations?
-Table3 <- filter(evolved.mutations, Position %in% non.MOB.parallel$Position) %>% arrange(Position)
 
 ltee.mutations <- read.csv(
   file.path(projdir,
             "data/rohan-formatted/nature18959-s4.csv"),
   stringsAsFactors=FALSE
   )
-
-## by inspecting evolved.mutations in conjunction with amplified genes, we see that the
-## dctA amplification anti-correlates with the promoter mutation.
-## Note that the dctA promoter mutation is in CZB151 and CZB154.
-
-dctA.AMPs <- read.csv(file.path(projdir,"results/amplified_genes.csv"),
-                      stringsAsFactors=FALSE) %>%
-filter(gene=='dctA') %>% dplyr::select(Genome) %>% distinct() %>%
-transmute(Name=Genome) %>% left_join(pop.clone.labels)
-
-promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
-transmute(Name=Clone) %>% left_join(pop.clone.labels) %>%
-full_join(filter(pop.clone.labels,Founder %in% c('CZB151','CZB154') & Generation==2500 & SampleType=='Clone' & Sequenced == 1 & Name != 'ZDBp874'))
-
-## out of 24 DM0- and DM25-evolved genomes,
-dctA.AMP.promoter.mut.intersection <- inner_join(dctA.AMPs,promoter.mutant)
-## 1 has both promoter mutant and dctA AMP.
-dctA.AMP.no.promoter.mut <- anti_join(dctA.AMPs,promoter.mutant)
-## 5 have dctA AMP but lack the promoter mutation.
-promoter.mut.no.dctA.AMP <- anti_join(promoter.mutant,dctA.AMPs)
-## 16 have the promoter mutation, and not the dctA AMP.
-neither.dctA.AMP.nor.promoter <- filter(pop.clone.labels,Founder == 'CZB152' & Generation==2500 & SampleType=='Clone') %>%
-anti_join(dctA.AMPs) %>%
-anti_join(promoter.mutant)
-## 2 do not have either mutation.
-
-## Fisher's exact test: p = 0.0027.
-fisher.test(matrix(c(1,5,16,2),2))
 
 ###############################################
 ## Figure 1.
@@ -1367,14 +1298,14 @@ cor.test(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,us
 cor(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs")
 cor.test(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs",method="pearson")
 
-## r = 0.64, 0.83, -0.04, 0.77, 0.46, respectively.
+## r = 0.64, 0.84, -0.04, 0.77, 0.46, respectively.
 cor(pop.estimates$DM0.r, pop.estimates$DM0.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.citrate,use="complete.obs")
 cor(pop.estimates$DM25.r, pop.estimates$DM25.r.glucose,use="complete.obs")
 cor(pop.estimates$DM0.t_mid, pop.estimates$DM0.t.lag,use="complete.obs")
 cor(pop.estimates$DM25.t_mid, pop.estimates$DM25.t.lag,use="complete.obs")
 
-## r = 0.48, 0.60, -0.11, 0.90, 0.38, respectively.
+## r = 0.48, 0.60, -0.12, 0.90, 0.39, respectively.
 cor(clone.estimates$DM0.r, clone.estimates$DM0.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.citrate,use="complete.obs")
 cor(clone.estimates$DM25.r, clone.estimates$DM25.r.glucose,use="complete.obs")
@@ -1504,11 +1435,12 @@ S14Fig <- plot_grid(cit.glucose.cor.plot,
 S14Fig.outf <- file.path(projdir,"results/figures/S14Fig.pdf")
 save_plot(S14Fig.outf, S14Fig, base_height=8, base_width=12)
 ######################################################################
-####### Figure 5: Nkrumah's cell death results. See CellDeath R script
+####### Figure 5: Nkrumah's cell death results. See CellDeath.R script
 #######           for analyses and figures.
 ######################################################################
-## Figure 6: make a matrix plot of genes with mutations in two or more clones.
-
+####### Figure 6: make a matrix plot of genes with mutations in two or more clones.
+#######
+######################################################################
 PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
                              ltee.matrix.file, ltee.50k.labels.file,
                              matrix.outfile, pop.clone.labels) {
@@ -1562,16 +1494,35 @@ PlotMatrixFigure <- function(raw.matrix.file, amp.matrix.file,
   filter(Hypermutator == 0 | PopulationLabel == 'Ara-3') %>%
   dplyr::select(-Hypermutator)
 
+  ## use the Population Names instead of Clone Names for the figure.
+  renamed.LTEE.clones <- mutate(non.mutators.and.ara.minus.3,
+                                Name=PopulationLabel)
+
   ## Now join LTEE data to the DM0 and DM25 Cit+ data.
-  ## Give the Ara-3 LTEE clone a special label.
-  matrix.data <- DM0.DM25.matrix.data %>%
-  bind_rows(non.mutators.and.ara.minus.3) %>%
-  mutate(Name=ifelse(Name=='REL11364','Ara-3: REL11364',Name))
+  matrix.data <- bind_rows(DM0.DM25.matrix.data, renamed.LTEE.clones)
 
   ## sort genes by number of mutations in each row.
+  ## this is overwritten by the alternate sorting method that follows,
+  ## but keeping this snippet because it's useful to have.
   gene.hit.sort <- group_by(matrix.data,Gene) %>% summarize(hits=sum(mutation.count)) %>%
   arrange(desc(hits))
   matrix.data$Gene <- factor(matrix.data$Gene,levels=rev(gene.hit.sort$Gene))
+
+  ## alternate sorting method: difference in hits between environments.
+  DM25mut.count <- filter(matrix.data,Environment=='DM25') %>% group_by(Gene) %>%
+  summarize(DM25mut.count=sum(mutation.count))
+  
+  DM0mut.count <- filter(matrix.data,Environment=='DM0') %>% group_by(Gene) %>%
+  summarize(DM0mut.count=sum(mutation.count))
+  
+  env.mut.sort <- inner_join(DM0mut.count,DM25mut.count) %>%
+  mutate(mut.diff=abs(DM0mut.count - DM25mut.count)) %>%
+  arrange(desc(mut.diff))
+
+  ## now use these calculations to sort genes by the absolute value of the
+  ## difference in number of mutations between DM0 and DM25 treatments.
+  matrix.data$Gene <- factor(matrix.data$Gene,levels=rev(env.mut.sort$Gene))
+  
   
   ## cast mutation.count into a factor for plotting.
   matrix.data$mutation.count <- factor(matrix.data$mutation.count)
@@ -1667,6 +1618,56 @@ poly.parallel.dS <- filter(poly.bp.parallel.mutations,Mutation=='synonymous')
 citT.mutations <- filter(evolved.mutations,Gene=='citT')
 citT.poly.mutations <- filter(poly.evolved.mutations,Gene=='citT')
 
+## examine parallel evolution at amino acid level.
+parallel.dN <- evolved.mutations %>% filter(Mutation=='nonsynonymous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
+parallel.dN.Table <- filter(evolved.mutations, Position %in% parallel.dN$Position) %>%
+arrange(Position)
+
+parallel.dN.Table
+
+## 3/5 parallel bp mutations are in citrate synthase, gltA!
+## 735765, 735797, 735941.
+## These are M172I, A162T, I114F, respectively.
+## A162V is reported in Quandt et al. (2015) in eLife as affecting NADH-binding.
+## The other two have not been reported before.
+## fine-tuning has been reported by Erik Quandt in that paper.
+
+## From methods section of Quandt et al. (2015):
+## Dimeric models of ligand-free and NADH-bound E. coli citrate synthase (PDB: 1NXE and 1NXG) (Maurus et al., 2003)
+## were prepared for analysis by reverting alanine-383 to phenylalanine and processing with the Structure
+## Preparation application within MOE (Molecular Operating Environment).
+
+## the other parallel bp mutations are:
+## 2209801 is in atoS (S351C), 2630053 is in ygaF (I197L).
+
+## IMPORTANT NOTE: the parallel mutation in atoS is missing in the analysis here,
+## since it occurs in ZDBp871 and ZDBp874, which is the oddball Cit- clone which
+## is excluded from the genome analysis for simplicity.
+## This case of parallelism can be seen by
+## inspection of the breseq HTML output for these genomes.
+
+## atoS annotation from Ecocyc:
+## AtoS is the sensor histidine kinase of the AtoS/AtoC two-component signal transduction pathway which is best characterised by its induction of the ato operon for metabolism of short chain fatty acids in response to the presence of acetoacetate. AtoS is a homo-dimeric transmembrane protein consisting of an amino-terminal periplasmic sensing domain coupled to a carboxy-terminal cytoplasmic kinase domain [Lioliou05, Filippou08]. AtoS autophosphorylates on a conserved histidine residue by trans-phosphorylation between the monomers of the homodimer [Filippou08]. AtoS tranfers a phosphoryl group to the cytoplasmic response regulator AtoC which controls transcriptional expression of the operon (atoDAEB) involved in short-chain fatty acid catabolism [Jenkins87a, Lioliou04, Lioliou05].
+
+## ygaF annotation from Ecocyc:
+## L-2-hydroxyglutarate dehydrogenase (LhgD) is an electron transport chain-coupled dehydrogenase that feeds electrons from the reaction into the membrane quinone pool [Knorr18]. LhgD contains an FAD cofactor which is not covalently attached, and whose reduction potential is relatively high at -25 mV [Kalliri08].
+## LhgD was initially thought to be an oxidase, i.e. using molecular oxygen for oxidation of L-2-hydroxyglutarate and producing hydrogen peroxide [Kalliri08].
+
+## LhgD is associated with the cytoplasmic membrane [Zhang07], and its activity is only found in the membrane fraction [Knorr18].
+
+## lhgD is part of an operon whose expression is induced upon carbon starvation and in stationary phase [Marschall98, Becker01, Germer01, Metzner04].
+
+non.MOB.parallel <- evolved.mutations %>% filter(Mutation!='MOB') %>% filter(Mutation!= 'nonsynony
+mous') %>% group_by(Position) %>% summarize(count=n()) %>% filter(count > 1)
+
+## what about other classes of mutations?
+Table3 <- filter(evolved.mutations, Position %in% non.MOB.parallel$Position) %>% arrange(Position)
+
+## There are several mutations associated with the fad regulon-- all of which occur in
+## the DM0 treatment.
+fad.mutations <- filter(evolved.mutations,!is.na(str_extract(Gene,'fad'))) %>% arrange(Position)
+fad.mutations
+
 ################################################
 ## Figure 7. IS element analysis and visualization.
 ################################################
@@ -1731,7 +1732,7 @@ filter(n()>1)
 
 parallel.DM0.IS.summary <- summarize.IS.func(parallel.DM0.IS.insertions) 
 
-########
+#####################################
 ## Plot the rate of increase of IS-elements in the DM0 and DM25 experiments
 ## in comparison to the rate of increase of IS-elements in Ara-3.
 
@@ -1750,10 +1751,16 @@ Ara.minus.3.IS150 <- filter(LTEE.IS150,Population=='Ara-3')
 Ara.minus.3.IS150.by.clone <- group_by(Ara.minus.3.IS150,Clone,Generation,Environment,Population) %>%
 summarize(total.count=n())
 
-DM0.DM25.over.time <- group_by(IS.insertions,Clone,Generation,Environment,Population) %>%
+IS150.insertions <- filter(IS.insertions,IS_element=='IS150')
+
+DM0.DM25.IS150.over.time <- group_by(IS150.insertions,Clone,Generation,Environment,Population) %>%
 summarize(total.count=n())
 
-IS150.rate.df <- rbind(DM0.DM25.over.time,Ara.minus.3.IS150.by.clone)
+## Calculate Mann-Whitney U-test to compare number of IS150 between DM0 and DM25 treatments.
+wilcox.test(total.count ~ Environment, data=DM0.DM25.IS150.over.time)
+## significant difference between DM0 and DM25: p = 0.0089.
+
+IS150.rate.df <- rbind(DM0.DM25.IS150.over.time,Ara.minus.3.IS150.by.clone)
 IS150.rate.plot <- ggplot(IS150.rate.df,
                           aes(x=Generation,
                               y=total.count,color=Environment,shape=Environment)) +
@@ -1762,6 +1769,7 @@ scale_color_brewer(palette='YlGnBu',direction=-1) +
 ylab(expression(paste('IS',italic('150'),' insertions'))) +
 geom_jitter(width=50) +
 guides(color=FALSE,shape=FALSE)
+
 
 ########
 ## Combine the IS plots with cowplot to make Figure 7.
@@ -1817,7 +1825,7 @@ DM0.IS150 <- IS.insertions %>% filter(IS_element == 'IS150',Environment=='DM0') 
 dplyr::select(-Clone) %>% distinct()
 draws <- nrow(DM0.IS150)
 
-null.parallel.hits <- function(total.hit.pos,empirical.parallel=9,replicates=10000) {
+null.parallel.hits <- function(total.hit.pos,empirical.parallel=9,replicates=100000) {
 
   max.hits <- function(total.hit.pos) {
     my.sample <- sample(x=total.hit.pos$GenePosition,
@@ -1833,8 +1841,8 @@ null.parallel.hits <- function(total.hit.pos,empirical.parallel=9,replicates=100
   return(past.threshold/replicates)
 }
 
-## empirical p-value for 9 hits is ~ 0.0128.
-null.parallel.hits(total.hit.pos,replicates=100000)
+## empirical p-value for 9 hits is ~ 0.013.
+null.parallel.hits(total.hit.pos)
 
 ## NOTE that this test is really stringent. 9 IS150 insertions in DM0 at position
 ## 3501576 in the yhiO promoter, 1 in DM0 at position 3501577,
@@ -1843,6 +1851,35 @@ null.parallel.hits(total.hit.pos,replicates=100000)
 
 ## empirical p-value for 8 hits is ~ 0.04.
 null.parallel.hits(total.hit.pos,empirical.parallel=8)
+
+##################
+## by inspecting evolved.mutations in conjunction with amplified genes, we see that the
+## dctA amplification anti-correlates with the promoter mutation.
+## Note that the dctA promoter mutation is in CZB151 and CZB154.
+
+dctA.AMPs <- read.csv(file.path(projdir,"results/amplified_genes.csv"),
+                      stringsAsFactors=FALSE) %>%
+filter(gene=='dctA') %>% dplyr::select(Genome) %>% distinct() %>%
+transmute(Name=Genome) %>% left_join(pop.clone.labels)
+
+promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
+transmute(Name=Clone) %>% left_join(pop.clone.labels) %>%
+full_join(filter(pop.clone.labels,Founder %in% c('CZB151','CZB154') & Generation==2500 & SampleType=='Clone' & Sequenced == 1 & Name != 'ZDBp874'))
+
+## out of 24 DM0- and DM25-evolved genomes,
+dctA.AMP.promoter.mut.intersection <- inner_join(dctA.AMPs,promoter.mutant)
+## 1 has both promoter mutant and dctA AMP.
+dctA.AMP.no.promoter.mut <- anti_join(dctA.AMPs,promoter.mutant)
+## 5 have dctA AMP but lack the promoter mutation.
+promoter.mut.no.dctA.AMP <- anti_join(promoter.mutant,dctA.AMPs)
+## 16 have the promoter mutation, and not the dctA AMP.
+neither.dctA.AMP.nor.promoter <- filter(pop.clone.labels,Founder == 'CZB152' & Generation==2500 & SampleType=='Clone') %>%
+anti_join(dctA.AMPs) %>%
+anti_join(promoter.mutant)
+## 2 do not have either mutation.
+
+## Fisher's exact test: p = 0.0027.
+fisher.test(matrix(c(1,5,16,2),2))
 
 ################################################################################
 ## Fitness and growth effects of plasmid-borne maeA expression.

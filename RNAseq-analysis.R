@@ -27,9 +27,6 @@ metadata <- read.csv(
 metadata <- metadata %>%
     mutate(path = file.path(proj.dir,"results","RNAseq-analysis",sample,"abundance.h5"))
 
-## CRITICAL BUG TO FIX: HORRIBLE PARSING PROBLEMS WITH STRINGS IN
-## transcript.df. TOP PRIORITY TO FIX!!!
-
 make.transcript.table <- function(s) {
   
   data <- read.table(
@@ -39,9 +36,6 @@ make.transcript.table <- function(s) {
           mutate(temp = target_id) %>%
           extract(temp,
                   c("locus_tag", "gene"),
-                    ##c("locus_tag", "gene", "note"),
-                    ##regex=".+=(.+)\\|.+=(.+)\\|.+=(.+)") %>%
-                  ##regex="locus_tag=(.+)\\|gene=(.+)\\|Note=(.+)") %>%
                   regex="^locus_tag=(.+)\\|gene=(.+)$") %>%
                       rename(!! s := tpm)
   return(data)
@@ -52,9 +46,7 @@ transcript.df <- map(metadata$sample, make.transcript.table) %>%
   reduce(left_join) %>%
   gather(key='Sample',
          value='tpm',
-         -target_id, -locus_tag, -gene) ##%>%
-         ##-target_id, -locus_tag, -gene, -note) %>%
-  ##separate(Sample, c('Clone','Run'))
+         -target_id, -locus_tag, -gene)
 
 ## get gene annotation from the kallisto output (target_id already has annotation).
 my.annotation <- transcript.df %>%
@@ -81,8 +73,6 @@ wt.results <- sleuth_results(so,'TreatmentEvolved') %>%
 ## write the results to file.
 write.csv(lrt.results,file=file.path(proj.dir,"results/sleuth-results/lrt-results.csv"))
 write.csv(wt.results,file=file.path(proj.dir,"results/sleuth-results/wald-results.csv"))
-
-sleuth_live(so)
 
 ## hack the internals of this function to plot heatmap.
 ## sleuth::plot_transcript_heatmap
@@ -133,9 +123,9 @@ color_mid <- "#FFC300"
 color_low <- "#DAF7A6"
 colors <- colorRampPalette(c(color_low, color_mid, color_high))(100)
 
-## make the plot!
+## make the plot! This is Supplementary Figure S16.
 RNAseq.fig.outf <- file.path(proj.dir,
-              "results/figures/sleuth-heatmap.pdf")
+              "results/figures/S16Fig.pdf")
 
 p <- pheatmap::pheatmap(trans_mat,
                         ##color=colors, ## comment this out if we want red/blue gradient.
@@ -146,3 +136,6 @@ gridExtra::grid.arrange(p$gtable)
 
 ggsave(RNAseq.fig.outf,p)
 
+
+## run the RShiny web app interface to the sleuth results.
+sleuth_live(so)

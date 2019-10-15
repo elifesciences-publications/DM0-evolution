@@ -46,11 +46,6 @@ def generateORF_fasta(ref_file,outf):
                 gene = feat.qualifiers['gene'][0]
             except KeyError:
                 print('warning: gene name missing')
-            try:
-                note = feat.qualifiers['Note'][0]
-            except KeyError:
-                print('warning: note missing')
-                
             outfh.write(">locus_tag=%s|gene=%s\n%s\n" % (
                 locus_tag,
                 gene,

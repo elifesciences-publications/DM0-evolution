@@ -66,22 +66,27 @@ def main():
 
     analysis_dir = join(projdir,"results","genome-analysis")
 
-    do_environment = True
-    if do_environment:
-        gddir = join(analysis_dir,"environment-comparison")
-        ctl_treat = 'DM25'
-    else: ## No significant difference in targets of selection across parental genotypes.
-        gddir = join(analysis_dir,"genotype-comparison")
-        ctl_treat = 'CZB151'
+    env_gddir = join(analysis_dir,"environment-comparison")
+    env_ctl_treat = 'DM25'
+    
+    geno_gddir = join(analysis_dir,"genotype-comparison")
+    geno_ctl_treat = 'CZB151'
 
-    print("********************************** DM0/DM25 Dice analysis **********************************")
     lca_ref = join('..','genomes','curated-diffs','LCA.gbk')
+    
+    print("********************************** CZB151/CZB152/CZB154 Dice analysis **********************************")
+    geno_mutmatrix = join('..','results','CZB151-CZB152-CZB154-comparison-mut-matrix.csv')
+    DiceRun = CallDICE(geno_gddir, lca_ref, geno_mutmatrix, geno_ctl_treat)
+    print(DiceRun)
+    DiceRun.call()
+    
+    print("********************************** DM0/DM25 Dice analysis **********************************")
     mutmatrix = join('..','results','DM0-DM25-comparison-mut-matrix.csv')
-    DiceRun = CallDICE(gddir, lca_ref, mutmatrix, ctl_treat)
+    DiceRun = CallDICE(env_gddir, lca_ref, mutmatrix, env_ctl_treat)
     print(DiceRun)
     DiceRun.call()
 
-    ## For comparison, run citrate_dice.py on the LTEE to make a matrix for Fig. 1C.
+    ## For comparison, run citrate_dice.py on the LTEE to make a matrix for Fig. 6.
     print("********************************** LTEE Dice analysis for valid mutations **********************************")
     ltee_gddir = join(projdir,"genomes","annotated-LTEE-50K-diffs")
     rel606ref = join('..','genomes','REL606.7.gbk')
@@ -101,7 +106,7 @@ def main():
     ## just analyse dN in the DM0/DM25 treatments.
     print("********************************** DM0/DM25 Dice analysis: dN only **********************************")
     dNmutmatrix = join('..','results','dN-DM0-DM25-comparison-mut-matrix.csv')
-    dNDiceRun = CallDICE(gddir,lca_ref, dNmutmatrix, ctl_treat, dN_only=True)
+    dNDiceRun = CallDICE(env_gddir,lca_ref, dNmutmatrix, env_ctl_treat, dN_only=True)
     print(dNDiceRun)
     dNDiceRun.call()
 

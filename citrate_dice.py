@@ -661,10 +661,10 @@ def main():
 
     dice(master_dict, [])  ## initial dice calculation done without excluding significant genes
 
-    print("\nGene centric mutation information:\nFisher exact p-value testing if clustering within treatment greater than expected by chance.\nOnly p values less than %s listed." % args.pvalue)
+    print("\nGene-centric mutation information:\nFisher's exact p-value testing if clustering within treatment greater than expected by chance.\nOnly p values less than %s listed." % args.pvalue)
+    print("IMPORTANT NOTE: the numbers reported here are NOT used directly in the Fisher's exact test calculation. The FET is based on number of genomes hit, and not the raw number of mutations.")
 
-
-    print(''.join([f'{x:{10}}' for x in map(str,["Gene"] + [x for x in master_dict if not x == "Total"] + ["Total", "p Value"])]))
+    print(''.join([f'{x:{10}}' for x in map(str,["Gene"] + [x for x in master_dict if not x == "Total"] + ["Total", "p-value"])]))
     excluded_genes = []  # list of genes to exclude from repeat dice
     ##  iterate through genes, sorted in descending order based on total number of mutations
     for cur_gene in sorted(valid_mutated_genes, key=lambda k: len(valid_mutated_genes[k]), reverse=True):
