@@ -1765,7 +1765,7 @@ IS150.rate.plot <- ggplot(IS150.rate.df,
                           aes(x=Generation,
                               y=total.count,color=Environment,shape=Environment)) +
 theme_classic() +
-scale_color_brewer(palette='YlGnBu',direction=-1) +
+scale_color_manual(values = rev(c("#F1BB7B", "#FD6467", "#5B1A18"))) +
 ylab(expression(paste('IS',italic('150'),' insertions'))) +
 geom_jitter(width=50) +
 guides(color=FALSE,shape=FALSE)

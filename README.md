@@ -18,7 +18,7 @@ genome diff (*.gd) files for CZB152 and CZB154 that Jeff Barrick has made availa
 https://github.com/barricklab/LTEE-Ecoli. These curated files are missing a SNP
 that is found in every single one of the genomes analyzed in this project. Therefore, I added this mutation
 (in clpA-serW-mut.gd) to the LCA. In addition to generating the LCA, I also generate a genome diff of the LTEE 50K
-Cit+ clone REL11364 that has all mutations in CZB154 subtracted out. CZB154 is a direct ancestor of the 50K clone,
+Cit+ clone REL11364 that has all mutations in CZB154 subtracted out. CZB154 is one mutation away from the direct ancestor of the 50K clone,
 so this file contains all additional mutations on this line of descent. 
 
 To do this work, run the shell script generate-LCA.sh like so:
