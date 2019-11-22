@@ -20,7 +20,7 @@
 ## 7) do a quick check to see whether polymorphism occurs in the genomes
 ##    with the largest amplifications (this should be clear from Fig. 9).
 
-## 8) make Fig. 9, showing maeA and citT copy number.
+## 8) make Fig. 8, showing maeA and citT copy number.
 
 library(xml2)
 library(roxygen2)
@@ -47,7 +47,7 @@ library(cowplot)     # layout figures nicely.
 
 #' @export
 coverage.nbinom.from.html <- function (breseq.output.dir) {
-  summary.html.f <- file.path(breseq.output.dir,"output/summary.html")
+  summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
   tree <- read_html(summary.html.f)
   ## print text in the table 'Reference Sequence Information.
   query <- '//table[./tr/th[contains(text(),"fit dispersion")]]'
@@ -64,7 +64,7 @@ coverage.nbinom.from.html <- function (breseq.output.dir) {
 #' output file.
 #' @export
 max.readlen.from.html <- function (breseq.output.dir) {
-  summary.html.f <- file.path(breseq.output.dir,"output/summary.html")
+  summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
   tree <- read_html(summary.html.f)
   ## print text in the table 'Read File Information.
   query <- '//table[./tr/th[contains(text(),"longest")]]'
@@ -99,7 +99,7 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
   alpha <- 0.05
   uncorrected.threshold <- qnbinom(p=alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
 
-  genome.coverage.file <- file.path(breseq.output.dir,"08_mutation_identification/REL606.coverage.tab")
+  genome.coverage.file <- file.path(breseq.output.dir,"08_mutation_identification", "REL606.coverage.tab")
 
   ## use dtplyr for speed!
   genome.coverage <- tbl_dt(fread(genome.coverage.file)) %>%
@@ -229,14 +229,15 @@ plot.amp.segments <- function(annotated.amps,clone.labels) {
         size=20,
         frame=Environment)) +
         geom_segment() +
-        ## draw vertical lines at citT, maeA, dctA.
+        ## draw vertical lines at maeA, dctA.
         geom_vline(size=0.2,
                    linetype='dashed',
-                   xintercept = c(626743,1534704,3542785)
+                   xintercept = c(1534704,3542785)
                    ) +
                    xlab("Genomic position") +
                    scale_color_viridis(name="",option="plasma") +
                    facet_wrap(~Environment,nrow=2, scales = "free_y") +
+                   ##theme_classic(base_family='Helvetica') +
                    theme_tufte(base_family='Helvetica') +
                    theme(axis.ticks=element_line(size=0.1)) +
                    guides(color=FALSE,size=FALSE)  
@@ -249,8 +250,8 @@ stopifnot(endsWith(getwd(), file.path("DM0-evolution","src")))
 projdir <- file.path("..")
 
 outdir <- file.path(projdir,"results")
-breseq.output.dir <- file.path(projdir,"genomes/polymorphism")
-LCA.gff3 <- file.path(projdir,"genomes/curated-diffs/LCA.gff3")
+breseq.output.dir <- file.path(projdir,"genomes", "polymorphism")
+LCA.gff3 <- file.path(projdir,"genomes", "curated-diffs", "LCA.gff3")
 all.genomes <- list.files(breseq.output.dir,pattern='^ZDBp|^CZB')
 ## omit Cit- oddball ZDBp874 clone from analyses.
 all.genomes <- str_subset(all.genomes,pattern='ZDBp874',negate=TRUE)
@@ -276,6 +277,8 @@ total.amp.lengths <- amps %>%
 group_by(Genome) %>%
 summarize(total.length=sum(len*copy.number.mean)) %>%
 data.frame()
+
+total.amp.lengths
 
 ## just report parallel amps in evolved genomes.
 amp.parallelism <- annotated.amps %>%
@@ -305,8 +308,8 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 #' Make a plot of amplified segments in the genome.
 amp.segments.plot <- plot.amp.segments(annotated.amps,clone.labels)
 
-Fig9outf <- file.path(projdir,"results/figures/Fig9.pdf")
-save_plot(Fig9outf,amp.segments.plot,base_height=7,base_width=10.5)
+Fig8outf <- file.path(projdir,"results/figures/Fig8.pdf")
+save_plot(Fig8outf,amp.segments.plot,base_height=7,base_width=10.5)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge

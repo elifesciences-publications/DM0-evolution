@@ -150,7 +150,7 @@ plot3 <- D3 %>% group_by(Clone, Treatment, Block) %>%
 SYTO9.color <- '#00ffa9'
 PI.color <- '#ff8200'
 
-Fig3B <- D4 %>%
+Fig4B <- D4 %>%
   group_by(Clone, Treatment) %>% 
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") +
@@ -210,7 +210,7 @@ P6.confint.df <- P6 %>%
     keep(function(x) nrow(x) > 0) %>% ## ignore subsets with no rows
     map_dfr(.f = w.bootstrap.PropPrime.Dead)
 
-Fig3C <- P6 %>%
+Fig4C <- P6 %>%
   ggplot(aes(x = Treatment, y = PropPrime.Dead, label = my.text)) +
   geom_point(size=0.5) +
   facet_wrap(. ~ Clone, nrow = 1) +
@@ -219,8 +219,12 @@ Fig3C <- P6 %>%
   geom_errorbar(data=P6.confint.df,aes(x=Treatment,ymin=Left,ymax=Right), width=0.15, size=0.4,inherit.aes=FALSE) +
   geom_crossbar(data=P6.confint.df,aes(x=Treatment,y=PropPrime.Dead,ymin=PropPrime.Dead,ymax=PropPrime.Dead), width= 0.1, size = 0.4,inherit.aes=FALSE)
 
-Fig3BC <- plot_grid(Fig3B, Fig3C, labels=c('B','C'),ncol=1)
-save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig3BC.pdf"),Fig3BC,base_height=6,base_width=9)
+Fig4BC <- plot_grid(Fig4B, Fig4C, labels=c('B','C'),ncol=1)
+save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig4BC.pdf"),Fig4BC,base_height=6,base_width=9)
+
+
+## Let's look at the the estimated proportion of dead cells to report in the manuscript.
+P6.confint.df
 
 ## Here I take the P6 dataset and plot the proportion of dead cells for each replicate. MAIN TEXT
 ## Standard error of the mean = SEM = S/√N = 0.035

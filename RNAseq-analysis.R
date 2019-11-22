@@ -45,7 +45,7 @@ make.transcript.table <- function(s) {
 transcript.df <- map(metadata$sample, make.transcript.table) %>%
   reduce(left_join) %>%
   gather(key='Sample',
-         value='tpm',
+         value='est_counts',
          -target_id, -locus_tag, -gene)
 
 ## get gene annotation from the kallisto output (target_id already has annotation).
@@ -78,7 +78,6 @@ write.csv(wt.results,file=file.path(proj.dir,"results/sleuth-results/wald-result
 ## sleuth::plot_transcript_heatmap
 ## see documentation at:
 ## https://www.rdocumentation.org/packages/sleuth/versions/0.30.0/topics/plot_transcript_heatmap
-
 ## see general documentation at:
 ## https://www.rdocumentation.org/packages/sleuth/versions/0.30.0/
 
@@ -95,9 +94,13 @@ discussed.genes <- c("fadA", "fadB", "fadD", "fadE", "fadH", "fadR",
                      "chpA", "chpR", "recA", "recN",
                      "dinD", "sulA", "umuC", "umuD",
                      "csiE", "sbmC",
-                     "glpA", "glpB", "glpC", "glpD", "glpT")
+                     "glpA", "glpB", "glpC", "glpD", "glpT",
+                     ## add genes which are anti-correlated with
+                     ## with maeA.
+                     "gltS", "dinI", "ECB_03510"
+                     )
 
-results.matrix <- sleuth_to_matrix(so, "obs_norm", "tpm")
+results.matrix <- sleuth_to_matrix(so, "obs_norm", "est_counts")
 ## change the row names of this matrix for better plotting.
 ## first turn into a dataframe, 
 results.matrix.2 <- data.frame(results.matrix) %>%
@@ -113,7 +116,7 @@ column_to_rownames(var = 'gene')
 ## function, so that I can use a dataframe rather than a sleuth object to make
 ## the figure.
 
-## transform counts using: log(1+tpm)
+## transform counts using: log(1+est_counts)
 trans_mat <- as.matrix(log(results.matrix.2 + 1))
 
 ## default colors
@@ -139,3 +142,31 @@ ggsave(RNAseq.fig.outf,p)
 
 ## run the RShiny web app interface to the sleuth results.
 sleuth_live(so)
+
+
+## let's do a differential expression analysis to see if anything is anti-correlated
+## with sfcA/maeA expression, which is amplified in ZDBp883 and ZDBp889, but not 877.
+
+maeA.metadata <- metadata %>%
+filter(Treatment=='Evolved') %>%
+select(-Treatment) %>%
+mutate(NoAMP = ifelse(Clone %in% c('ZDBp883', 'ZDBp889'),'No','Yes'))
+
+maeA.so <- sleuth_prep(maeA.metadata, target_mapping = my.annotation,
+                  extra_bootstrap_summary = TRUE) %>%
+  sleuth_fit(~ NoAMP, 'full') %>%
+  sleuth_fit(~ 1, 'reduced') %>%
+  sleuth_lrt('reduced','full') %>%
+  sleuth_wt("NoAMPYes", "full")
+
+maeA.lrt.results <- sleuth_results(maeA.so, 'reduced:full', 'lrt', show_all = TRUE) %>%
+    filter(qval < 0.05) %>% distinct()
+## Wald test will return an effect size (regression parameter beta).
+maeA.wt.results <- sleuth_results(maeA.so,'NoAMPYes') %>%
+    filter(qval < 0.05) %>% distinct()
+
+## write maeA AMP lrt results to file.
+write.csv(maeA.wt.results,file=file.path("..", "results", "sleuth-results", "maeA-AMP-lrt.csv"))
+
+## Check out the results using the Shiny interface.
+##sleuth_live(maeA.so)
