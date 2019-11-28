@@ -155,8 +155,6 @@ find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a missp
                        filter(is.significant==TRUE) %>% mutate(Genome=as.character(gnome)) %>%
                        mutate(bonferroni.corrected.pval=pval*alpha/bonferroni.alpha)
 
-  ##print(data.frame(significant.amplifications))
-
   return(significant.amplifications)
 }
 
@@ -308,8 +306,8 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 #' Make a plot of amplified segments in the genome.
 amp.segments.plot <- plot.amp.segments(annotated.amps,clone.labels)
 
-Fig8outf <- file.path(projdir,"results/figures/Fig8.pdf")
-save_plot(Fig8outf,amp.segments.plot,base_height=7,base_width=10.5)
+Fig7outf <- file.path(projdir,"results/figures/Fig7.pdf")
+save_plot(Fig7outf,amp.segments.plot,base_height=7,base_width=10.5)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
@@ -345,9 +343,9 @@ write.amp.matrix(annotated.amps,clone.labels,file.path(outdir,"amp_matrix.csv"))
 #' maeA amplifications tend to occur in CZB151/154 rather than 152 background..
 #' but Tanush's competition data shows that it's beneficial in both backgrounds?
 maeA.dctA.amps.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
-filter(!(Genome %in% ParentClone)) %>%
-mutate(Genome=factor(Genome)) %>%
-mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
-mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
-filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
-select(Genome,gene,Founder,ParentClone,Environment)
+    filter(!(Genome %in% ParentClone)) %>%
+    mutate(Genome=factor(Genome)) %>%
+    mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
+    mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
+    filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
+    select(Genome,gene,Founder,ParentClone,Environment)
