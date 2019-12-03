@@ -1879,12 +1879,14 @@ dctA.AMP.no.promoter.mut <- anti_join(dctA.AMPs,promoter.mutant)
 ## 16 have the promoter mutation, and not the dctA AMP.
 promoter.mut.no.dctA.AMP <- anti_join(promoter.mutant,dctA.AMPs)
 ## 2 do not have either mutation.
-neither.dctA.AMP.nor.promoter <- filter(pop.clone.labels,Founder == 'CZB152' & Generation==2500 & SampleType=='Clone') %>%
+neither.dctA.AMP.nor.promoter <- filter(pop.clone.labels,Founder == 'CZB152' & Generation==2500 & SampleType=='Clone' & Sequenced==1) %>%
 anti_join(dctA.AMPs) %>%
 anti_join(promoter.mutant)
 
 ## Fisher's exact test: p = 0.0027.
 fisher.test(matrix(c(1,5,16,2),2))
+fisher.test(matrix(c(1,16,5,2),2))
+
 
 ################################################################################
 ## Fitness and growth effects of plasmid-borne maeA expression.
