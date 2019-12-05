@@ -1887,6 +1887,24 @@ anti_join(promoter.mutant)
 fisher.test(matrix(c(1,5,16,2),2))
 fisher.test(matrix(c(1,16,5,2),2))
 
+## For clarity of exposition in the paper, thinking about the promoter
+## mutation in CZB151 and 154, while one of the CZB152-evolved clones ZDBp877)
+## also evolved a promoter mutation is complicated to explain (in addition)
+## to keeping track here.
+## Rich suggested comparing the anticorrelation between CZB151&154 versus 152
+## and the dctA amplification instead, so that we have fewer things to keep in mind
+## and explain.
+
+## only one of the 16 clones descended from CZB151 and 154 have the dctA AMP.
+CZB151.and.154.dctA.AMPs <- filter(dctA.AMPs, Founder %in% c('CZB151', 'CZB154'))
+## while 5 out of the 8 clones descended from CZB152 has the dctA AMP.
+CZB152.dctA.AMPs <- filter(dctA.AMPs, Founder=='CZB152')
+## Fisher's exact test: p = 0.0069.
+fisher.test(matrix(c(1,15,5,3),2))
+## Of course, one of the CZB152-evolved strains without the dctA AMP
+## has the promoter mutation! So further evidence of the the anti-correlation.
+## This is the statistical test for this result that is reported in the paper.
+
 
 ################################################################################
 ## Fitness and growth effects of plasmid-borne maeA expression.
