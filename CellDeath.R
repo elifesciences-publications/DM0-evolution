@@ -150,7 +150,7 @@ plot3 <- D3 %>% group_by(Clone, Treatment, Block) %>%
 SYTO9.color <- '#00ffa9'
 PI.color <- '#ff8200'
 
-Fig4B <- D4 %>%
+cell.death.barplot <- D4 %>%
   group_by(Clone, Treatment) %>% 
   ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
   geom_bar(stat = "identity") +
@@ -158,12 +158,6 @@ Fig4B <- D4 %>%
   theme_classic() +
   facet_wrap(. ~ Clone, nrow=1) +
   guides(fill = FALSE) +
-  ylab("Number of cells") +
-  labs(fill = "Cell viability") #Changes legend title from "RelFluorPrime" to "Cell viability"
-
-cell.death.barplot <- D4 %>% group_by(Clone, Treatment) %>% 
-  ggplot(aes(x=Treatment, y = n, fill = RelFluorPrime)) +
-  geom_bar(stat = "identity") + 
   ylab("Number of cells") +
   labs(fill = "Cell viability") #Changes legend title from "RelFluorPrime" to "Cell viability"
   
@@ -210,7 +204,7 @@ P6.confint.df <- P6 %>%
     keep(function(x) nrow(x) > 0) %>% ## ignore subsets with no rows
     map_dfr(.f = w.bootstrap.PropPrime.Dead)
 
-Fig4C <- P6 %>%
+Fig4B <- P6 %>%
   ggplot(aes(x = Treatment, y = PropPrime.Dead, label = my.text)) +
   geom_point(size=0.5) +
   facet_wrap(. ~ Clone, nrow = 1) +
@@ -219,8 +213,8 @@ Fig4C <- P6 %>%
   geom_errorbar(data=P6.confint.df,aes(x=Treatment,ymin=Left,ymax=Right), width=0.15, size=0.4,inherit.aes=FALSE) +
   geom_crossbar(data=P6.confint.df,aes(x=Treatment,y=PropPrime.Dead,ymin=PropPrime.Dead,ymax=PropPrime.Dead), width= 0.1, size = 0.4,inherit.aes=FALSE)
 
-Fig4BC <- plot_grid(Fig4B, Fig4C, labels=c('B','C'),ncol=1)
-save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig4BC.pdf"),Fig4BC,base_height=6,base_width=9)
+labeled.Fig4B <- plot_grid(Fig4B, labels=c('B'),ncol=1)
+save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig4B.pdf"),labeled.Fig4B,base_height=3,base_width=8)
 
 
 ## Let's look at the the estimated proportion of dead cells to report in the manuscript.

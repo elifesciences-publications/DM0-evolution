@@ -1288,22 +1288,17 @@ DM25.growth.estimate.comp.df <- full_join(
   DM25.growthcurver.summary) %>%
 ungroup()
 
-## 
-## r = 0.68, 0.70, -0.14, 0.86, 0.37 respectively.
-cor(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs")
-cor.test(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs",method="pearson")
 
-cor(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.citrate,use="complete.obs")
-cor.test(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.citrate,use="complete.obs",method="pearson")
+## r = 0.6823, 0.7000, -0.1415, 0.8613, 0.3704 respectively.
+cor.test(growth.estimate.comp.df$DM0.r, growth.estimate.comp.df$DM0.r.citrate,use="complete.obs",method="pearson", alternative="greater")
 
-cor(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.glucose,use="complete.obs")
-cor.test(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.glucose,use="complete.obs",method="pearson")
+cor.test(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.citrate,use="complete.obs",method="pearson", alternative="greater")
 
-cor(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,use="complete.obs")
-cor.test(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,use="complete.obs",method="pearson")
+cor.test(growth.estimate.comp.df$DM25.r, growth.estimate.comp.df$DM25.r.glucose,use="complete.obs",method="pearson", alternative="greater")
 
-cor(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs")
-cor.test(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs",method="pearson")
+cor.test(growth.estimate.comp.df$DM0.t_mid, growth.estimate.comp.df$DM0.t.lag,use="complete.obs",method="pearson", alternative="greater")
+
+cor.test(growth.estimate.comp.df$DM25.t_mid, growth.estimate.comp.df$DM25.t.lag,use="complete.obs",method="pearson", alternative="greater")
 
 ## r = 0.64, 0.84, -0.04, 0.77, 0.46, respectively.
 cor(pop.estimates$DM0.r, pop.estimates$DM0.r.citrate,use="complete.obs")
@@ -1390,18 +1385,18 @@ save_plot(S13Fig.outf, S13Fig, base_height=10,base_width=4)
 ### but  correlation in citrate growth rates in DM0 and DM25.
 
 ## no correlation between r citrate and r glucose in DM25 by my estimates.
-cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM25.r.glucose,method="pearson")
-cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM25.r.glucose,method="pearson")
+cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM25.r.glucose,method="pearson", alternative="two.sided")
+cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM25.r.glucose,method="pearson", alternative="two.sided")
 
 ## significant correlation between r citrate in DM25 and DM0 by my estimates.
-cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM0.r.citrate,method="pearson")
-cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM0.r.citrate,method="pearson")
+cor.test(x=clone.estimates$DM25.r.citrate,y=clone.estimates$DM0.r.citrate,method="pearson",, alternative="two.sided")
+cor.test(x=pop.estimates$DM25.r.citrate,y=pop.estimates$DM0.r.citrate,method="pearson", alternative="two.sided")
 
 ## correlations between growth rate in DM25 and DM0 by growthcurver:
 ##  significant for clones and marginially insignificant for populations.
 ## Pearson's r = 0.74, p = 0.002 for clones; r = 0.50, p = 0.057 for pop.
-cor.test(x=clone.estimates$DM25.r,y=clone.estimates$DM0.r,method="pearson")
-cor.test(x=pop.estimates$DM25.r,y=pop.estimates$DM0.r,method="pearson")
+cor.test(x=clone.estimates$DM25.r,y=clone.estimates$DM0.r,method="pearson", alternative="two.sided")
+cor.test(x=pop.estimates$DM25.r,y=pop.estimates$DM0.r,method="pearson", alternative="two.sided")
 
 cit.glucose.cor.plot <- ggplot(growth.summary,
                                aes(x=DM25.r.citrate,y=DM25.r.glucose, color=Founder, shape=Generation)) +
@@ -1437,8 +1432,7 @@ guides(color=FALSE,shape=FALSE)
 
 ## Save figure for the Supplement. 
 S14Fig <- plot_grid(cit.glucose.cor.plot,
-                    cit.cit.cor.plot,
-                    r.r.cor.plot, labels=c('A','B','C'), ncol=1)
+                    cit.cit.cor.plot, labels=c('A','B'), ncol=1)
 S14Fig.outf <- file.path(projdir,"results/figures/S14Fig.pdf")
 save_plot(S14Fig.outf, S14Fig, base_height=8, base_width=12)
 
@@ -1672,7 +1666,9 @@ fad.mutations
 ## Figure 6. IS element analysis and visualization.
 ################################################
 
-IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#0571b0')
+##IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#0571b0')
+## changed dark blue to chartreuse.
+IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#76ee00')
 
 IS.insertions <- read.csv(file.path(projdir,
                                     "results/genome-analysis/IS_insertions.csv")) %>%
