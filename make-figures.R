@@ -432,6 +432,7 @@ calc.growth.rates <- function(final.growth.df) {
                                 Environment = unique(well.df$Environment),
                                 ParentClone = unique(well.df$ParentClone),
                                 Founder = unique(well.df$Founder),
+                                PopulationLabel = unique(well.df$PopulationLabel),
                                 r.citrate = get.max.growth.rate(citrate.data),
                                 r.glucose = get.max.growth.rate(glucose.data),
                                 t.lag = t.OD.hit.glu.min,
@@ -1026,29 +1027,39 @@ prep.growth.df()
 ## Examine how growth parameters have changed over evolution.
 ## Run calc.growth.rates code.
 clone.growth <- calc.growth.rates(DM0.clone.growth.data) %>%
-mutate(Dataset='CloneGrowth') %>%
-reshape.my.growth.df()
+    mutate(Dataset='CloneGrowth') %>%
+    reshape.my.growth.df()
 
 pop.growth <- calc.growth.rates(DM0.pop.growth.data) %>%
-mutate(Dataset='PopulationGrowth') %>%
-reshape.my.growth.df()
+    mutate(Dataset='PopulationGrowth') %>%
+    reshape.my.growth.df() %>%
+    ## Do some finagling to use Population Labels in Fig. 2 and Supp. Fig. S11.
+    ## Set the PopulationLabel of ancestral strains as its Name.
+    mutate(PopulationLabel=ifelse(is.na(PopulationLabel),Name,PopulationLabel)) %>%
+    ## Then change the Name to PopulationLabel for plotting.
+    mutate(Name = PopulationLabel)
 
 DM25.clone.growth <- calc.growth.rates(DM25.clone.growth.data) %>%
-mutate(Dataset='CloneGrowth') %>%
-reshape.my.growth.df()
+    mutate(Dataset='CloneGrowth') %>%
+    reshape.my.growth.df()
 
 ## use growthcurver to fit logistic curves.
 clone.growth.curve.fits <- map.reduce.growth.curve(DM0.clone.growth.data) %>%
-mutate(Dataset='CloneGrowth') %>%
-reshape.growth.curve.fits()
+    mutate(Dataset='CloneGrowth') %>%
+    reshape.growth.curve.fits()
 
 pop.growth.curve.fits <- map.reduce.growth.curve(DM0.pop.growth.data)%>%
-mutate(Dataset='PopulationGrowth') %>%
-reshape.growth.curve.fits()
+    mutate(Dataset='PopulationGrowth') %>%
+    reshape.growth.curve.fits() %>%
+    ## Do some finagling to use Population Labels in Fig. 2 and Supp. Fig. S11.
+    ## Set the PopulationLabel of ancestral strains as its Name.
+    mutate(PopulationLabel=ifelse(is.na(PopulationLabel),Name,PopulationLabel)) %>%
+    ## Then change the Name to PopulationLabel for plotting.
+    mutate(Name = PopulationLabel)
 
 DM25.clone.growth.curve.fits <- map.reduce.growth.curve(DM25.clone.growth.data) %>%
-mutate(Dataset='CloneGrowth') %>%
-reshape.growth.curve.fits()
+    mutate(Dataset='CloneGrowth') %>%
+    reshape.growth.curve.fits()
 
 #######################################
 ## Plot growth curves.
@@ -1201,6 +1212,29 @@ save_plot(S9Figoutf,S9Fig, base_width=11, base_height=7.5)
 
 ## Supplementary Figure S10.
 S10Figoutf <- file.path(projdir,"results/figures/S10Fig.pdf")
+pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
+pop.growthcurver.summary <- summarize.growthcurver.results(pop.growth.curve.fits)
+final.pop.growthcurver.summary <- calc.growthcurver.log.ratios(pop.growthcurver.summary)
+
+pop.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(
+  final.pop.growthcurver.summary
+  )
+
+S10BFig.plot.df <- final.pop.growthcurver.summary %>%
+gather(key="Parameter", value="Estimate",
+       log.DM0.r.ratio, log.DM25.r.ratio,
+       log.DM0.t_mid.ratio, log.DM25.t_mid.ratio) %>%
+filter(Name != Founder) ## ancestors always have a ratio of zero.
+
+S10BFig <- plot.growthcurver.parameter.log.ratios(S10BFig.plot.df, pop.growthcurver.bootstrap.CI)
+
+S10Fig <- plot_grid(pop.growthcurver.plot, S10BFig,labels=c('A','B'), ncol=1,
+                   rel_heights = c(1, 1),rel_widths=c(1,1))
+save_plot(S10Figoutf, S10Fig, base_width=11, base_height=7.5)
+
+############
+## Supplementary Figure S11.
+S11Figoutf <- file.path(projdir,"results/figures/S11Fig.pdf")
 
 ## Filter oddball Cit- ZDBp874 from the clones before estimation.
 clone.growth.curve.fits <- filter(clone.growth.curve.fits, Name != 'ZDBp874')
@@ -1210,40 +1244,17 @@ clone.growthcurver.summary <- summarize.growthcurver.results(clone.growth.curve.
 final.clone.growthcurver.summary <- calc.growthcurver.log.ratios(clone.growthcurver.summary)
 clone.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(final.clone.growthcurver.summary)
 
-S10BFig.plot.df <- final.clone.growthcurver.summary %>%
+S11BFig.plot.df <- final.clone.growthcurver.summary %>%
 gather(key="Parameter", value="Estimate",
        log.DM0.r.ratio, log.DM25.r.ratio,
        log.DM0.t_mid.ratio, log.DM25.t_mid.ratio) %>%
 filter(Name != Founder) ## ancestors always have a ratio of zero.
 
-S10BFig <- plot.growthcurver.parameter.log.ratios(S10BFig.plot.df, clone.growthcurver.bootstrap.CI)
+S11BFig <- plot.growthcurver.parameter.log.ratios(S11BFig.plot.df, clone.growthcurver.bootstrap.CI)
 
-S10Fig <- plot_grid(clone.growthcurver.plot, S10BFig,labels=c('A','B'), ncol=1,
-                   rel_heights = c(1, 1),rel_widths=c(1,1))
-save_plot(S10Figoutf,S10Fig, base_width=11, base_height=7.5)
-
-## Supplementary Figure S11.
-S11Figoutf <- file.path(projdir,"results/figures/S11Fig.pdf")
-pop.growthcurver.plot <- plot.growthcurver.parameters(pop.growth.curve.fits)
-pop.growthcurver.summary <- summarize.growthcurver.results(pop.growth.curve.fits)
-final.pop.growthcurver.summary <- calc.growthcurver.log.ratios(pop.growthcurver.summary)
-
-pop.growthcurver.bootstrap.CI <- run.growthcurver.ratio.confint.bootstrapping(
-  final.pop.growthcurver.summary
-  )
-
-S11BFig.plot.df <- final.pop.growthcurver.summary %>%
-gather(key="Parameter", value="Estimate",
-       log.DM0.r.ratio, log.DM25.r.ratio,
-       log.DM0.t_mid.ratio, log.DM25.t_mid.ratio) %>%
-filter(Name != Founder) ## ancestors always have a ratio of zero.
-
-S11BFig <- plot.growthcurver.parameter.log.ratios(S11BFig.plot.df, pop.growthcurver.bootstrap.CI)
-
-S11Fig <- plot_grid(pop.growthcurver.plot, S11BFig,labels=c('A','B'), ncol=1,
+S11Fig <- plot_grid(clone.growthcurver.plot, S11BFig,labels=c('A','B'), ncol=1,
                    rel_heights = c(1, 1),rel_widths=c(1,1))
 save_plot(S11Figoutf,S11Fig, base_width=11, base_height=7.5)
-
 
 ## Supplementary Figure S12. supplementary fig of DM25-evolved clone growth.
 S12Figoutf <- file.path(projdir,"results/figures/S12Fig.pdf")

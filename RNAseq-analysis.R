@@ -130,14 +130,21 @@ colors <- colorRampPalette(c(color_low, color_mid, color_high))(100)
 RNAseq.fig.outf <- file.path(proj.dir,
               "results/figures/S16Fig.pdf")
 
+## We want to italicize gene names in the rows.
+## See how at: https://www.biostars.org/p/400381/
+italicsnames <- lapply(
+    rownames(trans_mat),
+    function(x) bquote(italic(.(x))))
+
 p <- pheatmap::pheatmap(trans_mat,
                         ##color=colors, ## comment this out if we want red/blue gradient.
-                        cluster_cols = TRUE, cluster_rows=TRUE)
+                        cluster_cols = TRUE, cluster_rows=TRUE,
+                        labels_row = as.expression(italicsnames))
 
 p$gtable$grobs[[3]]$rot <- 360 - x_axis_angle
 gridExtra::grid.arrange(p$gtable)
 
-ggsave(RNAseq.fig.outf,p)
+ggsave(RNAseq.fig.outf,p, height=10, width=7)
 
 
 ## run the RShiny web app interface to the sleuth results.
