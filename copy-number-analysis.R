@@ -85,77 +85,79 @@ max.readlen.from.html <- function (breseq.output.dir) {
 #' Estimate copy number by dividing mean coverage in each region by the mean of the H0 1x coverage distribution.
 #' return mean copy number, and boundaries for each region that passes the amplification test.
 #' @export
-find.amplifications <- function(breseq.output.dir,gnome) { #gnome is not a misspelling.
+find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a misspelling.
 
-  gnome <- as.character(gnome)
-  print(gnome)
-  ## Use xml2 to get negative binomial fit and dispersion from
-  ## breseq output summary.html. This is H0 null distribution of 1x coverage.
-  nbinom.fit <- coverage.nbinom.from.html(breseq.output.dir)
+    gnome <- as.character(gnome)
+    print(gnome)
+    ## Use xml2 to get negative binomial fit and dispersion from
+    ## breseq output summary.html. This is H0 null distribution of 1x coverage.
+    nbinom.fit <- coverage.nbinom.from.html(breseq.output.dir)
+    
+    ## Use xml2 to get max read length from summary.html.
+    max.read.len <- max.readlen.from.html(breseq.output.dir)
+    ##genome.length <- 4629812 ## REL606 length
+    genome.length <- 4521141 ## length of inferred LCA-- see LCA.gbk.
+    
+    alpha <- 0.05
+    uncorrected.threshold <- qnbinom(p=alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
+    
+    genome.coverage.file <- file.path(breseq.output.dir,"08_mutation_identification", "REL606.coverage.tab")
+    
+    ## use dtplyr for speed!
+    genome.coverage <- tbl_dt(fread(genome.coverage.file)) %>%
+        select(position,unique_top_cov,unique_bot_cov) %>% mutate(coverage=unique_top_cov+unique_bot_cov)
+    
 
-  ## Use xml2 to get max read length from summary.html.
-  max.read.len <- max.readlen.from.html(breseq.output.dir)
-  genome.length <- 4629812
-  alpha <- 0.05
-  uncorrected.threshold <- qnbinom(p=alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
+    ## find candidate amplifications that pass the uncorrected threshold.
+    candidate.amplifications <- filter(genome.coverage,coverage > uncorrected.threshold)
+    ## calculate intervals of candidate amplifications.
+    boundaries <- candidate.amplifications %>% mutate(left.diff=position - lag(position)) %>%
+        mutate(right.diff=lead(position) - position) %>%
+        ## corner case: check for the NA values at the endpoints and set them as boundaries.
+        mutate(is.right.boundary=is.na(right.diff)|ifelse(right.diff>1,TRUE,FALSE)) %>%
+        mutate(is.left.boundary=is.na(left.diff)|ifelse(left.diff>1,TRUE,FALSE)) %>%
+        filter(is.left.boundary==TRUE | is.right.boundary==TRUE)
+    
+    left.boundaries <- filter(boundaries,is.left.boundary==TRUE) %>% arrange(position)
+    right.boundaries <- filter(boundaries,is.right.boundary==TRUE) %>% arrange(position)
+    assert_that(nrow(left.boundaries) == nrow(right.boundaries))
+    
+    ## helper higher-order function to get min, max, mean coverage of each segment.
+    get.segment.coverage <- function(left.bound,right.bound,coverage.table,funcx) {
+        seg <- coverage.table %>% filter(position>left.bound) %>% filter(position<right.bound)
+        return(funcx(seg$coverage))
+    }
 
-  genome.coverage.file <- file.path(breseq.output.dir,"08_mutation_identification", "REL606.coverage.tab")
-
-  ## use dtplyr for speed!
-  genome.coverage <- tbl_dt(fread(genome.coverage.file)) %>%
-  select(position,unique_top_cov,unique_bot_cov) %>% mutate(coverage=unique_top_cov+unique_bot_cov)
-
-
-  ## find candidate amplifications that pass the uncorrected threshold.
-  candidate.amplifications <- filter(genome.coverage,coverage > uncorrected.threshold)
-  ## calculate intervals of candidate amplifications.
-  boundaries <- candidate.amplifications %>% mutate(left.diff=position - lag(position)) %>%
-  mutate(right.diff=lead(position) - position) %>%
-  ## corner case: check for the NA values at the endpoints and set them as boundaries.
-  mutate(is.right.boundary=is.na(right.diff)|ifelse(right.diff>1,TRUE,FALSE)) %>%
-  mutate(is.left.boundary=is.na(left.diff)|ifelse(left.diff>1,TRUE,FALSE)) %>%
-  filter(is.left.boundary==TRUE | is.right.boundary==TRUE)
-
-  left.boundaries <- filter(boundaries,is.left.boundary==TRUE) %>% arrange(position)
-  right.boundaries <- filter(boundaries,is.right.boundary==TRUE) %>% arrange(position)
-  assert_that(nrow(left.boundaries) == nrow(right.boundaries))
-
-  ## helper higher-order function to get min, max, mean coverage of each segment.
-  get.segment.coverage <- function(left.bound,right.bound,coverage.table,funcx) {
-    seg <- coverage.table %>% filter(position>left.bound) %>% filter(position<right.bound)
-    return(funcx(seg$coverage))
-  }
-
-  amplified.segments <- data.frame(left.boundary=left.boundaries$position,right.boundary=right.boundaries$position) %>%
-  ## filter out intervals less than max.read.len*2 (400bp).
-  mutate(len=right.boundary-left.boundary) %>% filter(len>(2*max.read.len)) %>% mutate(amplication.index=row_number()) %>%
-  ## find min, max, and mean coverage of each amplified segment.
-  group_by(left.boundary,right.boundary) %>%
-  summarise(coverage.min=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,min),
-            coverage.max=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,max),
-            coverage.mean=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,mean)) %>%
-            mutate(len=right.boundary-left.boundary) %>%
-            mutate(copy.number.min=coverage.min/nbinom.fit$mean,copy.number.max=coverage.max/nbinom.fit$mean,
-                   copy.number.mean=coverage.mean/nbinom.fit$mean)
-
-  ##print(data.frame(amplified.segments))
-  ## divide alpha by the number of tests for the bonferroni correction.
-  bonferroni.alpha <- alpha/(genome.length + sum(amplified.segments$len))
-  corrected.threshold <- qnbinom(p=bonferroni.alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
-
-  ## This is my test: take the probability of the minimum coverage under H0 to the power of the number of
-  ## uncorrelated sites in the amplification (sites more than max.read.len apart). Then see if this is smaller than the
-  ## bonferroni corrected p-value for significance..
-  significant.amplifications <- amplified.segments %>%
-  mutate(pval=(pnbinom(q=coverage.min,
-                       mu=nbinom.fit$mean,
-                       size=nbinom.fit$dispersion,
-                       lower.tail=FALSE))^(len%/%max.read.len)) %>%
-                       mutate(is.significant=ifelse(pval<bonferroni.alpha,TRUE,FALSE)) %>%
-                       filter(is.significant==TRUE) %>% mutate(Genome=as.character(gnome)) %>%
-                       mutate(bonferroni.corrected.pval=pval*alpha/bonferroni.alpha)
-
-  return(significant.amplifications)
+    amplified.segments <- data.frame(left.boundary=left.boundaries$position,right.boundary=right.boundaries$position) %>%
+        ## filter out intervals less than 2 * max.read.len.
+        mutate(len=right.boundary-left.boundary) %>% filter(len>(2*max.read.len)) %>% mutate(amplication.index=row_number()) %>%
+        ## find min, max, and mean coverage of each amplified segment.
+        group_by(left.boundary,right.boundary) %>%
+        summarise(coverage.min=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,min),
+                  coverage.max=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,max),
+                  coverage.mean=get.segment.coverage(left.boundary,right.boundary,candidate.amplifications,mean)) %>%
+        mutate(len=right.boundary-left.boundary) %>%
+        mutate(copy.number.min=coverage.min/nbinom.fit$mean,copy.number.max=coverage.max/nbinom.fit$mean,
+               copy.number.mean=coverage.mean/nbinom.fit$mean)
+    
+    ##print(data.frame(amplified.segments))
+    ## divide alpha by the number of tests for the bonferroni correction.
+    bonferroni.alpha <- alpha/(genome.length + sum(amplified.segments$len))
+    corrected.threshold <- qnbinom(p=bonferroni.alpha,mu=nbinom.fit$mean,size=nbinom.fit$dispersion,lower.tail=FALSE)
+    
+    ## This is my test: take the probability of the minimum coverage under H0 to the power of the number of
+    ## uncorrelated sites in the amplification (sites more than max.read.len apart). Then see if this is smaller than the
+    ## bonferroni corrected p-value for significance..
+    significant.amplifications <- amplified.segments %>%
+        mutate(pval=(pnbinom(q=coverage.min,
+                             mu=nbinom.fit$mean,
+                             size=nbinom.fit$dispersion,
+                             lower.tail=FALSE))^(len%/%max.read.len)) %>%
+        mutate(is.significant=ifelse(pval<bonferroni.alpha,TRUE,FALSE)) %>%
+        filter(is.significant==TRUE) %>% mutate(Genome=as.character(gnome)) %>%
+        mutate(bonferroni.corrected.pval=pval*alpha/bonferroni.alpha)
+    
+    return(significant.amplifications)
 }
 
 ## input: LCA.gbk: file.path of the reference genome,
@@ -177,69 +179,68 @@ annotate.amplifications <- function(amplifications,LCA.gff) {
   ## find overlaps between annotated genes and amplifications.
   hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
 
-  ## take the hits, the LCA annotation, and the amplifications,
-  ## and produce a table of genes found in each amplication.
-
-  hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
-
-  query.df <- data.frame(query.index=1:length(LCA.genes),
-                         gene=LCA.genes$Name,locus_tag=LCA.genes$ID,
-                         start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
-
-  subject.df <- bind_cols(data.frame(subject.index=1:length(g.amp.ranges)),data.frame(mcols(g.amp.ranges)))
-
-  amplified.genes.df <- left_join(hits.df,query.df) %>% left_join(subject.df) %>%
-  ## if gene is NA, replace with locus_tag. have to change factors to strings!
-  mutate(gene = ifelse(is.na(gene),as.character(locus_tag),as.character(gene)))
-
-  return(amplified.genes.df)
+    ## take the hits, the LCA annotation, and the amplifications,
+    ## and produce a table of genes found in each amplication.
+    
+    hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
+    
+    query.df <- data.frame(query.index=1:length(LCA.genes),
+                           gene=LCA.genes$Name,locus_tag=LCA.genes$ID,
+                           start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
+    
+    subject.df <- bind_cols(data.frame(subject.index=1:length(g.amp.ranges)),data.frame(mcols(g.amp.ranges)))
+    
+    amplified.genes.df <- left_join(hits.df,query.df) %>% left_join(subject.df) %>%
+        ## if gene is NA, replace with locus_tag. have to change factors to strings!
+        mutate(gene = ifelse(is.na(gene),as.character(locus_tag),as.character(gene)))
+    
+    return(amplified.genes.df)
 }
 
 plot.amp.segments <- function(annotated.amps,clone.labels) {
-
-  ## for annotated.amps and clone.labels to play nicely with each other.
-  clone.labels$Name <- as.character(clone.labels$Name)
-
-  labeled.annotated.amps <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
-  select(-query.index,-subject.index,-is.significant,-SampleType, -Population) %>%
-  ## replace 'sfcA' with 'maeA' in the plot.
-  mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
-  mutate(log.pval=log(bonferroni.corrected.pval)) %>%
-  mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
-  transform(Population = PopulationLabel) %>%
-  filter(!(Genome==ParentClone))
-  
-
-  ## order the genes by start to get axes correct on heatmap.
-  labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
-  ## reverse the order of genomes to make axes consistent with stacked barplot.
-  labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome)
-  labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome,
-                                          levels=rev(levels(labeled.annotated.amps$Genome)))
-  
-  segmentplot <- ggplot(
-    labeled.annotated.amps,
-    aes(x=left.boundary,
-        xend=right.boundary,
-        y=Genome,
-        yend=Genome,
-        color=log2.copy.number.mean,
-        size=20,
-        frame=Environment)) +
+    
+    ## for annotated.amps and clone.labels to play nicely with each other.
+    clone.labels$Name <- as.character(clone.labels$Name)
+    
+    labeled.annotated.amps <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
+        select(-query.index,-subject.index,-is.significant,-SampleType, -Population) %>%
+        ## replace 'sfcA' with 'maeA' in the plot.
+        mutate(gene = replace(gene, gene == 'sfcA', 'maeA')) %>%
+        mutate(log.pval=log(bonferroni.corrected.pval)) %>%
+        mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
+        transform(Population = PopulationLabel) %>%
+        filter(!(Genome==ParentClone))
+    
+    
+    ## order the genes by start to get axes correct on heatmap.
+    labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
+    ## reverse the order of genomes to make axes consistent with stacked barplot.
+    labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome)
+    labeled.annotated.amps$Genome <- factor(labeled.annotated.amps$Genome,
+                                            levels=rev(levels(labeled.annotated.amps$Genome)))
+    
+    segmentplot <- ggplot(
+        labeled.annotated.amps,
+        aes(x=left.boundary,
+            xend=right.boundary,
+            y=Genome,
+            yend=Genome,
+            color=log2.copy.number.mean,
+            size=20,
+            frame=Environment)) +
         geom_segment() +
         ## draw vertical lines at maeA, dctA.
         geom_vline(size=0.2,
                    linetype='dashed',
                    xintercept = c(1534704,3542785)
                    ) +
-                   xlab("Genomic position") +
-                   scale_color_viridis(name="",option="plasma") +
-                   facet_wrap(~Environment,nrow=2, scales = "free_y") +
-                   ##theme_classic(base_family='Helvetica') +
-                   theme_tufte(base_family='Helvetica') +
-                   theme(axis.ticks=element_line(size=0.1)) +
-                   guides(color=FALSE,size=FALSE)  
-  return(segmentplot)
+        xlab("Genomic position") +
+        scale_color_viridis(name="",option="plasma") +
+        facet_wrap(~Environment,nrow=2, scales = "free_y") +
+        theme_tufte(base_family='Helvetica') +
+        theme(axis.ticks=element_line(size=0.1)) +
+        guides(color=FALSE,size=FALSE)  
+    return(segmentplot)
 }
 
 ## assert that we are in the src directory, such that
@@ -259,7 +260,7 @@ genome.input.df <- data.frame(Genome=all.genomes,path=all.genome.paths)
 amps <- map2_df(genome.input.df$path,
                 genome.input.df$Genome,
                 find.amplifications) %>%
-ungroup()
+    ungroup()
 
 write.csv(x=amps,file=file.path(outdir,"amplifications.csv"))
 
@@ -272,28 +273,29 @@ write.csv(x=filter(annotated.amps,Genome=='ZDBp874'),file=file.path(outdir,"ZDBp
 ## reporting these numbers.
 
 total.amp.lengths <- amps %>%
-group_by(Genome) %>%
-summarize(total.length=sum(len*copy.number.mean)) %>%
-data.frame()
+    group_by(Genome) %>%
+    summarize(total.length=sum(len*copy.number.mean)) %>%
+    data.frame()
 
 total.amp.lengths
+write.csv(total.amp.lengths,file=file.path(outdir,"total_amp_lengths.csv"))
 
 ## just report parallel amps in evolved genomes.
 amp.parallelism <- annotated.amps %>%
-filter(!(Genome %in% c('CZB151','CZB152','CZB154','ZDB67','ZDB68','ZDB69'))) %>%
-group_by(gene,locus_tag) %>% summarise(count=n()) %>% arrange(locus_tag)
+    filter(!(Genome %in% c('CZB151','CZB152','CZB154','ZDB67','ZDB68','ZDB69'))) %>%
+    group_by(gene,locus_tag) %>% summarise(count=n()) %>% arrange(locus_tag)
 write.csv(x=amp.parallelism,file=file.path(outdir,"amp_parallelism.csv"))
 
 #' report copy number of maeA, citT, and dctA in a table.
 #' (I can do this easily by hand).
 
 copy.number.table <- annotated.amps %>%
-filter(gene %in% c('citT','sfcA','dctA')) %>%
-#' change sfcA to maeA
-mutate(Gene=replace(gene,gene=='sfcA','maeA')) %>%
-transform(amplified.segment.length=len) %>%
-arrange(Gene,Genome) %>%
-select(Gene,Genome,amplified.segment.length,copy.number.mean,copy.number.min,copy.number.max, bonferroni.corrected.pval)
+    filter(gene %in% c('citT','sfcA','dctA')) %>%
+    #' change sfcA to maeA
+    mutate(Gene=replace(gene,gene=='sfcA','maeA')) %>%
+    transform(amplified.segment.length=len) %>%
+    arrange(Gene,Genome) %>%
+    select(Gene,Genome,amplified.segment.length,copy.number.mean,copy.number.min,copy.number.max, bonferroni.corrected.pval)
 
 write.csv(x=copy.number.table,file=file.path(outdir,"copy_number_table.csv"))
 
