@@ -104,20 +104,22 @@ results.matrix <- sleuth_to_matrix(so, "obs_norm", "est_counts")
 ## change the row names of this matrix for better plotting.
 ## first turn into a dataframe, 
 results.matrix.2 <- data.frame(results.matrix) %>%
-rownames_to_column(var = 'target_id') %>%
-left_join(my.annotation) %>%
-## then filter on genes that are discussed in the text,
-filter(gene %in% discussed.genes) %>%
-## and convert back to plot the heatmap.
-select(-target_id, -locus_tag) %>%
-column_to_rownames(var = 'gene')
+    rownames_to_column(var = 'target_id') %>%
+    left_join(my.annotation) %>%
+    ## then filter on genes that are discussed in the text,
+    filter(gene %in% discussed.genes) %>%
+    ## rename sfcA to maeA.
+    mutate(gene = replace(gene, gene=="sfcA", "maeA")) %>%
+    ## and convert back to plot the heatmap.
+    select(-target_id, -locus_tag) %>%
+    column_to_rownames(var = 'gene')
 
 ## Here I'm hacking some code from the internals of the plot_transcript_heatmap
 ## function, so that I can use a dataframe rather than a sleuth object to make
 ## the figure.
 
-## transform counts using: log(1+est_counts)
-trans_mat <- as.matrix(log(results.matrix.2 + 1))
+## transform counts using: log2(1+est_counts)
+trans_mat <- as.matrix(log2(results.matrix.2 + 1))
 
 ## default colors
 x_axis_angle = 50
@@ -126,9 +128,9 @@ color_mid <- "#FFC300"
 color_low <- "#DAF7A6"
 colors <- colorRampPalette(c(color_low, color_mid, color_high))(100)
 
-## make the plot! This is Supplementary Figure S16.
+## make the plot! This is Supplementary Figure S12.
 RNAseq.fig.outf <- file.path(proj.dir,
-              "results/figures/S16Fig.pdf")
+              "results/figures/S12Fig.pdf")
 
 ## We want to italicize gene names in the rows.
 ## See how at: https://www.biostars.org/p/400381/
@@ -148,7 +150,7 @@ ggsave(RNAseq.fig.outf,p, height=10, width=7)
 
 
 ## run the RShiny web app interface to the sleuth results.
-sleuth_live(so)
+##sleuth_live(so)
 
 
 ## let's do a differential expression analysis to see if anything is anti-correlated

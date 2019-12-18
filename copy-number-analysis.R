@@ -209,8 +209,12 @@ plot.amp.segments <- function(annotated.amps,clone.labels) {
         mutate(log.pval=log(bonferroni.corrected.pval)) %>%
         mutate(log2.copy.number.mean=log2(copy.number.mean)) %>%
         transform(Population = PopulationLabel) %>%
-        filter(!(Genome==ParentClone))
-    
+        filter(!(Genome==ParentClone)) %>%
+        mutate(left.boundary.MB = left.boundary/1000000) %>%
+        mutate(right.boundary.MB = right.boundary/1000000) %>%
+        mutate(Genome.Class=recode(Environment,
+                                   DM0 = "DM0-evolved genomes",
+                                   DM25 = "DM25-evolved genomes"))
     
     ## order the genes by start to get axes correct on heatmap.
     labeled.annotated.amps$gene <- with(labeled.annotated.amps, reorder(gene, start))
@@ -221,25 +225,27 @@ plot.amp.segments <- function(annotated.amps,clone.labels) {
     
     segmentplot <- ggplot(
         labeled.annotated.amps,
-        aes(x=left.boundary,
-            xend=right.boundary,
+        aes(x=left.boundary.MB,
+            xend=right.boundary.MB,
             y=Genome,
             yend=Genome,
             color=log2.copy.number.mean,
             size=20,
-            frame=Environment)) +
+            frame=Genome.Class)) +
         geom_segment() +
         ## draw vertical lines at maeA, dctA.
         geom_vline(size=0.2,
                    linetype='dashed',
-                   xintercept = c(1534704,3542785)
+                   xintercept = c(1534704/1000000,3542785/1000000)
                    ) +
-        xlab("Genomic position") +
-        scale_color_viridis(name="",option="plasma") +
-        facet_wrap(~Environment,nrow=2, scales = "free_y") +
-        theme_tufte(base_family='Helvetica') +
-        theme(axis.ticks=element_line(size=0.1)) +
-        guides(color=FALSE,size=FALSE)  
+        xlab("Genomic position (Mb)") +
+        ylab("") +
+        scale_color_viridis(name=bquote(log[2]~"(copy number)"),option="plasma") +
+        facet_wrap(~Genome.Class,nrow=2, scales = "free_y") +
+        theme_classic(base_family='Helvetica') +
+        guides(size=FALSE) +
+        theme(legend.position="bottom") +
+        theme(axis.ticks=element_line(size=0.1))
     return(segmentplot)
 }
 
@@ -309,7 +315,7 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 amp.segments.plot <- plot.amp.segments(annotated.amps,clone.labels)
 
 Fig7outf <- file.path(projdir,"results/figures/Fig7.pdf")
-save_plot(Fig7outf,amp.segments.plot,base_height=7,base_width=10.5)
+save_plot(Fig7outf,amp.segments.plot,base_height=5,base_width=5)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
