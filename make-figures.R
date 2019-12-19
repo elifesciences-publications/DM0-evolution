@@ -595,7 +595,7 @@ plot.growth.confints <- function (plot.df, confints.df, plot.CIs=TRUE) {
     guides(color=FALSE) +
     scale_color_manual(values = cbbPalette) +
     theme_classic() +
-    theme(plot.title = element_text(size = 10),
+    theme(plot.title = element_text(size = 9.5),
           axis.title.x = element_text(size=10),
           axis.text.y = element_text(size=8),
           plot.margin = unit(c(0.1,0.1,0.1,0.1), "cm"),
@@ -1010,7 +1010,7 @@ guides(color=FALSE,shape=FALSE)
 ## Save figure for the Supplement. 
 S10Fig <- plot_grid(cit.glucose.cor.plot,
                     cit.cit.cor.plot, labels=c('A','B'), ncol=1)
-S10Fig.outf <- file.path(projdir,"results/figures/S14Fig.pdf")
+S10Fig.outf <- file.path(projdir,"results/figures/S10Fig.pdf")
 save_plot(S10Fig.outf, S10Fig, base_height=8, base_width=12)
 
 ######################################################################
