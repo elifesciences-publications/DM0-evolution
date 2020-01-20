@@ -10,6 +10,7 @@ library(data.table)
 library(ggrepel)
 library(ggthemes)
 library(viridis)
+
 library(RColorBrewer)
 library(scales)
 library(gridExtra)
@@ -213,6 +214,10 @@ ggsave(fig1, file=fig1.output,width=7,height=7)
 ## let's examine REL606 growth in DM25 to estimate OD420.
 ## We need these data to provide an empirical basis for the intervals
 ## chosen to estimate r.glucose and r.citrate in later code.
+
+## NOTE: OD is log-transformed using the natural log.
+## HOWEVER: log-ratios of growth parameters (and fitness competitions for maeA)
+## use log2 for easier interpretability.
 
 ## IMPORTANT NOTE: Double-check the provenance of these data with Zack.
 ## This file indicates that this is 96 hour data, but appears to go
