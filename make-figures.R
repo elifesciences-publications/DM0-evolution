@@ -236,7 +236,7 @@ mutate_at(vars(REL606.1:REL606.5),function(x)ifelse(x<0,0,x)) %>%
 dplyr::select(-Blank) %>%
 gather("Replicate","OD420",-Hours,-Time) %>%
 mutate(Name='REL606') %>%
-mutate(log.OD420=log2(OD420)) %>%
+mutate(log.OD420=log(OD420)) %>%
 ## Note: the blanks get messed up several days in. Contamination??
 filter(Hours<=24)
 
@@ -251,9 +251,9 @@ plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
                   aes(x=Hours,
                       y=log.OD420)) +
                       ylab(expression(log~(OD[420]))) +
-                      geom_hline(yintercept=log2(glu.ceiling),linetype='dashed',color='red') +
-                      geom_hline(yintercept=log2(glu.interval.high),linetype='dashed',color='black') +
-                      geom_hline(yintercept=log2(glu.interval.low),linetype='dashed',color='black')
+                      geom_hline(yintercept=log(glu.ceiling),linetype='dashed',color='red') +
+                      geom_hline(yintercept=log(glu.interval.high),linetype='dashed',color='black') +
+                      geom_hline(yintercept=log(glu.interval.low),linetype='dashed',color='black')
 
   } else {
     fig <- ggplot(REL606.df,
@@ -288,13 +288,13 @@ prep.growth.df <- function(growth.df) {
   ## The analysis follows what Zack has done:
   ## 1) average blank measurement at every time point.
   ## 2) subtract average blank measurement from each time point.
-  ## 3) log2 transform the data.
+  ## 3) log transform the data.
   blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
   summarise(blank.time.avg = mean(OD420))
   growth.df <- left_join(growth.df, blanks) %>%
   mutate(rawOD420 = OD420) %>%
   mutate(OD420 = rawOD420 - blank.time.avg) %>%
-  mutate(log.OD420 = log2(OD420)) %>%
+  mutate(log.OD420 = log(OD420)) %>%
   ## filter out blank rows.
   filter(Name != 'Blank') %>%
   ## Make an hours column with lubridate for plotting.
@@ -312,11 +312,11 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
                       color=Name)) +
                       ylim(c(-6,0)) +
                       ylab(expression(log~(OD[420]))) +
-                      geom_hline(yintercept=log2(0.05),linetype='dashed',color='red',size=0.1) +
-                      geom_hline(yintercept=log2(0.1),linetype='dashed',color='red',size=0.1) +
+                      geom_hline(yintercept=log(0.05),linetype='dashed',color='red',size=0.1) +
+                      geom_hline(yintercept=log(0.1),linetype='dashed',color='red',size=0.1) +
                       ## clever trick to only plot glucose interval on DM25 curves.
-                      geom_hline(data=data.frame(yint=log2(0.01),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1) +
-                      geom_hline(data=data.frame(yint=log2(0.02),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1)
+                      geom_hline(data=data.frame(yint=log(0.01),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1) +
+                      geom_hline(data=data.frame(yint=log(0.02),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1)
     
   } else {
     fig <- ggplot(plot.growth.data,
