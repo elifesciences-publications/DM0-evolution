@@ -317,11 +317,11 @@ plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FAL
                       color=Name)) +
                       ylim(c(-6,0)) +
                       ylab(expression(log~(OD[420]))) +
-                      geom_hline(yintercept=log(0.05),linetype='dashed',color='red',size=0.1) +
-                      geom_hline(yintercept=log(0.1),linetype='dashed',color='red',size=0.1) +
+                      geom_hline(yintercept=log(0.05),linetype='dashed',color='red',size=0.4) +
+                      geom_hline(yintercept=log(0.1),linetype='dashed',color='red',size=0.4) +
                       ## clever trick to only plot glucose interval on DM25 curves.
-                      geom_hline(data=data.frame(yint=log(0.01),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1) +
-                      geom_hline(data=data.frame(yint=log(0.02),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.1)
+                      geom_hline(data=data.frame(yint=log(0.01),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.4) +
+                      geom_hline(data=data.frame(yint=log(0.02),Experiment='DM25'), aes(yintercept=yint),linetype='dashed',color='black',size=0.4)
     
   } else {
     fig <- ggplot(plot.growth.data,
