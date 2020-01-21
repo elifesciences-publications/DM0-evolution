@@ -243,7 +243,9 @@ gather("Replicate","OD420",-Hours,-Time) %>%
 mutate(Name='REL606') %>%
 mutate(log.OD420=log(OD420)) %>%
 ## Note: the blanks get messed up several days in. Contamination??
-filter(Hours<=24)
+    filter(Hours<=24) %>%
+    ## don't include points before 30 minutes in.
+    filter(Hours >= 0.5)
 
 plot.REL606.DM25.growth <- function(REL606.df,logscale=FALSE) {
   
@@ -290,22 +292,24 @@ save_plot(file.path(projdir,"results/figures/S2Fig.pdf"),S2Fig,base_height=4,bas
 
 ########################################
 prep.growth.df <- function(growth.df) {
-  ## The analysis follows what Zack has done:
-  ## 1) average blank measurement at every time point.
-  ## 2) subtract average blank measurement from each time point.
-  ## 3) log transform the data.
-  blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
-  summarise(blank.time.avg = mean(OD420))
-  growth.df <- left_join(growth.df, blanks) %>%
-  mutate(rawOD420 = OD420) %>%
-  mutate(OD420 = rawOD420 - blank.time.avg) %>%
-  mutate(log.OD420 = log(OD420)) %>%
-  ## filter out blank rows.
-  filter(Name != 'Blank') %>%
-  ## Make an hours column with lubridate for plotting.
-  mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
-  ungroup()
-  return(growth.df)
+    ## The analysis follows what Zack has done:
+    ## 1) average blank measurement at every time point.
+    ## 2) subtract average blank measurement from each time point.
+    ## 3) log transform the data.
+    blanks <- filter(growth.df, Name == 'Blank') %>% group_by(Experiment, Time) %>%
+        summarise(blank.time.avg = mean(OD420))
+    growth.df <- left_join(growth.df, blanks) %>%
+        mutate(rawOD420 = OD420) %>%
+        mutate(OD420 = rawOD420 - blank.time.avg) %>%
+        mutate(log.OD420 = log(OD420)) %>%
+        ## filter out blank rows.
+        filter(Name != 'Blank') %>%
+        ## Make an hours column with lubridate for plotting.
+        mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
+        ## start using data at the 30 minutes mark.
+        filter(Hours >= 0.5) %>%
+        ungroup()
+    return(growth.df)
 }
 
 plot.single.growthcurve <- function(plot.growth.data, ev.name, fdr, logscale=FALSE) {
@@ -394,88 +398,88 @@ plot.growthcurve.figure <- function(growth.df,logscale=FALSE) {
 }
 
 calc.growth.rates <- function(final.growth.df) {
-  ## My simple growth rate calculation code.
-  ## Use two different intervals for estimating r.glucose and r.citrate,
-  ## based on the REL606 growth curves in DM25, the Cit- ZDBp874 growth curve,
-  ## and the Cit+ clone growth curves.
-  ## This should hopefully provide more reliable estimates.
-  
-  summarize.well.growth <- function(well.df) {
+    ## My simple growth rate calculation code.
+    ## Use two different intervals for estimating r.glucose and r.citrate,
+    ## based on the REL606 growth curves in DM25, the Cit- ZDBp874 growth curve,
+    ## and the Cit+ clone growth curves.
+    ## This should hopefully provide more reliable estimates.
     
-    glu.min.index <- max(min(which(well.df$OD420 > 0.01)), 1)
-    glu.max.index <- min(min(which(well.df$OD420 > 0.02)), nrow(well.df))
-    
-    cit.min.index <- max(min(which(well.df$OD420 > 0.05)), 1)
-    cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
-    ## to compare time lags, measure point when OD420 hits 0.01.
-    t.OD.hit.glu.min <- well.df[glu.min.index,]$Hours
-    
-    if ((glu.max.index <= nrow(well.df)) & (glu.min.index < glu.max.index)) {
-      glucose.data <- well.df[glu.min.index:glu.max.index,]
-    } else {
-      glucose.data <- NULL
+    summarize.well.growth <- function(well.df) {
+        
+        glu.min.index <- max(min(which(well.df$OD420 > 0.01)), 1)
+        glu.max.index <- min(min(which(well.df$OD420 > 0.02)), nrow(well.df))
+        
+        cit.min.index <- max(min(which(well.df$OD420 > 0.05)), 1)
+        cit.max.index <- min(min(which(well.df$OD420 > 0.1)), nrow(well.df))
+        ## to compare time lags, measure point when OD420 hits 0.01.
+        t.OD.hit.glu.min <- well.df[glu.min.index,]$Hours
+        
+        if ((glu.max.index <= nrow(well.df)) & (glu.min.index < glu.max.index)) {
+            glucose.data <- well.df[glu.min.index:glu.max.index,]
+        } else {
+            glucose.data <- NULL
+        }
+        
+        if ((cit.max.index <= nrow(well.df)) & (cit.min.index<cit.max.index)) {
+            citrate.data <- well.df[cit.min.index:cit.max.index,]
+        } else { ## if OD never hits 0.1, then don't measure r.citrate.
+            citrate.data <- NULL
+        }
+        
+        ## can't measure growth on glucose if there's no glucose!
+        if (unique(well.df$Experiment) == 'DM0-growth'){
+            glucose.data <- NULL
+        }
+        
+        get.max.growth.rate <- function(subdata,window=TRUE) {
+            ## find max growth rate for glucose or citrate data.
+            
+            if (is.null(subdata)) return(NA)
+            rel.subdata <- dplyr::select(subdata,c('log.OD420','Hours')) %>%
+                ##Remove rows that contain nans
+                drop_na()
+            
+            w <- 5 ## require at least 5 datapoints to calculate growth rates.
+            if (nrow(rel.subdata) < w) return(NA)
+            
+            calc.slope <- function(subdf) {
+                coef(lm(log.OD420 ~ Hours, data = as.data.frame(subdf)))[2]
+            }
+            
+            if (window) { ## Find the max slope in the interval.
+                g.rate <- max(rollapply(zoo(rel.subdata), width = w,
+                                        FUN = calc.slope,
+                                        by.column = FALSE, align = "right"))
+            }
+            else { ## Calculate slope on the whole interval
+                g.rate <- calc.slope(rel.subdata)
+            }
+            return(g.rate)
+        }
+        
+        summarized.df <- data.frame(Name = unique(well.df$Name),
+                                    Well = unique(well.df$Well),
+                                    Experiment = unique(well.df$Experiment),
+                                    SampleType = unique(well.df$SampleType),
+                                    Generation = unique(well.df$Generation),
+                                    Environment = unique(well.df$Environment),
+                                    ParentClone = unique(well.df$ParentClone),
+                                    Founder = unique(well.df$Founder),
+                                    PopulationLabel = unique(well.df$PopulationLabel),
+                                    r.citrate = get.max.growth.rate(citrate.data),
+                                    r.glucose = get.max.growth.rate(glucose.data),
+                                    t.lag = t.OD.hit.glu.min,
+                                    stringsAsFactors=FALSE)
+        
+        return(summarized.df)
     }
     
-    if ((cit.max.index <= nrow(well.df)) & (cit.min.index<cit.max.index)) {
-      citrate.data <- well.df[cit.min.index:cit.max.index,]
-    } else { ## if OD never hits 0.1, then don't measure r.citrate.
-      citrate.data <- NULL
-    }
-    
-    ## can't measure growth on glucose if there's no glucose!
-    if (unique(well.df$Experiment) == 'DM0-growth'){
-      glucose.data <- NULL
-    }
-    
-    get.max.growth.rate <- function(subdata,window=TRUE) {
-      ## find max growth rate for glucose or citrate data.
-      
-      if (is.null(subdata)) return(NA)
-      rel.subdata <- dplyr::select(subdata,c('log.OD420','Hours')) %>%
-      ##Remove rows that contain nans
-      drop_na()
-      
-      w <- 5 ## require at least 5 datapoints to calculate growth rates.
-      if (nrow(rel.subdata) < w) return(NA)
-      
-      calc.slope <- function(subdf) {
-        coef(lm(log.OD420 ~ Hours, data = as.data.frame(subdf)))[2]
-      }
-      
-      if (window) { ## Find the max slope in the interval.
-        g.rate <- max(rollapply(zoo(rel.subdata), width = w,
-                                FUN = calc.slope,
-                                by.column = FALSE, align = "right"))
-      }
-      else { ## Calculate slope on the whole interval
-        g.rate <- calc.slope(rel.subdata)
-      }
-      return(g.rate)
-    }
-    
-    summarized.df <- data.frame(Name = unique(well.df$Name),
-                                Well = unique(well.df$Well),
-                                Experiment = unique(well.df$Experiment),
-                                SampleType = unique(well.df$SampleType),
-                                Generation = unique(well.df$Generation),
-                                Environment = unique(well.df$Environment),
-                                ParentClone = unique(well.df$ParentClone),
-                                Founder = unique(well.df$Founder),
-                                PopulationLabel = unique(well.df$PopulationLabel),
-                                r.citrate = get.max.growth.rate(citrate.data),
-                                r.glucose = get.max.growth.rate(glucose.data),
-                                t.lag = t.OD.hit.glu.min,
-                                stringsAsFactors=FALSE)
-
-    return(summarized.df)
-  }
-
-  growth.rate.summary <- final.growth.df %>%
-  droplevels() %>% ## otherwise runs and dies on empty subsets!
-  ## Split on both growth conditions (DM25 or DM0) and Well.
-  split(list(.$Experiment,.$Well)) %>%
-  map_dfr(.f=summarize.well.growth)
-  return(growth.rate.summary)
+    growth.rate.summary <- final.growth.df %>%
+        droplevels() %>% ## otherwise runs and dies on empty subsets!
+        ## Split on both growth conditions (DM25 or DM0) and Well.
+        split(list(.$Experiment,.$Well)) %>%
+        map_dfr(.f=summarize.well.growth)
+    return(growth.rate.summary)
 }
 
 filter.growth.data.on.analysis.domain <- function(growth.rate.df) {
@@ -563,7 +567,7 @@ bootstrap.my.growth.confints <- function(growth) {
   return(confint.df)
 }
 
-plot.growth.confints <- function (plot.df, confints.df, plot.CIs=TRUE) {
+plot.growth.confints <- function(plot.df, confints.df, plot.CIs=TRUE) {
 
   recode.Parameter <- function(df) {
     df <- mutate(df,
@@ -619,11 +623,15 @@ plot.growth.confints <- function (plot.df, confints.df, plot.CIs=TRUE) {
       fig <- fig +
       geom_errorbar(data = param.confint.df, aes(ymin=Left,ymax=Right), width=1, size=0.5)
     }
-    ## set bounds for rate and time parameter plots.
-    if (str_detect(param,'r')) {
-      fig <- fig + ylim(c(0,2))
-    } else {
-      fig <- fig + ylim(c(0,25))    
+    ## set bounds for rate and time lag parameter plots.
+    if (str_detect(param,'r')) { ## plotting a rate.
+      fig <- fig + ylim(c(0,1.5))
+    } else { ## plotting time lag.
+        if (str_detect(param,'DM25') & str_detect(param,'lag')) { ## for DM25 lag time
+            fig <- fig + ylim(c(0,5))
+        } else { ## for DM0 lag time.
+            fig <- fig + ylim(c(0,25))
+        }
     }
     
     list.of.plots[[i]] <- fig
@@ -726,7 +734,7 @@ run.growth.ratio.confint.bootstrapping <- function(final.growth.summary) {
   log.DM25.t.lag.ratio.conf.int <- calc.bootstrap.conf.int(evolved.growth.summary$log.DM25.t.lag.ratio)
   mean.log.DM25.t.lag.ratio <- mean(evolved.growth.summary$log.DM25.t.lag.ratio)
   
-  bootstrap.results <- data.frame (
+  bootstrap.results <- data.frame(
     Parameter = c(
       "log.DM0.r.citrate.ratio",
       "log.DM25.r.citrate.ratio",
@@ -759,13 +767,13 @@ run.growth.ratio.confint.bootstrapping <- function(final.growth.summary) {
 plot.growth.parameters <- function(growth, plot.CIs=TRUE) {    
   growth.CI <- bootstrap.my.growth.confints(growth)
   growth.plot.df <- growth %>%
-  gather(key="Parameter",value="Estimate",
+  gather(key="Parameter", value="Estimate",
          DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
   growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
   return(growth.plot)    
 }
 
-plot.parameter.log.ratios <- function (plot.df, confints.df, recode.param.func) {
+plot.parameter.log.ratios <- function(plot.df, confints.df, recode.param.func) {
 
   plot.df2 <- recode.param.func(plot.df) %>%
   dplyr::select(SampleType, Generation, ParentClone, Founder, Environment,
@@ -785,7 +793,7 @@ plot.parameter.log.ratios <- function (plot.df, confints.df, recode.param.func) 
   return(the.plot)
 }
 
-plot.growth.parameter.log.ratios <- function (plot.df, confints.df) {
+plot.growth.parameter.log.ratios <- function(plot.df, confints.df) {
 
   recode.Growth.Parameter <- function(df) {
     df2 <- mutate(df,
