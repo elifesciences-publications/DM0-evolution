@@ -1563,7 +1563,7 @@ maeA.fitness.analysis <- function(data, samplesize=6, days.competition=1,rev=FAL
   return(results)
 }
 
-maeA.fitness.data <- read.csv(file.path(projdir,"data/rohan-formatted/DM0_Fitness2.csv"),
+maeA.fitness.data <- read.csv(file.path(projdir,"data/rohan-formatted/DM0-maeA-plasmid-fitness.csv"),
                               header=TRUE,stringsAsFactors=FALSE)
 ## these data come from one day competitions that Tanush ran.
 res1 <- filter(maeA.fitness.data,Red.Pop=='ZDB151_with_maeA') %>% maeA.fitness.analysis()

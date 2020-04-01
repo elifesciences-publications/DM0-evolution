@@ -22,7 +22,6 @@ metadata <- read.csv(
               "data/rohan-formatted/Kenyon-RNAseq-metadata.csv"),
     header=TRUE,
     stringsAsFactors = FALSE)
-
 ## add path names of kallisto output directories to the metadata table.
 metadata <- metadata %>%
     mutate(path = file.path(proj.dir,"results","RNAseq-analysis",sample,"abundance.h5"))

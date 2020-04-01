@@ -1,0 +1,129 @@
+## clone-fitness.R by Rohan Maddamsetti.
+## make pretty figures for fitness of CZB151/ZDB67-derived clones
+## against CZB151 and ZDB67,
+## and double-check Zack's fitness calculations.
+
+library(tidyverse)
+
+## Fitness calculation code.
+## NOTE: this function is specialized for these competitions, and will NOT
+## work out of the box on other data.
+fitness.analysis <- function(data, samplesize=5, days.competition=3) {
+    ## by diluting stationary phase culture 1:100 on day 0, there is another
+    ## factor of 100 that multiplies the day 0 plating dilution factor.
+    data$D.0 <- 100*data$D.0
+    data$Mr <- log((data$D.1/data$D.0)*data$d3.red*100^days.competition/data$d0.red)/days.competition
+    data$Mw <- log((data$D.1/data$D.0)*data$d3.white*100^days.competition/data$d0.white)/days.competition
+
+    ## Calculate fitness relative to the reference strain.
+    stopifnot(length(unique(data$White.Clone))==1)
+    if (unique(data$White.Clone) %in% c('ZDBp67','ZDB1262','ZDB1233')) rev <- TRUE else rev <- FALSE
+    ## Mw is denominator when have a white reference strain,
+    ## Mr is denominator when have a red reference strain.
+    if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
+    
+    my.mean <- mean(data$W, na.rm=T)
+    my.sd <- sd(data$W, na.rm=T)
+    ## see: https://www.cyclismo.org/tutorial/R/confidence.html#calculating-a-confidence-interval-from-a-t-distribution
+    my.t.dist.error <- qt(0.975,df=samplesize-1) * my.sd/sqrt(samplesize)
+    
+    my.confint <- c(my.mean - my.t.dist.error, my.mean + my.t.dist.error)
+        
+    ##return a dataframe of the results for plotting.
+    left.error <- c(my.confint[1])
+    right.error <- c(my.confint[2])
+
+    if (rev) {
+        name <- unique(data$Red.Clone)
+        reference <- unique(data$White.Clone)
+    } else {
+        name <- unique(data$White.Clone)
+        reference <- unique(data$Red.Clone)
+    }
+    
+    results <- data.frame(Name=name,
+                          Reference=reference,
+                          Fitness=my.mean,
+                          Left=left.error,
+                          Right=right.error)
+    return(results)
+}
+
+plot.clone.fitness <- function(results, output.file) {
+
+    ## colorblind-friendly palette.
+    cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+    clone.order <- c('CZB151', 'ZDBp871', 'ZDBp875', 'ZDBp889', 'ZDBp892',
+                     'ZDBp910', 'ZDBp911', 'ZDBp916', 'ZDBp917',
+                     'CZB152', 'ZDBp877', 'ZDBp880', 'ZDBp912', 'ZDBp913',
+                     'CZB154', 'ZDBp883', 'ZDBp886', 'ZDBp914', 'ZDBp915')                   
+    
+    results <- results %>%
+        ## order points from left to right, manually.
+        mutate(Name=factor(Name,levels=clone.order))
+        
+    
+    the.plot <- ggplot(results,aes(x=Name,y=Fitness,color=Founder)) +
+        theme_classic() +
+        scale_color_manual(values = cbbPalette) +
+        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
+        geom_line() +
+        geom_point(size=1.5) +
+        theme(axis.text.x = element_text(size=10,angle=90,vjust=0.1)) +
+        ylab("Fitness of evolved clones relative to direct ancestor") +
+        xlab("Clone") +
+        guides(color=FALSE)
+
+    ggsave(the.plot, file=output.file,width=11,height=7.5)
+}
+
+###################################################################
+## Data analysis.
+
+## population and clone metadata.
+pop.clone.metadata <- read.csv("../data/rohan-formatted/populations-and-clones.csv", header=TRUE,stringsAsFactors=FALSE)
+
+## These data come from 3-day competitions that Jess Baxter ran.
+
+DM0.fitness.data <- read.csv("../data/rohan-formatted/200314-evolved-clone-fitness-DM0-competitions.csv", header=TRUE,as.is=TRUE)
+
+DM0.groups <- DM0.fitness.data %>%
+    ## drop the intermediate calculations
+    select(-Red.M,-White.M,-Fitness) %>%
+    group_by(Red.Clone,White.Clone,D.0,D.1) %>%
+    ## split by groups of replicates
+    group_split()
+
+DM0.results <- DM0.groups %>%
+    map_dfr(.f=fitness.analysis) %>%
+    ## merge with the metadata.
+    left_join(pop.clone.metadata)
+    
+
+## Make a figure of DM0 fitness for each population.
+DM0.clone.fitness.fig <- "../results/figures/EvolvedCloneFitness-in-DM0.pdf"
+plot.clone.fitness(DM0.results, DM0.clone.fitness.fig)
+write.csv(DM0.results,file="../results/EvolvedCloneFitness-in-DM0.csv")
+
+## now for Jess's 3-day competitions in DM25.
+
+DM25.fitness.data <- read.csv("../data/rohan-formatted/200316-evolved-clone-fitness-DM25-competitions.csv", header=TRUE,as.is=TRUE)
+
+DM25.groups <- DM25.fitness.data %>%
+    ## drop the intermediate calculations
+    select(-Red.M,-White.M,-Fitness) %>%
+    group_by(Red.Clone,White.Clone,D.0,D.1) %>%
+    ## split by groups of replicates
+    group_split()
+
+DM25.results <- DM25.groups %>%
+    map_dfr(.f=fitness.analysis) %>%
+    ## merge with the metadata.
+    left_join(pop.clone.metadata)
+    
+
+## Make a figure of DM0 fitness for each population.
+DM25.clone.fitness.fig <- "../results/figures/EvolvedCloneFitness-in-DM25.pdf"
+plot.clone.fitness(DM25.results, DM25.clone.fitness.fig)
+write.csv(DM25.results,file="../results/EvolvedCloneFitness-in-DM25.csv")
