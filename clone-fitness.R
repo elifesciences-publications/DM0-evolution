@@ -17,7 +17,7 @@ fitness.analysis <- function(data, samplesize=5, days.competition=3) {
 
     ## Calculate fitness relative to the reference strain.
     stopifnot(length(unique(data$White.Clone))==1)
-    if (unique(data$White.Clone) %in% c('ZDBp67','ZDB1262','ZDB1233')) rev <- TRUE else rev <- FALSE
+    if (unique(data$White.Clone) %in% c('ZDB67','ZDB1262','ZDB1233')) rev <- TRUE else rev <- FALSE
     ## Mw is denominator when have a white reference strain,
     ## Mr is denominator when have a red reference strain.
     if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
@@ -54,17 +54,25 @@ plot.clone.fitness <- function(results, output.file) {
     ## colorblind-friendly palette.
     cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
-    clone.order <- c('CZB151', 'ZDBp871', 'ZDBp875', 'ZDBp889', 'ZDBp892',
-                     'ZDBp910', 'ZDBp911', 'ZDBp916', 'ZDBp917',
-                     'CZB152', 'ZDBp877', 'ZDBp880', 'ZDBp912', 'ZDBp913',
-                     'CZB154', 'ZDBp883', 'ZDBp886', 'ZDBp914', 'ZDBp915')                   
+    clone.order <- c('Founder: CZB151', 'DM0-1: ZDBp871', 'DM0-2: ZDBp875',
+                     'DM0+1: ZDBp889', 'DM0+2: ZDBp892',
+                     'DM25-1: ZDBp910', 'DM25-2: ZDBp911',
+                     'DM25+1: ZDBp916', 'DM25+2: ZDBp917',
+                     'Founder: CZB152', 'DM0-3: ZDBp877', 'DM0-4: ZDBp880',
+                     'DM25-3: ZDBp912', 'DM25-4: ZDBp913',
+                     'Founder: CZB154', 'DM0-5: ZDBp883', 'DM0-6: ZDBp886',
+                     'DM25-5: ZDBp914', 'DM25-6: ZDBp915')                   
     
     results <- results %>%
-        ## order points from left to right, manually.
-        mutate(Name=factor(Name,levels=clone.order))
-        
+        ## replace NA values in PopulationLabel to "Founder".
+        mutate(PopulationLabel=ifelse(is.na(PopulationLabel),"Founder",PopulationLabel)) %>%
+        ## add the PopulationLabel to the Name for plotting.
+        mutate(PlotName=paste(PopulationLabel,Name,sep=': ')) %>%
+            ## order points from left to right, manually.
+        mutate(PlotName=factor(PlotName,levels=clone.order))
+
     
-    the.plot <- ggplot(results,aes(x=Name,y=Fitness,color=Founder)) +
+    the.plot <- ggplot(results,aes(x=PlotName,y=Fitness,color=Founder)) +
         theme_classic() +
         scale_color_manual(values = cbbPalette) +
         geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
@@ -89,8 +97,6 @@ pop.clone.metadata <- read.csv("../data/rohan-formatted/populations-and-clones.c
 DM0.fitness.data <- read.csv("../data/rohan-formatted/200314-evolved-clone-fitness-DM0-competitions.csv", header=TRUE,as.is=TRUE)
 
 DM0.groups <- DM0.fitness.data %>%
-    ## drop the intermediate calculations
-    select(-Red.M,-White.M,-Fitness) %>%
     group_by(Red.Clone,White.Clone,D.0,D.1) %>%
     ## split by groups of replicates
     group_split()
@@ -111,8 +117,6 @@ write.csv(DM0.results,file="../results/EvolvedCloneFitness-in-DM0.csv")
 DM25.fitness.data <- read.csv("../data/rohan-formatted/200316-evolved-clone-fitness-DM25-competitions.csv", header=TRUE,as.is=TRUE)
 
 DM25.groups <- DM25.fitness.data %>%
-    ## drop the intermediate calculations
-    select(-Red.M,-White.M,-Fitness) %>%
     group_by(Red.Clone,White.Clone,D.0,D.1) %>%
     ## split by groups of replicates
     group_split()

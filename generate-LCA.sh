@@ -13,6 +13,7 @@ gdtools ANNOTATE -r ../REL606.7.gbk -o annotated_LCA.html -f HTML LCA.gd
 python ../../src/external/gff_to_genbank.py LCA.gff3 LCA.fasta
 sed -i '' -e 's/Name=/gene=/g' ../genomes/curated-diffs/LCA.gbk
 sed -i '' -e 's/ID=/locus_tag=/g' ../genomes/curated-diffs/LCA.gbk
+sed -i '' -e 's/Note=/product=/g' ../genomes/curated-diffs/LCA.gbk
 
 ## go ahead and subtract CZB154 from the 50K Ara-3 clone, REL11364.
 ## also subtract the clpA-serW mutation.
