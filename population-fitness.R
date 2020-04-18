@@ -4,6 +4,7 @@
 ## and double-check Zack's fitness calculations.
 
 library(tidyverse)
+library(cowplot)
 
 ## Fitness calculation code.
 ## NOTE: this function is specialized for these competitions, and will NOT
@@ -50,12 +51,10 @@ fitness.analysis <- function(data, samplesize=3, days.competition=1) {
     return(results)
 }
 
-plot.pop.fitness <- function(results, output.file) {
-
+plot.pop.fitness <- function(results) {
     ## colorblind-friendly palette.
     cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
-    
     pop.order <- c('CZB151', 'DM0-1','DM0-2','DM0+1','DM0+2',
                    'DM25-1','DM25-2','DM25+1','DM25+2',
                    'CZB152','DM0-3','DM0-4','DM25-3','DM25-4',
@@ -63,14 +62,12 @@ plot.pop.fitness <- function(results, output.file) {
                    'ZDB68','DM0+3','DM0+4','DM25+3','DM25+4',
                    'ZDB69','DM0+5','DM0+6','DM25+5','DM25+6')
                    
-    
     results <- results %>%
         ## give the ancestor clones a default label.
         mutate(PopulationLabel=ifelse(is.na(PopulationLabel),
                                       Name,PopulationLabel)) %>%
         ## order points from left to right, manually.
         mutate(PopulationLabel=factor(PopulationLabel,levels=pop.order))
-        
     
     the.plot <- ggplot(results,aes(x=PopulationLabel,y=Fitness,color=Founder)) +
         theme_classic() +
@@ -78,12 +75,14 @@ plot.pop.fitness <- function(results, output.file) {
         geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
         geom_line() +
         geom_point(size=1.5) +
-        theme(axis.text.x = element_text(size=10,angle=90,vjust=0.1)) +
-        ylab("Fitness of evolved populations relative to CZB151/ZDB67") +
+        theme(axis.text.x = element_text(size=10,angle=90,vjust=0.5)) +
+        ylab("Fitness relative to CZB151/ZDB67") +
         xlab("Population") +
+        geom_hline(yintercept=1,color='gray',linetype='dashed') +
+        geom_hline(yintercept=1.5,color='gray',linetype='dashed') +
         guides(color=FALSE)
 
-    ggsave(the.plot, file=output.file,width=11,height=7.5)
+    return(the.plot)
 }
 
 ###################################################################
@@ -92,29 +91,7 @@ plot.pop.fitness <- function(results, output.file) {
 ## population and clone metadata.
 pop.clone.metadata <- read.csv("../data/rohan-formatted/populations-and-clones.csv", header=TRUE,stringsAsFactors=FALSE)
 
-
-## these data come from one day competitions in DM25 that Zack ran.
-DM25.fitness.data <- read.csv("../data/rohan-formatted/200316-evolved-pop-fitness-DM25-competitions.csv", header=TRUE,as.is=TRUE)
-
-DM25.groups <- DM25.fitness.data %>%
-    ## drop the intermediate calculations
-    select(-Red.M,-White.M,-Fitness) %>%
-    group_by(Treatment,Red.Pop,White.Pop,D.0,D.1) %>%
-    ## split by groups of replicates
-    group_split()
-
-DM25.results <- DM25.groups %>%
-    map_dfr(.f=fitness.analysis) %>%
-    ## merge with the metadata.
-    left_join(pop.clone.metadata)
-    
-
-## Make a figure of DM25 fitness for each population.
-DM25.pop.fitness.fig <- "../results/figures/EvolvedPopFitness-in-DM25.pdf"
-plot.pop.fitness(DM25.results, DM25.pop.fitness.fig)
-
 #### DM0 competitions.
-
 ## these data come from one day competitions in DM0 that Zack ran.
 DM0.fitness.data <- read.csv("../data/rohan-formatted/200316-evolved-pop-fitness-DM0-competitions.csv", header=TRUE,as.is=TRUE)
 
@@ -129,14 +106,34 @@ DM0.results <- DM0.groups %>%
     map_dfr(.f=fitness.analysis) %>%
     ## merge with the metadata.
     left_join(pop.clone.metadata)
-    
+
+easy.comparison.DM0.results <- DM0.results %>% select(Name,Fitness,Left,Right,PopulationLabel,ParentClone)
+
+## DM25 competitions
+## these data come from one day competitions in DM25 that Zack ran.
+DM25.fitness.data <- read.csv("../data/rohan-formatted/200316-evolved-pop-fitness-DM25-competitions.csv", header=TRUE,as.is=TRUE)
+
+DM25.groups <- DM25.fitness.data %>%
+    ## drop the intermediate calculations
+    select(-Red.M,-White.M,-Fitness) %>%
+    group_by(Treatment,Red.Pop,White.Pop,D.0,D.1) %>%
+    ## split by groups of replicates
+    group_split()
+
+DM25.results <- DM25.groups %>%
+    map_dfr(.f=fitness.analysis) %>%
+    ## merge with the metadata.
+    left_join(pop.clone.metadata)
+
+easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,PopulationLabel,ParentClone)
 
 ## Make a figure of DM0 fitness for each population.
-DM0.pop.fitness.fig <- "../results/figures/EvolvedPopFitness-in-DM0.pdf"
-plot.pop.fitness(DM0.results, DM0.pop.fitness.fig)
+Fig2A <- plot.pop.fitness(DM0.results) + ggtitle("Population fitness measured in DM0 in a one day competition")
+## Make a figure of DM25 fitness for each population.
+Fig2B <- plot.pop.fitness(DM25.results) + ggtitle("Population fitness measured in DM25 in a one day competition")
+## put these figures together to make Figure 2.
+Fig2 <- plot_grid(Fig2A,Fig2B,labels=c('A','B'),ncol=1)
+ggsave("../results/figures/EvolvedPopFitness.pdf", Fig2, height=7)
 
-
-
-
-
-
+write.csv(DM0.results,file="../results/EvolvedPopFitness-in-DM0.csv")
+write.csv(DM25.results,file="../results/EvolvedPopFitness-in-DM25.csv")

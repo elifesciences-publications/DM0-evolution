@@ -4,6 +4,7 @@
 ## and double-check Zack's fitness calculations.
 
 library(tidyverse)
+library(cowplot)
 
 ## Fitness calculation code.
 ## NOTE: this function is specialized for these competitions, and will NOT
@@ -49,7 +50,7 @@ fitness.analysis <- function(data, samplesize=5, days.competition=3) {
     return(results)
 }
 
-plot.clone.fitness <- function(results, output.file) {
+plot.clone.fitness <- function(results) {
 
     ## colorblind-friendly palette.
     cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
@@ -78,12 +79,13 @@ plot.clone.fitness <- function(results, output.file) {
         geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
         geom_line() +
         geom_point(size=1.5) +
-        theme(axis.text.x = element_text(size=10,angle=90,vjust=0.1)) +
-        ylab("Fitness of evolved clones relative to direct ancestor") +
+        theme(axis.text.x = element_text(size=10,angle=90,vjust=0.5)) +
+        ylab("Fitness relative to ancestor") +
+        geom_hline(yintercept=1,color='gray',linetype='dashed') +
         xlab("Clone") +
         guides(color=FALSE)
 
-    ggsave(the.plot, file=output.file,width=11,height=7.5)
+    return(the.plot)
 }
 
 ###################################################################
@@ -93,7 +95,6 @@ plot.clone.fitness <- function(results, output.file) {
 pop.clone.metadata <- read.csv("../data/rohan-formatted/populations-and-clones.csv", header=TRUE,stringsAsFactors=FALSE)
 
 ## These data come from 3-day competitions that Jess Baxter ran.
-
 DM0.fitness.data <- read.csv("../data/rohan-formatted/200314-evolved-clone-fitness-DM0-competitions.csv", header=TRUE,as.is=TRUE)
 
 DM0.groups <- DM0.fitness.data %>%
@@ -105,15 +106,10 @@ DM0.results <- DM0.groups %>%
     map_dfr(.f=fitness.analysis) %>%
     ## merge with the metadata.
     left_join(pop.clone.metadata)
-    
 
-## Make a figure of DM0 fitness for each population.
-DM0.clone.fitness.fig <- "../results/figures/EvolvedCloneFitness-in-DM0.pdf"
-plot.clone.fitness(DM0.results, DM0.clone.fitness.fig)
-write.csv(DM0.results,file="../results/EvolvedCloneFitness-in-DM0.csv")
+easy.comparison.DM0.results <- DM0.results %>% select(Name,Fitness,Left,Right,PopulationLabel,ParentClone)
 
 ## now for Jess's 3-day competitions in DM25.
-
 DM25.fitness.data <- read.csv("../data/rohan-formatted/200316-evolved-clone-fitness-DM25-competitions.csv", header=TRUE,as.is=TRUE)
 
 DM25.groups <- DM25.fitness.data %>%
@@ -125,9 +121,17 @@ DM25.results <- DM25.groups %>%
     map_dfr(.f=fitness.analysis) %>%
     ## merge with the metadata.
     left_join(pop.clone.metadata)
-    
+
+easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,PopulationLabel,ParentClone)
 
 ## Make a figure of DM0 fitness for each population.
-DM25.clone.fitness.fig <- "../results/figures/EvolvedCloneFitness-in-DM25.pdf"
-plot.clone.fitness(DM25.results, DM25.clone.fitness.fig)
+## Make a figure of DM0 fitness for each population.
+Fig3A <- plot.clone.fitness(DM0.results) + ggtitle("Clone fitness measured in DM0 in a three day competition")
+Fig3B <- plot.clone.fitness(DM25.results) + ggtitle("Clone fitness measured in DM25 in a three day competition")
+## put these figures together to make Figure 3.
+Fig3 <- plot_grid(Fig3A,Fig3B,labels=c('A','B'),ncol=1)
+ggsave("../results/figures/EvolvedCloneFitness.pdf", Fig3, height=8)
+
+
+write.csv(DM0.results,file="../results/EvolvedCloneFitness-in-DM0.csv")
 write.csv(DM25.results,file="../results/EvolvedCloneFitness-in-DM25.csv")
