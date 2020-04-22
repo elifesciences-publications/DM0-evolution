@@ -20,7 +20,7 @@
 ## 7) do a quick check to see whether polymorphism occurs in the genomes
 ##    with the largest amplifications (this should be clear from Fig. 9).
 
-## 8) make Fig. 8, showing maeA and citT copy number.
+## 8) make Fig. 9, showing maeA and citT copy number.
 
 library(xml2)
 library(roxygen2)
@@ -46,34 +46,34 @@ library(cowplot)     # layout figures nicely.
 #' output by breseq 0.30.0. It might fail on earlier or later versions.
 
 #' @export
-coverage.nbinom.from.html <- function (breseq.output.dir) {
-  summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
-  tree <- read_html(summary.html.f)
-  ## print text in the table 'Reference Sequence Information.
-  query <- '//table[./tr/th[contains(text(),"fit dispersion")]]'
-  table <- xml_find_first(tree,query)
-  table.data <- xml_find_all(table,'./tr/td')
-  avg <- as.numeric(xml_text(table.data[5]))
-  dispersion <- as.numeric(xml_text(table.data[6]))
-  print(paste('mean coverage is:',avg))
-  print(paste('dispersion is:',dispersion))
-  return(data.frame('mean'=avg,'dispersion'=dispersion,'variance'=avg*dispersion))
+coverage.nbinom.from.html <- function(breseq.output.dir) {
+    summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
+    tree <- read_html(summary.html.f)
+    ## print text in the table 'Reference Sequence Information.
+    query <- '//table[./tr/th[contains(text(),"fit dispersion")]]'
+    table <- xml_find_first(tree,query)
+    table.data <- xml_find_all(table,'./tr/td')
+    avg <- as.numeric(xml_text(table.data[5]))
+    dispersion <- as.numeric(xml_text(table.data[6]))
+    print(paste('mean coverage is:',avg))
+    print(paste('dispersion is:',dispersion))
+    return(data.frame('mean'=avg,'dispersion'=dispersion,'variance'=avg*dispersion))
 }
 
 #' get the maximum length of a sequencing read from the summary.html breseq
 #' output file.
 #' @export
-max.readlen.from.html <- function (breseq.output.dir) {
-  summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
-  tree <- read_html(summary.html.f)
-  ## print text in the table 'Read File Information.
-  query <- '//table[./tr/th[contains(text(),"longest")]]'
-  table <- xml_find_first(tree,query)
-  table.data <- xml_find_all(table,'./tr/td')
-  readlen.index <- length(table.data) - 1
-  max.readlen <- xml_integer(xml_find_all(table.data[readlen.index],".//b//text()"))
-  print(paste('max read length is:',max.readlen))
-  return(max.readlen)
+max.readlen.from.html <- function(breseq.output.dir) {
+    summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
+    tree <- read_html(summary.html.f)
+    ## print text in the table 'Read File Information.
+    query <- '//table[./tr/th[contains(text(),"longest")]]'
+    table <- xml_find_first(tree,query)
+    table.data <- xml_find_all(table,'./tr/td')
+    readlen.index <- length(table.data) - 1
+    max.readlen <- xml_integer(xml_find_all(table.data[readlen.index],".//b//text()"))
+    print(paste('max read length is:',max.readlen))
+    return(max.readlen)
 }
 
 
@@ -86,7 +86,7 @@ max.readlen.from.html <- function (breseq.output.dir) {
 #' return mean copy number, and boundaries for each region that passes the amplification test.
 #' @export
 find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a misspelling.
-
+    
     gnome <- as.character(gnome)
     print(gnome)
     ## Use xml2 to get negative binomial fit and dispersion from
@@ -107,7 +107,6 @@ find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a miss
     genome.coverage <- tbl_dt(fread(genome.coverage.file)) %>%
         select(position,unique_top_cov,unique_bot_cov) %>% mutate(coverage=unique_top_cov+unique_bot_cov)
     
-
     ## find candidate amplifications that pass the uncorrected threshold.
     candidate.amplifications <- filter(genome.coverage,coverage > uncorrected.threshold)
     ## calculate intervals of candidate amplifications.
@@ -127,7 +126,7 @@ find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a miss
         seg <- coverage.table %>% filter(position>left.bound) %>% filter(position<right.bound)
         return(funcx(seg$coverage))
     }
-
+    
     amplified.segments <- data.frame(left.boundary=left.boundaries$position,right.boundary=right.boundaries$position) %>%
         ## filter out intervals less than 2 * max.read.len.
         mutate(len=right.boundary-left.boundary) %>% filter(len>(2*max.read.len)) %>% mutate(amplication.index=row_number()) %>%
@@ -163,32 +162,32 @@ find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a miss
 ## input: LCA.gbk: file.path of the reference genome,
 ##    amplifications: data.frame returned by find.amplifications.
 annotate.amplifications <- function(amplifications,LCA.gff) {
-
-  ## create the IRanges object.
-  amp.ranges <- IRanges(amplifications$left.boundary,amplifications$right.boundary)
-  ## Turn into a GRanges object in order to find overlaps with REL606 genes.
-  g.amp.ranges <- GRanges("REL606",ranges=amp.ranges)
-  ## and add the data.frame of amplifications as metadata.
-  mcols(g.amp.ranges) <- amplifications
-
-  ## find the genes within the amplifications.
-  pLCA <- import.gff(LCA.gff)
-  LCA.Granges <- as(pLCA, "GRanges")
-
-  LCA.genes <- LCA.Granges[LCA.Granges$type == 'gene']
-  ## find overlaps between annotated genes and amplifications.
-  hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
-
+    
+    ## create the IRanges object.
+    amp.ranges <- IRanges(amplifications$left.boundary,amplifications$right.boundary)
+    ## Turn into a GRanges object in order to find overlaps with REL606 genes.
+    g.amp.ranges <- GRanges("REL606",ranges=amp.ranges)
+    ## and add the data.frame of amplifications as metadata.
+    mcols(g.amp.ranges) <- amplifications
+    
+    ## find the genes within the amplifications.
+    pLCA <- import.gff(LCA.gff)
+    LCA.Granges <- as(pLCA, "GRanges")
+    
+    LCA.genes <- LCA.Granges[LCA.Granges$type == 'gene']
+    ## find overlaps between annotated genes and amplifications.
+    hits <- findOverlaps(LCA.genes,g.amp.ranges,ignore.strand=FALSE)
+    
     ## take the hits, the LCA annotation, and the amplifications,
     ## and produce a table of genes found in each amplication.
     
     hits.df <- data.frame(query.index=queryHits(hits),subject.index=subjectHits(hits))
     
-    query.df <- data.frame(query.index=1:length(LCA.genes),
+    query.df <- data.frame(query.index=seq_len(length(LCA.genes)),
                            gene=LCA.genes$Name,locus_tag=LCA.genes$ID,
                            start=start(ranges(LCA.genes)),end=end(ranges(LCA.genes)))
     
-    subject.df <- bind_cols(data.frame(subject.index=1:length(g.amp.ranges)),data.frame(mcols(g.amp.ranges)))
+    subject.df <- bind_cols(data.frame(subject.index=seq_len(length(g.amp.ranges))),data.frame(mcols(g.amp.ranges)))
     
     amplified.genes.df <- left_join(hits.df,query.df) %>% left_join(subject.df) %>%
         ## if gene is NA, replace with locus_tag. have to change factors to strings!
@@ -314,8 +313,8 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 #' Make a plot of amplified segments in the genome.
 amp.segments.plot <- plot.amp.segments(annotated.amps,clone.labels)
 
-Fig7outf <- file.path(projdir,"results/figures/Fig7.pdf")
-save_plot(Fig7outf,amp.segments.plot,base_height=5,base_width=5)
+Fig9outf <- file.path(projdir,"results/figures/Fig9.pdf")
+save_plot(Fig9outf,amp.segments.plot,base_height=5,base_width=5)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
@@ -323,23 +322,23 @@ save_plot(Fig7outf,amp.segments.plot,base_height=5,base_width=5)
 #' data in order include these amplifications in the
 #' co-occurrence analysis analysis.
 write.amp.matrix <- function(annotated.amps,clone.labels, outfile) {
-  amp.matrix.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
-  filter(!(Genome %in% ParentClone)) %>%
-  mutate(Genome=factor(Genome)) %>%
-  mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
-  mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
-  filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
-  select(Genome,gene)
-
-  maeA.amp.matrix.df <- filter(amp.matrix.df, gene == 'maeA-AMP')
-  dctA.amp.matrix.df <- filter(amp.matrix.df, gene == 'dctA-AMP')
-
-  maeA.AMP.binary.vec <- sapply(levels(amp.matrix.df$Genome),function(x) ifelse(x %in% maeA.amp.matrix.df$Genome,1,0))
-  dctA.AMP.binary.vec <- sapply(levels(amp.matrix.df$Genome),function(x) ifelse(x %in% dctA.amp.matrix.df$Genome,1,0))
-
-  amp.matrix <- data.frame(rbind(maeA.AMP.binary.vec,dctA.AMP.binary.vec),row.names=NULL)
-  amp.matrix$Gene <- c('maeA-AMP','dctA-AMP')
-  write.csv(x=amp.matrix,file=outfile,row.names = FALSE)
+    amp.matrix.df <- left_join(annotated.amps,clone.labels,by=c("Genome" = 'Name')) %>%
+        filter(!(Genome %in% ParentClone)) %>%
+        mutate(Genome=factor(Genome)) %>%
+        mutate(gene = replace(gene, gene == 'sfcA', 'maeA-AMP')) %>%
+        mutate(gene = replace(gene, gene == 'dctA', 'dctA-AMP')) %>%
+        filter(gene %in% c('maeA-AMP','dctA-AMP')) %>%
+        select(Genome,gene)
+    
+    maeA.amp.matrix.df <- filter(amp.matrix.df, gene == 'maeA-AMP')
+    dctA.amp.matrix.df <- filter(amp.matrix.df, gene == 'dctA-AMP')
+    
+    maeA.AMP.binary.vec <- sapply(levels(amp.matrix.df$Genome),function(x) ifelse(x %in% maeA.amp.matrix.df$Genome,1,0))
+    dctA.AMP.binary.vec <- sapply(levels(amp.matrix.df$Genome),function(x) ifelse(x %in% dctA.amp.matrix.df$Genome,1,0))
+    
+    amp.matrix <- data.frame(rbind(maeA.AMP.binary.vec,dctA.AMP.binary.vec),row.names=NULL)
+    amp.matrix$Gene <- c('maeA-AMP','dctA-AMP')
+    write.csv(x=amp.matrix,file=outfile,row.names = FALSE)
 }
 
 write.amp.matrix(annotated.amps,clone.labels,file.path(outdir,"amp_matrix.csv"))

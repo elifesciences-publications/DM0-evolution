@@ -133,7 +133,7 @@ Fig2A <- plot.pop.fitness(DM0.results) + ggtitle("Population fitness measured in
 Fig2B <- plot.pop.fitness(DM25.results) + ggtitle("Population fitness measured in DM25 in a one day competition")
 ## put these figures together to make Figure 2.
 Fig2 <- plot_grid(Fig2A,Fig2B,labels=c('A','B'),ncol=1)
-ggsave("../results/figures/EvolvedPopFitness.pdf", Fig2, height=7)
+ggsave("../results/figures/Fig2.pdf", Fig2, height=7)
 
 write.csv(DM0.results,file="../results/EvolvedPopFitness-in-DM0.csv")
 write.csv(DM25.results,file="../results/EvolvedPopFitness-in-DM25.csv")

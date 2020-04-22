@@ -10,7 +10,7 @@ library(cowplot)
 library(sleuth)
 
 home.dir <- path.expand("~")
-proj.dir <- file.path(home.dir,"BoxSync/active-projects/DM0-evolution")
+proj.dir <- file.path(home.dir,"Desktop/Research/active-projects/DM0-evolution")
 
 pop.clone.labels <- read.csv(
     file.path(proj.dir,
@@ -127,9 +127,9 @@ color_mid <- "#FFC300"
 color_low <- "#DAF7A6"
 colors <- colorRampPalette(c(color_low, color_mid, color_high))(100)
 
-## make the plot! This is Supplementary Figure S12.
+## make the plot! This is Supplementary Figure S13.
 RNAseq.fig.outf <- file.path(proj.dir,
-              "results/figures/S12Fig.pdf")
+              "results/figures/S13Fig.pdf")
 
 ## We want to italicize gene names in the rows.
 ## See how at: https://www.biostars.org/p/400381/

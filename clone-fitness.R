@@ -130,8 +130,7 @@ Fig3A <- plot.clone.fitness(DM0.results) + ggtitle("Clone fitness measured in DM
 Fig3B <- plot.clone.fitness(DM25.results) + ggtitle("Clone fitness measured in DM25 in a three day competition")
 ## put these figures together to make Figure 3.
 Fig3 <- plot_grid(Fig3A,Fig3B,labels=c('A','B'),ncol=1)
-ggsave("../results/figures/EvolvedCloneFitness.pdf", Fig3, height=8)
-
+ggsave("../results/figures/Fig3.pdf", Fig3, height=8)
 
 write.csv(DM0.results,file="../results/EvolvedCloneFitness-in-DM0.csv")
 write.csv(DM25.results,file="../results/EvolvedCloneFitness-in-DM25.csv")

@@ -19,9 +19,6 @@ library(ggpubr)
 library(PairedData)
 library(car)
 
-## IMPORTANT TODO: CHECK HOW the second argument matters in this line of code:
-###return(c(mean(x[ind]),var(x[ind])/length(ind)))
-
 calc.w.bootstrap.conf.int <- function(vec,w) {
     ## bootstrap weighted confidence intervals around the mean.
     ## Use the boot package to calculate fancy BCA intervals.
@@ -204,7 +201,7 @@ P6.confint.df <- P6 %>%
     keep(function(x) nrow(x) > 0) %>% ## ignore subsets with no rows
     map_dfr(.f = w.bootstrap.PropPrime.Dead)
 
-Fig4B <- P6 %>%
+Fig6B <- P6 %>%
   ggplot(aes(x = Treatment, y = PropPrime.Dead, label = my.text)) +
   geom_point(size=0.5) +
   facet_wrap(. ~ Clone, nrow = 1) +
@@ -213,8 +210,8 @@ Fig4B <- P6 %>%
   geom_errorbar(data=P6.confint.df,aes(x=Treatment,ymin=Left,ymax=Right), width=0.15, size=0.4,inherit.aes=FALSE) +
   geom_crossbar(data=P6.confint.df,aes(x=Treatment,y=PropPrime.Dead,ymin=PropPrime.Dead,ymax=PropPrime.Dead), width= 0.1, size = 0.4,inherit.aes=FALSE)
 
-labeled.Fig4B <- plot_grid(Fig4B, labels=c('B'),ncol=1)
-save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig4B.pdf"),labeled.Fig4B,base_height=3,base_width=8)
+labeled.Fig6B <- plot_grid(Fig6B, labels=c('B'),ncol=1)
+save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig6B.pdf"),labeled.Fig6B,base_height=3,base_width=8)
 
 
 ## Let's look at the the estimated proportion of dead cells to report in the manuscript.
@@ -225,7 +222,7 @@ P6.confint.df
 ## t(α, N-1) = 2.776
 ## R's way (fun.data) of calculating confidence interval = m +/- (t(α, N-1)*SEM). Need to calculate confidence 
 ## interval of the proportion. 
-old.Fig3C <- P6 %>% 
+old.Fig6C <- P6 %>% 
     ggplot(aes(x= Treatment, y = PropPrime.Dead)) +
     geom_point() +
     facet_wrap(~ Clone) +
