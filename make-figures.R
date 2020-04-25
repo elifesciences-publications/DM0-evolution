@@ -514,130 +514,152 @@ filter.growth.data.on.analysis.domain <- function(growth.rate.df) {
 }
 
 bootstrap.my.growth.confints <- function(growth) {
-  ## Calculate and plot growth parameter estimates for each population and clone.
-  ## I want to distinguish between noise within estimates versus differences between then.
-
-  bootstrap.my.growth.parameters <- function(df) {
-    ## my analysis fits.
-    DM0.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM0.r.citrate)
-    DM25.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM25.r.citrate)
-    DM25.r.glucose.conf.int <- calc.bootstrap.conf.int(df$DM25.r.glucose)
-    DM0.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM0.t.lag)
-    DM25.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM25.t.lag)
-
-    bootstrap.results <- data.frame(Name=rep(unique(df$Name),5),
-                                    Founder=rep(unique(df$Founder),5),
-                                    Generation=rep(unique(df$Generation),5),
-                                    Parameter=c(
-                                      "DM0.r.citrate",
-                                      "DM25.r.citrate",
-                                      "DM25.r.glucose",
-                                      "DM0.t.lag",
-                                      "DM25.t.lag"),
-                                    Estimate = c(
-                                      mean(df$DM0.r.citrate, na.rm=TRUE),
-                                      mean(df$DM25.r.citrate, na.rm=TRUE),
-                                      mean(df$DM25.r.glucose, na.rm=TRUE),
-                                      mean(df$DM0.t.lag, na.rm=TRUE),
-                                      mean(df$DM25.t.lag, na.rm=TRUE)),
-                                    Left = c(
-                                      DM0.r.citrate.conf.int[1],
-                                      DM25.r.citrate.conf.int[1],
-                                      DM25.r.glucose.conf.int[1],
-                                      DM0.t.lag.conf.int[1],
-                                      DM25.t.lag.conf.int[1]),
-                                    Right = c(
-                                      DM0.r.citrate.conf.int[2],
-                                      DM25.r.citrate.conf.int[2],
-                                      DM25.r.glucose.conf.int[2],
-                                      DM0.t.lag.conf.int[2],
-                                      DM25.t.lag.conf.int[2]),
-                                    stringsAsFactors=FALSE)
-    return(bootstrap.results)
-  }
-
-  ## average values for the same clone or population, over wells of the growth plate.
-  confint.df <- growth %>%
-  droplevels() %>% ## don't run on empty subsets
-  split(.$Name) %>%
-  map_dfr(.f=bootstrap.my.growth.parameters)
-
-  return(confint.df)
+    ## Calculate and plot growth parameter estimates for each population and clone.
+    ## I want to distinguish between noise within estimates versus differences between then.
+    
+    bootstrap.my.growth.parameters <- function(df) {
+        ## my analysis fits.
+        DM0.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM0.r.citrate)
+        DM25.r.citrate.conf.int <- calc.bootstrap.conf.int(df$DM25.r.citrate)
+        DM25.r.glucose.conf.int <- calc.bootstrap.conf.int(df$DM25.r.glucose)
+        DM0.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM0.t.lag)
+        DM25.t.lag.conf.int <- calc.bootstrap.conf.int(df$DM25.t.lag)
+        
+        bootstrap.results <- data.frame(Name=rep(unique(df$Name),5),
+                                        PopulationLabel=rep(unique(df$PopulationLabel),5),
+                                        Founder=rep(unique(df$Founder),5),
+                                        Generation=rep(unique(df$Generation),5),
+                                        Parameter=c(
+                                            "DM0.r.citrate",
+                                            "DM25.r.citrate",
+                                            "DM25.r.glucose",
+                                            "DM0.t.lag",
+                                            "DM25.t.lag"),
+                                        Estimate = c(
+                                            mean(df$DM0.r.citrate, na.rm=TRUE),
+                                            mean(df$DM25.r.citrate, na.rm=TRUE),
+                                            mean(df$DM25.r.glucose, na.rm=TRUE),
+                                            mean(df$DM0.t.lag, na.rm=TRUE),
+                                            mean(df$DM25.t.lag, na.rm=TRUE)),
+                                        Left = c(
+                                            DM0.r.citrate.conf.int[1],
+                                            DM25.r.citrate.conf.int[1],
+                                            DM25.r.glucose.conf.int[1],
+                                            DM0.t.lag.conf.int[1],
+                                            DM25.t.lag.conf.int[1]),
+                                        Right = c(
+                                            DM0.r.citrate.conf.int[2],
+                                            DM25.r.citrate.conf.int[2],
+                                            DM25.r.glucose.conf.int[2],
+                                            DM0.t.lag.conf.int[2],
+                                            DM25.t.lag.conf.int[2]),
+                                        stringsAsFactors=FALSE)
+        return(bootstrap.results)
+    }
+    
+    ## average values for the same clone or population, over wells of the growth plate.
+    confint.df <- growth %>%
+        droplevels() %>% ## don't run on empty subsets
+        split(.$Name) %>%
+        map_dfr(.f=bootstrap.my.growth.parameters)
+    
+    return(confint.df)
 }
 
-plot.growth.confints <- function(plot.df, confints.df, plot.CIs=TRUE) {
+plot.growth.confints <- function(plot.df, confints.df, plot.CIs=TRUE, add.pop.name=FALSE) {
 
-  recode.Parameter <- function(df) {
-    df <- mutate(df,
-                 Parameter=recode(
-                   Parameter,
-                   DM0.r.citrate = "DM0 citrate growth rate",
-                   DM25.r.citrate = "DM25 citrate growth rate",
-                   DM25.r.glucose = "DM25 glucose growth rate",
-                   DM0.t.lag = "DM0 lag time",
-                   DM25.t.lag = "DM25 lag time"
-                   ))
-    return(df)
-  }
-
-  plot.df2 <- recode.Parameter(plot.df) %>% filter(!is.na(Estimate))
-  confints.df2 <- recode.Parameter(confints.df) %>% filter(!is.na(Estimate))
-  
-  list.of.plots <- vector("list",length(unique(plot.df2$Parameter)))
-  i <- 1 ## index for list.
-  for (param in unique(plot.df2$Parameter)) {
-    param.df <- filter(plot.df2, Parameter==param)
-    param.confint.df <- filter(confints.df2, Parameter==param)
-    my.title <- bquote(.(param)~(h)^{})
-    ## add units of h^-1 to title if param is a rate parameter.
-    if (endsWith(param,"rate")) {
-        my.title <- bquote(.(param)~(h^-1))
+    recode.Parameter <- function(df) {
+        df <- mutate(df,
+                     Parameter=recode(
+                         Parameter,
+                         DM0.r.citrate = "DM0 citrate growth rate",
+                         DM25.r.citrate = "DM25 citrate growth rate",
+                         DM25.r.glucose = "DM25 glucose growth rate",
+                         DM0.t.lag = "DM0 lag time",
+                         DM25.t.lag = "DM25 lag time"
+                     ))
+        return(df)
     }
+
+    plot.df2 <- recode.Parameter(plot.df) %>% filter(!is.na(Estimate))
+    confints.df2 <- recode.Parameter(confints.df) %>% filter(!is.na(Estimate))
     
-    fig <- ggplot(param.df, aes(x = Name,y = Estimate,color = Founder)) +
-    geom_point(size=0.5) +
-    ggtitle(my.title) +
-    ylab("Estimate") +
-    xlab("Sample") +
-    guides(color=FALSE) +
-    scale_color_manual(values = cbbPalette) +
-    theme_classic() +
-    theme(plot.title = element_text(size = 9.5),
-          axis.title.x = element_text(size=10),
-          axis.text.y = element_text(size=8),
-          plot.margin = unit(c(0.1,0.1,0.1,0.1), "cm"),
-          axis.text.x  = element_text(angle=90, vjust=-0.1,size=8)
-          )
-
-    ## only add y-axis labels to left-most plot.
-    if (i == 1) {
-      fig <- fig + theme(axis.title.y = element_text(size=10))
-    } else {
-      fig <- fig + theme(axis.title.y = element_blank())                  
-    }
-    
-    ## plot CIs.
-    if (plot.CIs) {
-      fig <- fig +
-      geom_errorbar(data = param.confint.df, aes(ymin=Left,ymax=Right), width=1, size=0.5)
-    }
-    ## set bounds for rate and time lag parameter plots.
-    if (str_detect(param,'r')) { ## plotting a rate.
-      fig <- fig + ylim(c(0,1.5))
-    } else { ## plotting time lag.
-        if (str_detect(param,'DM25') & str_detect(param,'lag')) { ## for DM25 lag time
-            fig <- fig + ylim(c(0,5))
-        } else { ## for DM0 lag time.
-            fig <- fig + ylim(c(0,25))
+    list.of.plots <- vector("list",length(unique(plot.df2$Parameter)))
+    i <- 1 ## index for list.
+    for (param in unique(plot.df2$Parameter)) {
+        param.df <- filter(plot.df2, Parameter==param)
+        param.confint.df <- filter(confints.df2, Parameter==param)
+        my.title <- bquote(.(param)~(h)^{})
+        ## add units of h^-1 to title if param is a rate parameter.
+        if (endsWith(param,"rate")) {
+            my.title <- bquote(.(param)~(h^-1))
         }
+        
+        if (add.pop.name) { ## for the clone figure, add the name of its pop.
+            param.df <- param.df %>%
+                ## replace NA values in PopulationLabel to "Founder".
+                mutate(PopulationLabel=ifelse(is.na(PopulationLabel),
+                                              "Founder",PopulationLabel)) %>%
+                ## add the PopulationLabel to the Name for plotting.
+                mutate(PlotName=paste(PopulationLabel,Name,sep=': ')) %>%
+                ## order points from left to right, based on order for Name column.
+                mutate(PlotName=fct_reorder(PlotName,Name, min))
+            
+            ## Also have to update the values for param.confint.df.
+            param.confint.df <- param.confint.df %>%
+                mutate(PopulationLabel=ifelse(is.na(PopulationLabel),
+                                              "Founder",PopulationLabel)) %>%
+                mutate(PlotName=paste(PopulationLabel,Name,sep=': '))
+            
+        } else { ## making the population figure.
+            param.df <- param.df %>% mutate(PlotName = Name)
+            param.confint.df <- param.confint.df %>% mutate(PlotName = Name)
+        }
+        
+        fig <- ggplot(param.df, aes(x = PlotName,y = Estimate,color = Founder)) +
+            geom_point(size=0.5) +
+            ggtitle(my.title) +
+            ylab("Estimate") +
+            xlab("Sample") +
+            guides(color=FALSE) +
+            scale_color_manual(values = cbbPalette) +
+            theme_classic() +
+            theme(plot.title = element_text(size = 9.5),
+                  axis.title.x = element_text(size=10),
+                  axis.text.y = element_text(size=8),
+                  plot.margin = unit(c(0.1,0.1,0.1,0.1), "cm"),
+                  axis.text.x  = element_text(angle=90, vjust=0.5,size=8)
+                  )
+        
+        ## only add y-axis labels to left-most plot.
+        if (i == 1) {
+            fig <- fig + theme(axis.title.y = element_text(size=10))
+        } else {
+            fig <- fig + theme(axis.title.y = element_blank())                  
+        }
+        
+        ## plot CIs.
+        if (plot.CIs) {
+            fig <- fig +
+                geom_errorbar(data = param.confint.df, aes(ymin=Left,ymax=Right), width=1, size=0.5)
+        }
+        ## set bounds for rate and time lag parameter plots.
+        if (str_detect(param,'r')) { ## plotting a rate.
+            fig <- fig + ylim(c(0,1.5))
+        } else { ## plotting time lag.
+            if (str_detect(param,'DM25') & str_detect(param,'lag')) { ## for DM25 lag time
+                fig <- fig + ylim(c(0,5))
+            } else { ## for DM0 lag time.
+                fig <- fig + ylim(c(0,25))
+            }
+        }
+        
+        list.of.plots[[i]] <- fig
+        i <- i + 1
     }
-    
-    list.of.plots[[i]] <- fig
-    i <- i + 1
-  }
-  ## use cowplot to plot.
-  my.plot <- plot_grid(plotlist=list.of.plots, nrow=1)
-  return(my.plot)
+    ## use cowplot to plot.
+    my.plot <- plot_grid(plotlist=list.of.plots, nrow=1)
+    return(my.plot)
 }
 
 reshape.my.growth.df <- function(growth) {
@@ -762,12 +784,12 @@ run.growth.ratio.confint.bootstrapping <- function(final.growth.summary) {
   return(bootstrap.results)
 }
 
-plot.growth.parameters <- function(growth, plot.CIs=TRUE) {    
+plot.growth.parameters <- function(growth, plot.CIs=TRUE, add.pop.name=FALSE) {    
   growth.CI <- bootstrap.my.growth.confints(growth)
   growth.plot.df <- growth %>%
   gather(key="Parameter", value="Estimate",
          DM0.r.citrate,DM25.r.citrate,DM25.r.glucose,DM0.t.lag,DM25.t.lag)
-  growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs)
+  growth.plot <- plot.growth.confints(growth.plot.df, growth.CI, plot.CIs, add.pop.name)
   return(growth.plot)    
 }
 
@@ -793,20 +815,20 @@ plot.parameter.log.ratios <- function(plot.df, confints.df, recode.param.func) {
 
 plot.growth.parameter.log.ratios <- function(plot.df, confints.df) {
 
-  recode.Growth.Parameter <- function(df) {
-    df2 <- mutate(df,
-                 Parameter=recode_factor(
-                   Parameter,
-                   log.DM0.r.citrate.ratio = "DM0 citrate growth rate",              
-                   log.DM25.r.citrate.ratio = "DM25 citrate growth rate",
-                   log.DM25.r.glucose.ratio = "DM25 glucose growth rate",
-                   log.DM0.t.lag.ratio = "DM0 lag time",
-                   log.DM25.t.lag.ratio = "DM25 lag time")
-                 )                   
-    return(df2)
-  }
-
-  return(plot.parameter.log.ratios(plot.df,confints.df,recode.Growth.Parameter))
+    recode.Growth.Parameter <- function(df) {
+        df2 <- mutate(df,
+                      Parameter=recode_factor(
+                          Parameter,
+                          log.DM0.r.citrate.ratio = "DM0 citrate growth rate",              
+                          log.DM25.r.citrate.ratio = "DM25 citrate growth rate",
+                          log.DM25.r.glucose.ratio = "DM25 glucose growth rate",
+                          log.DM0.t.lag.ratio = "DM0 lag time",
+                          log.DM25.t.lag.ratio = "DM25 lag time")
+                      )                   
+        return(df2)
+    }
+    
+    return(plot.parameter.log.ratios(plot.df,confints.df,recode.Growth.Parameter))
 }
 
 ###############################################
@@ -943,7 +965,7 @@ clone.growth <- filter(clone.growth,Name != 'ZDBp874')
 
 ## Figure 5.
 Fig5outf <- file.path(projdir,"results/figures/Fig5.pdf")
-clone.growth.plot <- plot.growth.parameters(clone.growth)
+clone.growth.plot <- plot.growth.parameters(clone.growth, add.pop.name=TRUE)
 
 clone.growth.summary <- summarize.growth.results(clone.growth)
 final.clone.growth.summary <- calc.growth.log.ratios(clone.growth.summary)
@@ -965,7 +987,7 @@ save_plot(Fig5outf,Fig5, base_width=11, base_height=7.5)
 ## Supplementary Figure S10:
 ## growth results for DM25-evolved clones in DM25.
 S10Figoutf <- file.path(projdir,"results/figures/S10Fig.pdf")
-DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth)
+DM25.clone.growth.plot <- plot.growth.parameters(DM25.clone.growth, add.pop.name=TRUE)
 DM25.growth.summary <- summarize.growth.results(DM25.clone.growth)
 final.DM25.growth.summary <- calc.growth.log.ratios(DM25.growth.summary)
 DM25.clone.bootstrap.CI <- run.growth.ratio.confint.bootstrapping(final.DM25.growth.summary)
@@ -1283,7 +1305,8 @@ fad.mutations
 ## Figure 6. IS element analysis and visualization.
 ################################################
 
-IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#76ee00')
+##IS.palette <- c('#f4a582','#92c5de','#ca0020','black','#76ee00')
+IS.palette <- c('#f4a582','#9970ab','#ca0020','black','#76ee00')
 IS.insertions <- read.csv(file.path(projdir,
                                     "results/genome-analysis/IS_insertions.csv")) %>%
     arrange(genome_start) %>%
