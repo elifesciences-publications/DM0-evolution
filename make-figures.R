@@ -1508,6 +1508,11 @@ null.parallel.hits(total.hit.pos,empirical.parallel=8)
 ## dctA amplification anti-correlates with the promoter mutation.
 ## Note that the dctA promoter mutation is in CZB151 and CZB154.
 
+## ALSO: Zack noticed an apparent anti-correlation between the dctA
+## amplification and dcuS contingency locus mutation. Calculate all
+## three pairwise correlations
+## (dctA promoter, dctA amplification, dcuS mutation).
+
 dctA.AMPs <- read.csv(file.path(projdir,"results/amplified_genes.csv"),
                       stringsAsFactors=FALSE) %>%
     filter(gene=='dctA') %>% dplyr::select(Genome) %>% distinct() %>%
@@ -1515,13 +1520,43 @@ dctA.AMPs <- read.csv(file.path(projdir,"results/amplified_genes.csv"),
 
 promoter.mutant <- filter(evolved.mutations, Gene=='dctA/yhjK') %>%
     transmute(Name=Clone) %>% left_join(pop.clone.labels) %>%
-    full_join(filter(pop.clone.labels,Founder %in% c('CZB151','CZB154') & Generation==2500 & SampleType=='Clone' & Sequenced == 1 & Name != 'ZDBp874'))
+    full_join(filter(pop.clone.labels,(Founder %in% c('CZB151','CZB154')) & (Generation==2500) & (SampleType=='Clone') & (Sequenced == 1) & (Name != 'ZDBp874')))
+
+dcuS.mutant <- filter(evolved.mutations, Gene=='dcuS') %>%
+    transmute(Name=Clone) %>% left_join(pop.clone.labels) %>%
+    full_join(filter(pop.clone.labels,(Founder == 'CZB151') & (Generation==2500) & (SampleType=='Clone') & (Sequenced == 1) & (Name != 'ZDBp874')))
+
+## out of 24 DM0- and DM25-evolved genomes,
+## 12 have dcuS mutation. All 12 of these have the dctA promoter mutation.
+dcuS.mut.promoter.mut.intersection <- inner_join(dcuS.mutant, promoter.mutant)
+## 0 have the dcuS mutation and no dctA promoter mutation.
+dcuS.mut.no.promoter.mut <- anti_join(dcuS.mutant, promoter.mutant)
+## 5 have the dctA promoter mutation and no dcuS mutation.
+promoter.mut.no.dcuS.mut <- anti_join(promoter.mutant, dcuS.mutant)
+## 7 have neither the dcuS mutation nor the dctA promoter mutation.
+neither.dcuS.mut.nor.promoter <- filter(pop.clone.labels,(Founder %in% c('CZB152','CZB154')) & (Generation==2500) & (SampleType=='Clone') & (Sequenced==1)) %>%
+    anti_join(dcuS.mutant) %>%
+    anti_join(promoter.mutant)
+fisher.test(matrix(c(12,0,5,7),2)) ## p = 0.0046.
+
+## out of 14 DM0- and DM25-evolved genomes,
+## 0 have both dcuS mutation and dctA AMP.
+dctA.AMP.dcuS.mut.intersection <- inner_join(dctA.AMPs, dcuS.mutant)
+## 6 have the dctA amplication and no dcuS mutation.
+dctA.AMP.no.dcuS.mut <- anti_join(dctA.AMPs, dcuS.mutant)
+## 12 have the dcuS mutation and no dctA amplification.
+dcuS.mut.no.dctA.AMP <- anti_join(dcuS.mutant, dctA.AMPs)
+## 6 have neither the dcuS mutation nor the dctA amplification.
+neither.dctA.AMP.nor.dcuS.mut <- filter(pop.clone.labels,(Founder %in% c('CZB152','CZB154')) & (Generation==2500) & (SampleType=='Clone') & (Sequenced==1)) %>%
+    anti_join(dctA.AMPs) %>%
+    anti_join(dcuS.mutant)
+fisher.test(matrix(c(0,6,12,6),2)) ## p = 0.0137.
 
 ## out of 24 DM0- and DM25-evolved genomes,
 ## 1 has both promoter mutant and dctA AMP.
-dctA.AMP.promoter.mut.intersection <- inner_join(dctA.AMPs,promoter.mutant)
+dctA.AMP.promoter.mut.intersection <- inner_join(dctA.AMPs, promoter.mutant)
 ## 5 have dctA AMP but lack the promoter mutation.
-dctA.AMP.no.promoter.mut <- anti_join(dctA.AMPs,promoter.mutant)
+dctA.AMP.no.promoter.mut <- anti_join(dctA.AMPs, promoter.mutant)
 ## 16 have the promoter mutation, and not the dctA AMP.
 promoter.mut.no.dctA.AMP <- anti_join(promoter.mutant,dctA.AMPs)
 ## 2 do not have either mutation.
