@@ -1539,7 +1539,7 @@ neither.dcuS.mut.nor.promoter <- filter(pop.clone.labels,(Founder %in% c('CZB152
     anti_join(promoter.mutant)
 fisher.test(matrix(c(12,0,5,7),2)) ## p = 0.0046.
 
-## out of 14 DM0- and DM25-evolved genomes,
+## out of 24 DM0- and DM25-evolved genomes,
 ## 0 have both dcuS mutation and dctA AMP.
 dctA.AMP.dcuS.mut.intersection <- inner_join(dctA.AMPs, dcuS.mutant)
 ## 6 have the dctA amplication and no dcuS mutation.
