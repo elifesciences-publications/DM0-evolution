@@ -10,14 +10,6 @@
 library(boot)
 library(tidyverse)
 library(cowplot)
-library(ggrepel)
-library(devtools)
-library(gridExtra)
-library(reshape2)
-library(grid)
-library(ggpubr)
-library(PairedData)
-library(car)
 
 calc.w.bootstrap.conf.int <- function(vec,w) {
     ## bootstrap weighted confidence intervals around the mean.
@@ -160,20 +152,15 @@ cell.death.barplot <- D4 %>%
   
 ## Plot 6: plot of the proportions for independent replicates.  
 ## First must construct the data frame piece-wise.
-
 D4.2 <- D4 %>%  filter(RelFluorPrime == "Dead") %>% rename(P.Dead = n) %>% rename(PropPrime.Dead = PropPrime)
 D4.3 <- D4 %>%  filter(RelFluorPrime == "Alive") %>% rename(P.Alive = n) %>%  rename(PropPrime.Alive = PropPrime)
-
 D4.2$P.Alive <- D4.3$P.Alive
 D4.2$PropPrime.Alive <- D4.3$PropPrime.Alive
-
 D4.2 <- D4.2 %>%  
     mutate(N = P.Dead + P.Alive)
-
 D4.2 <- D4.2[,-4]
 
 ##Calculate the confidence intervals here. Note: C.I. for proportions are calculated differently. 
-
 P6 <- D4.2 %>% group_by(Clone, Treatment, Block) %>% 
     mutate(B = ((PropPrime.Dead * PropPrime.Alive) / N)) %>% 
     mutate(marg.err = sqrt(B) * 1.96) %>% #1.96 Z score for the 95% C.I. 
@@ -212,162 +199,3 @@ Fig6B <- P6 %>%
 
 labeled.Fig6B <- plot_grid(Fig6B, labels=c('B'),ncol=1)
 save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig6B.pdf"),labeled.Fig6B,base_height=3,base_width=8)
-
-
-## Let's look at the the estimated proportion of dead cells to report in the manuscript.
-P6.confint.df
-
-## Here I take the P6 dataset and plot the proportion of dead cells for each replicate. MAIN TEXT
-## Standard error of the mean = SEM = S/√N = 0.035
-## t(α, N-1) = 2.776
-## R's way (fun.data) of calculating confidence interval = m +/- (t(α, N-1)*SEM). Need to calculate confidence 
-## interval of the proportion. 
-old.Fig6C <- P6 %>% 
-    ggplot(aes(x= Treatment, y = PropPrime.Dead)) +
-    geom_point() +
-    facet_wrap(~ Clone) +
-    ylab("Proportion dead cells") +
-    stat_summary(fun.y = mean, fun.ymin = mean, fun.ymax = mean, geom = "crossbar", width = .15, size = .4) +
-    ##line of code defaults to mean_se. This is what I wanted to show. 
-    geom_errorbar(stat = "summary", position = "identity", fun.data = mean_ci, width = .050)
-
-
-## Use the mean proportions to do statistics 
-## What is the proportion of death in DM0 and DM25 environments within a clone?
-## Is there more death in DM0 or DM25?
-## How does death of each of the evolved strains in DM25 compare to that of the ancestor?
-## How does death in DM0 and DM25 environments differ between clones?
-
-## geom_errorbar(aes(ymin=PropPrime.Dead - marg.err, ymax=PropPrime.Dead+ marg.err), position = "dodge", colour="black", size=.2, width=.04) 
-## the line above is code that shows the dispersion around the mean for each replicate. 
-## Allows assessment of homogeneity in variance around mean. 
-
-####################Points to make from visualizing plot P6##########################
-## In most cases there is less death in DM25 than in DM0. 
-## Most evolved population, 11364 appears to converged on equal proptions of dead cells and similary the common ancestor
-## of 871 and 910. 
-## 871 displays significantly more death in DM0 although it evolved in this environment, even so it still has a lower
-## Proporstion of death when compared to 151.
-
-## Here I calculate the mean and standard deviation of the six samples. Output in console. 
-## Shows the values of the means  plotted above in plot 6. 
-## P6 %>% 
-## group_by(Clone, Treatment) %>% 
-## summarise(Mean.Prop.Dead= mean(PropPrime.Dead), StdDev.Prop.Dead = sd(PropPrime.Dead))
-
-## Lets do some statistics! 
- 
-## One-Way ANOVA test groups: Clone, Treatment. 
-## I could filter the data sets by Treatment (will have one for DM0 and the other for DM25) and perform stats on it,
-## or I may be able to "group_by" before performing the stats. 
-
-## Here I create a summary dataframe. Not saved as object. 
-## P6 %>% group_by(Clone, Treatment) %>% 
-##  summarise(
-##    count = n(),
-##    mean = mean(PropPrime.Dead, na.rm = TRUE),
-##    sd = sd(PropPrime.Dead, na.rm = TRUE )
-##  )
-
-########Lets do some statistical tests to address some of the questions presented above.##########
-##http://www.sthda.com/english/wiki/comparing-means-in-r
-##https://www.sheffield.ac.uk/polopoly_fs/1.536445!/file/MASH_ANOVA_in_R.pdf
- 
-##Is there a significant difference in the proportion of dead cells present in each treatment?
-leveneTest(PropPrime.Dead ~ Treatment, data = P6) #p = 0.9499 equal variances can be assumed. 
-
-##histogram(PropPrime.Dead ~ Treatment, data = P6) shows what percent of the total number of cells analyzed
-## comes from each treatment. 40% - DM0; 60% - DM25
- 
-res.aov.trt <- aov(PropPrime.Dead ~ Treatment, data = P6) 
-summary(res.aov.trt)  #Significant differences between the treatments. 
-##More death in DM0. I can make this interpretation directly.
- 
-##Plot of the residuals 
-res.trt <- res.aov.trt$residuals
-hist(res.trt, main="Histogram of standardised residuals for res.trt",xlab="Standardised residuals")
- 
-P6.DM0 <- P6 %>% filter(Treatment == "DM0")
-P6.DM25 <- P6 %>%filter(Treatment == "DM25")
- 
-## Is there a difference in the proportion of dead cells present when clones are grown in DM0?
-res.aov.DM0 <- aov(PropPrime.Dead ~ Clone, data=P6.DM0)
-summary(res.aov.DM0) #There is no difference in the proportion of dead cells in DM0. p = 0.638
-## The proportion of dead cells is the same across all clones when grown in DM0. 
- 
-## Is there a difference in the proportion of dead cells present when clones are grown in DM25?
-res.aov.DM25 <- aov(PropPrime.Dead ~ Clone, data=P6.DM25)
-summary(res.aov.DM25)
-## At least one population differs in the proportion of death in DM25 p = 0.00767 which one?
-TukeyHSD(res.aov.DM25) ## Tukey honestly significant difference test. Adjusts for multiple comparisons. 
- 
-## Clones with significantly different mean death in DM25. 
-## REL11364 - REL606 -> 0.0257
-## REL11364 - ZDBp910 -> 0.028
- 
-## Paired T.tests for each clone across environments. 
-
-## Filtering dataset by Treatment to allow paired comparisons
-## 1) Constructing the dataframes:
-## ZDBp910 grew in 1/5 replicates in DM0. Can't run a paired t.test with this clone. 
-## REL606 does not grow in DM0. Cant run a paired t.test with this clone. 
-
-
-P6.DM0.2 <- P6 %>% ungroup() %>% 
-    filter(Treatment == "DM0") %>% 
-    filter(Clone != "ZDBp910") %>% 
-    dplyr::select(Clone, Treatment,PropPrime.Dead)
-
-
-P6.DM25.2 <- P6 %>% ungroup() %>% 
-    filter(Treatment == "DM25") %>% 
-    filter(Clone %in% c("CZB151", "ZDBp871", "REL11364")) %>% 
-    dplyr::select(Clone, Treatment, PropPrime.Dead)
-
- 
-P6.2 <- rbind(P6.DM0.2, P6.DM25.2) 
- 
-##I now need to create separate dataframes for each of the clones that I will be comparing using t.tests. 
-##Grouping variable will be "Treatment."
- 
-P6.151 <- P6.2 %>% filter(Clone == "CZB151") 
-P6.871 <- P6.2 %>%  filter(Clone == "ZDBp871")
-P6.11364 <- P6.2 %>% filter(Clone == "REL11364")
- 
- 
-##Shapiro-Wilk Normality test: are the differences normally distributed. If so, I can continue with the t.test,
-##if not, I must use a non-parametric alternative to the t.test.
-
-SWNT.151 <- with(P6.151, 
-                 PropPrime.Dead[Treatment == "DM0"] - PropPrime.Dead[Treatment == "DM25"])
- 
-SWNT.871 <- with(P6.871, 
-                 PropPrime.Dead[Treatment == "DM0"] - PropPrime.Dead[Treatment == "DM25"])
- 
-SWNT.11364 <- with(P6.11364, 
-                   PropPrime.Dead[Treatment == "DM0"] - PropPrime.Dead[Treatment == "DM25"])
- 
- 
-shapiro.test(SWNT.151)  ##p = 0.1309
-shapiro.test(SWNT.871)  ##p = 0.8683
-shapiro.test(SWNT.11364) ##p = 0.6543
- 
-##The results of the Shapiro-Wilk Normality tests indicates that the distribution of the differences in the proportion 
-## of dead cells in DM0 and DM25 environments are not significantly different from a normal distribution, 
-##thus, we can assume normality and compare mean differences for each clone using the parametric t.test. 
-
-## T.tests 
-res.151 <- t.test(PropPrime.Dead ~ Treatment , data = P6.151, paired = TRUE)
-res.151 ##p = 0.7753; No differences 
-
-res.871 <- t.test(PropPrime.Dead ~ Treatment, data = P6.871, paired = TRUE) 
-res.871 ##p = 0.02585
-## Result indicates that there is a differecene in the proporition of dead cells between the two environments.
-## Looking at the data plotted from dataframe P6, it is likely that the proporiton of dead cells is higher in DM0
-## when compared to DM25. I test this hypothesis in the next line of code. 
-
-res.871.G <- t.test(PropPrime.Dead ~ Treatment, data = P6.871, paired = TRUE, alternative = "greater") 
-res.871.G ##Yes, p=0.01293, the propotion of death in DM0 is greater than that in DM25
-
-res.11364 <- t.test(PropPrime.Dead ~ Treatment, data = P6.11364, paired = TRUE)
-res.11364 ##p = 0.7651; No differences
