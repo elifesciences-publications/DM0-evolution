@@ -1011,7 +1011,9 @@ save_plot(S10Figoutf,S10Fig, base_width=11, base_height=7.5)
 ### no correlation between glucose growth rates and citrate growth rates,
 ### but correlation in citrate growth rates in DM0 and DM25.
 
-growth.summary <- full_join(clone.growth.summary, pop.growth.summary)
+growth.summary <- full_join(clone.growth.summary, pop.growth.summary) %>%
+    mutate(Dataset = case_when(Dataset == 'CloneGrowth' ~ 'Clone Growth',
+                           TRUE ~ 'Population Growth'))
 
 ## no correlation between r citrate and r glucose in DM25 by my estimates.
 cor.test(x=clone.growth.summary$DM25.r.citrate,y=clone.growth.summary$DM25.r.glucose,method="pearson", alternative="two.sided")
@@ -1026,8 +1028,8 @@ cit.glucose.cor.plot <- ggplot(growth.summary,
 facet_wrap(Founder~Dataset,nrow=1) +
 geom_point() +
 theme_classic() +
-xlab("DM25 r citrate") +
-ylab("DM25 r glucose") +
+xlab("DM25 citrate growth rate") +
+ylab("DM25 glucose growth rate") +
 scale_color_manual(values=cbbPalette) +
 guides(color=FALSE,shape=FALSE)
 
@@ -1037,8 +1039,8 @@ cit.cit.cor.plot <- ggplot(growth.summary,
 facet_wrap(Founder~Dataset,nrow=1) +
 geom_point() +
 theme_classic() +
-xlab("DM25 r citrate") +
-ylab("DM0 r citrate") +
+xlab("DM25 citrate growth rate") +
+ylab("DM0 citrate growth rate") +
 scale_color_manual(values=cbbPalette) +
 guides(color=FALSE,shape=FALSE)
 
@@ -1046,7 +1048,7 @@ guides(color=FALSE,shape=FALSE)
 S11Fig <- plot_grid(cit.glucose.cor.plot,
                     cit.cit.cor.plot, labels=c('A','B'), ncol=1)
 S11Fig.outf <- file.path(projdir,"results/figures/S11Fig.pdf")
-save_plot(S11Fig.outf, S11Fig, base_height=8, base_width=12)
+save_plot(S11Fig.outf, S11Fig, base_height=5, base_width=7.5)
 
 ######################################################################
 ####### Figure 6: Nkrumah's cell death results. See CellDeath.R script
