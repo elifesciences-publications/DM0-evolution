@@ -52,7 +52,7 @@ calc.bootstrap.conf.int <- function(vec) {
 }
 
 ###################
-
+ 
 ## colorblind-friendly palette.
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
@@ -218,11 +218,14 @@ ggsave(fig1, file=fig1.output,width=7,height=7)
 ## HOWEVER: log-ratios of growth parameters (and fitness competitions for maeA)
 ## use log2 for easier interpretability.
 
-## IMPORTANT NOTE: Double-check the provenance of these data with Zack.
-## This file indicates that this is 96 hour data, but appears to go
-## for 166 hours (one week)??
+## I double-checked the provenance of these data with Zack.
+## These data come from a long spec run from back in 2011 for his 2012 Nature paper
+## to look at growth phenotypes of Cit+ constructs and Cit+ plasmid transformants,
+## with 606, early Cit+, and some evolved Cit- as points of comparison.
+## Zack's original file is called "Construct run 4 final.xls"
+
 REL606.DM25.growth.data <- read.csv(
-  file.path(projdir, "data/rohan-formatted/REL606-DM25-96-hours.csv"),
+  file.path(projdir, "data/rohan-formatted/REL606-DM25-48-hours.csv"),
   stringsAsFactors=FALSE) %>%
 mutate(Hours = as.numeric(as.duration(hms(Time)))/3600) %>%
 rowwise() %>%
