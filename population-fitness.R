@@ -9,7 +9,7 @@ library(cowplot)
 ## Fitness calculation code.
 ## NOTE: this function is specialized for these competitions, and will NOT
 ## work out of the box on other data.
-fitness.analysis <- function(data, samplesize=3, days.competition=1) {
+fitness.analysis <- function(data, days.competition=1) {
     ## by diluting stationary phase culture 1:100 on day 0, there is another
     ## factor of 100 that multiplies the day 0 plating dilution factor.
     data$D.0 <- 100*data$D.0
@@ -22,9 +22,11 @@ fitness.analysis <- function(data, samplesize=3, days.competition=1) {
     ## Mw is denominator when have a white reference strain,
     ## Mr is denominator when have a red reference strain.
     if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
-    
-    my.mean <- mean(data$W, na.rm=T)
-    my.sd <- sd(data$W, na.rm=T)
+
+    samplesize = nrow(data)
+
+    my.mean <- mean(data$W, na.rm=FALSE) ## IMPORTANT: return NA if any NA values.
+    my.sd <- sd(data$W, na.rm=FALSE)
     ## see: https://www.cyclismo.org/tutorial/R/confidence.html#calculating-a-confidence-interval-from-a-t-distribution
     my.t.dist.error <- qt(0.975,df=samplesize-1) * my.sd/sqrt(samplesize)
     
@@ -41,6 +43,14 @@ fitness.analysis <- function(data, samplesize=3, days.competition=1) {
         name <- unique(data$White.Pop)
         reference <- unique(data$Red.Pop)
     }
+
+    ## If mean is negative or undefined, then set to equal 0,
+    ## and hard code the error bars to extend from 0 to 4.
+    ## Or if one or other limit is within the range,
+    ## then hard code it to that value and other to the limit up or down.
+    my.mean <- ifelse(is.na(my.mean) | (my.mean <= 0) | (my.mean >= 4), 0, my.mean)
+    left.error <- ifelse(is.na(left.error) | (left.error <= 0) | (left.error >= my.mean), 0, left.error)
+    right.error <- ifelse(is.na(right.error) | (right.error >= 4), 4, right.error)
     
     results <- data.frame(Treatment=unique(data$Treatment),
                           Name=name,
@@ -128,12 +138,18 @@ DM25.results <- DM25.groups %>%
 easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,PopulationLabel,ParentClone)
 
 ## Make a figure of DM0 fitness for each population.
-Fig2A <- plot.pop.fitness(DM0.results) + ggtitle("Population fitness measured in DM0 in a one day competition")
+Fig2A <- plot.pop.fitness(DM0.results) +
+    ## remove problematic fitness estimates by setting bounds from 0 to 4.
+    ylim(0,4) +
+    ggtitle("Population fitness measured in DM0 in a one day competition")
 ## Make a figure of DM25 fitness for each population.
-Fig2B <- plot.pop.fitness(DM25.results) + ggtitle("Population fitness measured in DM25 in a one day competition")
+Fig2B <- plot.pop.fitness(DM25.results) +
+    ## set bounds from 0 to 2.
+    ylim(0,2) +
+    ggtitle("Population fitness measured in DM25 in a one day competition")
 ## put these figures together to make Figure 2.
 Fig2 <- plot_grid(Fig2A,Fig2B,labels=c('A','B'),ncol=1)
-ggsave("../results/figures/Fig2.pdf", Fig2, height=7)
+ggsave("../results/figures/evolved-pop-fitness.pdf", Fig2, height=7)
 
 write.csv(DM0.results,file="../results/EvolvedPopFitness-in-DM0.csv")
 write.csv(DM25.results,file="../results/EvolvedPopFitness-in-DM25.csv")
