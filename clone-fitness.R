@@ -126,11 +126,11 @@ easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,
 
 ## Make a figure of DM0 fitness for each population.
 ## Make a figure of DM0 fitness for each population.
-Fig3A <- plot.clone.fitness(DM0.results) + ggtitle("Clone fitness measured in DM0 in a three day competition")
-Fig3B <- plot.clone.fitness(DM25.results) + ggtitle("Clone fitness measured in DM25 in a three day competition")
-## put these figures together to make Figure 3.
-Fig3 <- plot_grid(Fig3A,Fig3B,labels=c('A','B'),ncol=1)
-ggsave("../results/figures/Fig3.pdf", Fig3, height=8)
+Fig4A <- plot.clone.fitness(DM0.results) + ggtitle("Clone fitness measured in DM0 in a three day competition")
+Fig4B <- plot.clone.fitness(DM25.results) + ggtitle("Clone fitness measured in DM25 in a three day competition")
+## put these figures together to make Figure 4.
+Fig4 <- plot_grid(Fig4A,Fig4B,labels=c('A','B'),ncol=1)
+ggsave("../results/figures/Fig4.pdf", Fig4, height=8)
 
 write.csv(DM0.results,file="../results/EvolvedCloneFitness-in-DM0.csv")
 write.csv(DM25.results,file="../results/EvolvedCloneFitness-in-DM25.csv")

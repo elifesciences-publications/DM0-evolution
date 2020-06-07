@@ -62,11 +62,11 @@ D1$Clone <- ordered(D1$Clone, levels = c("606", "151", "871", "910", "11364")) #
 levels(D1$Clone) <- c("REL606", "CZB151", "ZDBp871", "ZDBp910", "REL11364")
 
 ## Here I use the idcol to create a column called blocks. I retain the idcol for transparency. 
-D1$Block<-  as.factor(gsub("^.*20190329.*$","1",D1$idcol))
-D1$Block <- as.factor(gsub("^.*20190515.*$","2",D1$Block))
-D1$Block <- as.factor(gsub("^.*20190516.*$","3",D1$Block))
-D1$Block <- as.factor(gsub("^.*20190517.*$","4",D1$Block))
-D1$Block <- as.factor(gsub("^.*20190524.*$","5",D1$Block))
+D1$Block <- as.factor(gsub("^.*20190329.*$","1", D1$idcol))
+D1$Block <- as.factor(gsub("^.*20190515.*$","2", D1$Block))
+D1$Block <- as.factor(gsub("^.*20190516.*$","3", D1$Block))
+D1$Block <- as.factor(gsub("^.*20190517.*$","4", D1$Block))
+D1$Block <- as.factor(gsub("^.*20190524.*$","5", D1$Block))
 
 ## Tidy data:
 ## 1) Subset the mean fluorescence columns for channels one and two and the Clone and Treatment blocks 
@@ -188,7 +188,7 @@ P6.confint.df <- P6 %>%
     keep(function(x) nrow(x) > 0) %>% ## ignore subsets with no rows
     map_dfr(.f = w.bootstrap.PropPrime.Dead)
 
-Fig6B <- P6 %>%
+Fig10B <- P6 %>%
   ggplot(aes(x = Treatment, y = PropPrime.Dead, label = my.text)) +
   geom_point(size=0.5) +
   facet_wrap(. ~ Clone, nrow = 1) +
@@ -197,5 +197,5 @@ Fig6B <- P6 %>%
   geom_errorbar(data=P6.confint.df,aes(x=Treatment,ymin=Left,ymax=Right), width=0.15, size=0.4,inherit.aes=FALSE) +
   geom_crossbar(data=P6.confint.df,aes(x=Treatment,y=PropPrime.Dead,ymin=PropPrime.Dead,ymax=PropPrime.Dead), width= 0.1, size = 0.4,inherit.aes=FALSE)
 
-labeled.Fig6B <- plot_grid(Fig6B, labels=c('B'),ncol=1)
-save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig6B.pdf"),labeled.Fig6B,base_height=3,base_width=8)
+labeled.Fig10B <- plot_grid(Fig10B, labels=c('B'),ncol=1)
+save_plot(file.path(projdir,"results/figures/nkrumah-figures/Fig10B.pdf"),labeled.Fig10B,base_height=3,base_width=8)

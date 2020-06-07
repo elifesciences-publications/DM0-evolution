@@ -127,9 +127,9 @@ color_mid <- "#FFC300"
 color_low <- "#DAF7A6"
 colors <- colorRampPalette(c(color_low, color_mid, color_high))(100)
 
-## make the plot! This is Supplementary Figure S13.
+## make the plot! This is Figure 14.
 RNAseq.fig.outf <- file.path(proj.dir,
-              "results/figures/S13Fig.pdf")
+              "results/figures/Fig14.pdf")
 
 ## We want to italicize gene names in the rows.
 ## See how at: https://www.biostars.org/p/400381/
@@ -145,7 +145,7 @@ p <- pheatmap::pheatmap(trans_mat,
 p$gtable$grobs[[3]]$rot <- 360 - x_axis_angle
 gridExtra::grid.arrange(p$gtable)
 
-ggsave(RNAseq.fig.outf,p, height=10, width=7)
+ggsave(RNAseq.fig.outf, p, height=10, width=7)
 
 
 ## run the RShiny web app interface to the sleuth results.

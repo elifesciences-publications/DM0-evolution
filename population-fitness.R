@@ -25,35 +25,6 @@ fitness.analysis <- function(d, days.competition=1) {
     ## Mw is denominator when have a white reference strain,
     ## Mr is denominator when have a red reference strain.
     if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
-
-    ## for these competitions, we need to deal with some zero counts.
-    ## log(0) = -Inf.
-    ## if we're dividing by -Inf, then W = 0.
-    ## if we're dividing -Inf on the other hand, 
-    ## then W = -Inf.
-
-    ## For the three cases under consideration in these DM0 competitions,
-    ## W = 0 --> W = 1, and 
-    ## W = -Inf --> W = 0.
-    ## This is a case-specific hack, so don't generalize blindly to other data!
-    data$W <- sapply(data$W, function(x) ifelse(x == 0, 1, x))
-    data$W <- sapply(data$W, function(x) ifelse(x == -Inf, 0, x))
-    
-    ## This logic comes from Rich's comments in email correspondence:
-    ## Like two other cases (ZDBp806 vs CZB151 and ZDBp808 vs CZB151),
-    ## the evolved competitor (but not the common competitor) had 0 colonies on Day 1
-    ## (but not day 0) in 2 of the 3 reps.  So I would call those cases a relative
-    ## fitness of 0.  (It would be infinity if it was reversed,
-    ## but in all cases it was the evolved population that failed.) 
-
-    ##In that case, for ZDBp754 I compute mean 0.2585, lower bound 0.0000,
-    ## and upper bound 1.3707.
-
-    ##In these 6 cases (3 competing pairs, each with 2 failed cases), I suggest
-    ## replacing the common competitor's growth rate with the actual value;
-    ## leave the NA for those where the evolved population had 0 colonies on D.1;
-    ## and hard code fitness in those cases as 1.  Then you can compute the averages,
-    ## etc, as you've done from the 3 reps in every case.
     
     samplesize <- nrow(data)
 
@@ -76,13 +47,11 @@ fitness.analysis <- function(d, days.competition=1) {
         reference <- unique(data$Red.Pop)
     }
 
-    ## If mean is negative or undefined, then set to equal 0,
-    ## and hard code the error bars to extend from 0 to 4.
+    ## Hard code the error bars to extend from 0 to 6.5, max.
     ## Or if one or other limit is within the range,
-    ## then hard code it to that value and other to the limit up or down.
-    my.mean <- ifelse(is.na(my.mean) | (my.mean <= 0) | (my.mean >= 4), 0, my.mean)
+    ## then keep that value and send the other to the boundary.
     left.error <- ifelse(is.na(left.error) | (left.error <= 0) | (left.error >= my.mean), 0, left.error)
-    right.error <- ifelse(is.na(right.error) | (right.error >= 4), 4, right.error)
+    right.error <- ifelse(is.na(right.error) | (right.error >= 6.5), 6.5, right.error)
     
     results <- data.frame(Treatment=unique(data$Treatment),
                           Name=name,
@@ -170,18 +139,18 @@ DM25.results <- DM25.groups %>%
 easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,PopulationLabel,ParentClone)
 
 ## Make a figure of DM0 fitness for each population.
-Fig2A <- plot.pop.fitness(DM0.results) +
-    ## remove problematic fitness estimates by setting bounds from 0 to 4.
-    ylim(0,4) +
+Fig3A <- plot.pop.fitness(DM0.results) +
+    ## remove problematic fitness estimates by setting bounds from 0 to 6.5.
+    ylim(0,6.5) +
     ggtitle("Population fitness measured in DM0 in a one day competition")
 ## Make a figure of DM25 fitness for each population.
-Fig2B <- plot.pop.fitness(DM25.results) +
+Fig3B <- plot.pop.fitness(DM25.results) +
     ## set bounds from 0 to 2.
     ylim(0,2) +
     ggtitle("Population fitness measured in DM25 in a one day competition")
 ## put these figures together to make Figure 2.
-Fig2 <- plot_grid(Fig2A,Fig2B,labels=c('A','B'),ncol=1)
-ggsave("../results/figures/evolved-pop-fitness.pdf", Fig2, height=7)
+Fig3 <- plot_grid(Fig3A,Fig3B,labels=c('A','B'),ncol=1)
+ggsave("../results/figures/Fig3.pdf", Fig3, height=7)
 
 write.csv(DM0.results,file="../results/EvolvedPopFitness-in-DM0.csv")
 write.csv(DM25.results,file="../results/EvolvedPopFitness-in-DM25.csv")

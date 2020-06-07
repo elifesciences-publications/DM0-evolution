@@ -18,12 +18,11 @@
 ## 6) find the genes contained in these regions (and genes chopped at the boundaries).
 
 ## 7) do a quick check to see whether polymorphism occurs in the genomes
-##    with the largest amplifications (this should be clear from Fig. 9).
+##    with the largest amplifications (this should be clear from Fig. 13).
 
-## 8) make Fig. 9, showing maeA and citT copy number.
+## 8) make Fig. 13, showing maeA and citT copy number.
 
 library(xml2)
-library(roxygen2)
 library(assertthat)
 library(IRanges)
 library(GenomicRanges)
@@ -45,7 +44,6 @@ library(cowplot)     # layout figures nicely.
 #' NOTE: this code has only been tested on the summary file
 #' output by breseq 0.30.0. It might fail on earlier or later versions.
 
-#' @export
 coverage.nbinom.from.html <- function(breseq.output.dir) {
     summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
     tree <- read_html(summary.html.f)
@@ -62,7 +60,6 @@ coverage.nbinom.from.html <- function(breseq.output.dir) {
 
 #' get the maximum length of a sequencing read from the summary.html breseq
 #' output file.
-#' @export
 max.readlen.from.html <- function(breseq.output.dir) {
     summary.html.f <- file.path(breseq.output.dir, "output", "summary.html")
     tree <- read_html(summary.html.f)
@@ -76,7 +73,6 @@ max.readlen.from.html <- function(breseq.output.dir) {
     return(max.readlen)
 }
 
-
 #' Find intervals longer than max.read.len that reject H0 coverage in genome.
 #' at an uncorrected alpha = 0.05. This is to have generous predicted boundaries for amplifications.
 #' Then do a more rigorous test for each region. take positions in the region separated by more than max.read.len,
@@ -84,7 +80,6 @@ max.readlen.from.html <- function(breseq.output.dir) {
 #' a corrected bonferroni. max.read.len ensures positions cannot be spanned by a single Illumina read.
 #' Estimate copy number by dividing mean coverage in each region by the mean of the H0 1x coverage distribution.
 #' return mean copy number, and boundaries for each region that passes the amplification test.
-#' @export
 find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a misspelling.
     
     gnome <- as.character(gnome)
@@ -104,21 +99,30 @@ find.amplifications <- function(breseq.output.dir, gnome) { #gnome is not a miss
     genome.coverage.file <- file.path(breseq.output.dir,"08_mutation_identification", "REL606.coverage.tab")
     
     ## use dtplyr for speed!
-    genome.coverage <- tbl_dt(fread(genome.coverage.file)) %>%
+    genome.coverage <- lazy_dt(fread(genome.coverage.file)) %>%
         select(position,unique_top_cov,unique_bot_cov) %>% mutate(coverage=unique_top_cov+unique_bot_cov)
     
     ## find candidate amplifications that pass the uncorrected threshold.
-    candidate.amplifications <- filter(genome.coverage,coverage > uncorrected.threshold)
+    candidate.amplifications <- genome.coverage %>%
+        filter(coverage > uncorrected.threshold) %>%
+        ## now finally turn into a dataframe (as using lazy_dt)
+        as.data.frame()
+    
     ## calculate intervals of candidate amplifications.
-    boundaries <- candidate.amplifications %>% mutate(left.diff=position - lag(position)) %>%
+    boundaries <- candidate.amplifications %>%
+        mutate(left.diff=position - lag(position)) %>%
         mutate(right.diff=lead(position) - position) %>%
         ## corner case: check for the NA values at the endpoints and set them as boundaries.
         mutate(is.right.boundary=is.na(right.diff)|ifelse(right.diff>1,TRUE,FALSE)) %>%
         mutate(is.left.boundary=is.na(left.diff)|ifelse(left.diff>1,TRUE,FALSE)) %>%
         filter(is.left.boundary==TRUE | is.right.boundary==TRUE)
+ 
+    left.boundaries <- filter(boundaries,is.left.boundary==TRUE) %>%
+        arrange(position)
+        
+    right.boundaries <- filter(boundaries,is.right.boundary==TRUE) %>%
+        arrange(position)
     
-    left.boundaries <- filter(boundaries,is.left.boundary==TRUE) %>% arrange(position)
-    right.boundaries <- filter(boundaries,is.right.boundary==TRUE) %>% arrange(position)
     assert_that(nrow(left.boundaries) == nrow(right.boundaries))
     
     ## helper higher-order function to get min, max, mean coverage of each segment.
@@ -313,8 +317,8 @@ clone.labels <- read.csv(label.filename) %>% mutate(Name=as.character(Name))
 #' Make a plot of amplified segments in the genome.
 amp.segments.plot <- plot.amp.segments(annotated.amps,clone.labels)
 
-Fig9outf <- file.path(projdir,"results/figures/Fig9.pdf")
-save_plot(Fig9outf,amp.segments.plot,base_height=5,base_width=5)
+Fig13outf <- file.path(projdir,"results/figures/Fig13.pdf")
+save_plot(Fig13outf,amp.segments.plot, base_height=5, base_width=5)
 
 #' write out a matrix where row is 'maeA-AMP' or 'dctA-AMP'
 #' and columns are genome names. This will be used to merge
