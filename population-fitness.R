@@ -9,10 +9,13 @@ library(cowplot)
 ## Fitness calculation code.
 ## NOTE: this function is specialized for these competitions, and will NOT
 ## work out of the box on other data.
-fitness.analysis <- function(data, days.competition=1) {
+fitness.analysis <- function(d, days.competition=1) {
+    data <- d ## this is so we modify a copy of the input.
     ## by diluting stationary phase culture 1:100 on day 0, there is another
     ## factor of 100 that multiplies the day 0 plating dilution factor.
-    data$D.0 <- 100*data$D.0
+
+    data$D.0 <- 100 * d$D.0 ## don't modify self, esp.  when testing interactively.
+    ## now start fitness calculations.
     data$Mr <- log((data$D.1/data$D.0)*data$d1.red*100^days.competition/data$d0.red)/days.competition
     data$Mw <- log((data$D.1/data$D.0)*data$d1.white*100^days.competition/data$d0.white)/days.competition
 
@@ -23,7 +26,36 @@ fitness.analysis <- function(data, days.competition=1) {
     ## Mr is denominator when have a red reference strain.
     if (rev) data$W <- data$Mr/data$Mw else data$W <- data$Mw/data$Mr
 
-    samplesize = nrow(data)
+    ## for these competitions, we need to deal with some zero counts.
+    ## log(0) = -Inf.
+    ## if we're dividing by -Inf, then W = 0.
+    ## if we're dividing -Inf on the other hand, 
+    ## then W = -Inf.
+
+    ## For the three cases under consideration in these DM0 competitions,
+    ## W = 0 --> W = 1, and 
+    ## W = -Inf --> W = 0.
+    ## This is a case-specific hack, so don't generalize blindly to other data!
+    data$W <- sapply(data$W, function(x) ifelse(x == 0, 1, x))
+    data$W <- sapply(data$W, function(x) ifelse(x == -Inf, 0, x))
+    
+    ## This logic comes from Rich's comments in email correspondence:
+    ## Like two other cases (ZDBp806 vs CZB151 and ZDBp808 vs CZB151),
+    ## the evolved competitor (but not the common competitor) had 0 colonies on Day 1
+    ## (but not day 0) in 2 of the 3 reps.  So I would call those cases a relative
+    ## fitness of 0.  (It would be infinity if it was reversed,
+    ## but in all cases it was the evolved population that failed.) 
+
+    ##In that case, for ZDBp754 I compute mean 0.2585, lower bound 0.0000,
+    ## and upper bound 1.3707.
+
+    ##In these 6 cases (3 competing pairs, each with 2 failed cases), I suggest
+    ## replacing the common competitor's growth rate with the actual value;
+    ## leave the NA for those where the evolved population had 0 colonies on D.1;
+    ## and hard code fitness in those cases as 1.  Then you can compute the averages,
+    ## etc, as you've done from the 3 reps in every case.
+    
+    samplesize <- nrow(data)
 
     my.mean <- mean(data$W, na.rm=FALSE) ## IMPORTANT: return NA if any NA values.
     my.sd <- sd(data$W, na.rm=FALSE)
