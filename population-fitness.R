@@ -82,15 +82,15 @@ plot.pop.fitness <- function(results) {
     
     the.plot <- ggplot(results,aes(x=PopulationLabel,y=Fitness,color=Founder)) +
         theme_classic() +
+        geom_hline(yintercept=1,color='gray',linetype='dashed') +
+        geom_hline(yintercept=1.5,color='gray',linetype='dashed') +
         scale_color_manual(values = cbbPalette) +
-        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.2, size=0.5) +
+        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.4, size=0.5) +
         geom_line() +
         geom_point(size=1.5) +
         theme(axis.text.x = element_text(size=10,angle=90,vjust=0.5)) +
         ylab("Fitness relative to CZB151/ZDB67") +
         xlab("Population") +
-        geom_hline(yintercept=1,color='gray',linetype='dashed') +
-        geom_hline(yintercept=1.5,color='gray',linetype='dashed') +
         guides(color=FALSE)
 
     return(the.plot)
