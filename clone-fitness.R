@@ -51,7 +51,6 @@ fitness.analysis <- function(data, samplesize=5, days.competition=3) {
 }
 
 plot.clone.fitness <- function(results) {
-
     ## colorblind-friendly palette.
     cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
@@ -72,7 +71,6 @@ plot.clone.fitness <- function(results) {
             ## order points from left to right, manually.
         mutate(PlotName=factor(PlotName,levels=clone.order))
 
-    
     the.plot <- ggplot(results,aes(x=PlotName,y=Fitness,color=Founder)) +
         theme_classic() +
         scale_color_manual(values = cbbPalette) +
@@ -81,8 +79,8 @@ plot.clone.fitness <- function(results) {
         geom_point(size=1.5) +
         theme(axis.text.x = element_text(size=10,angle=90,vjust=0.5)) +
         ylab("Fitness relative to ancestor") +
-        geom_hline(yintercept=1,color='gray',linetype='dashed') +
         xlab("Clone") +
+        geom_hline(yintercept=1,color='gray',linetype='dashed') +
         guides(color=FALSE)
 
     return(the.plot)
