@@ -74,7 +74,7 @@ plot.clone.fitness <- function(results) {
     the.plot <- ggplot(results,aes(x=PlotName,y=Fitness,color=Founder)) +
         theme_classic() +
         scale_color_manual(values = cbbPalette) +
-        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
+        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.2, size=0.5) +
         geom_line() +
         geom_point(size=1.5) +
         theme(axis.text.x = element_text(size=10,angle=90,vjust=0.5)) +
@@ -124,8 +124,8 @@ easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,
 
 ## Make a figure of DM0 fitness for each population.
 ## Make a figure of DM0 fitness for each population.
-Fig4A <- plot.clone.fitness(DM0.results) + ggtitle("Clone fitness measured in DM0 in a three day competition")
-Fig4B <- plot.clone.fitness(DM25.results) + ggtitle("Clone fitness measured in DM25 in a three day competition")
+Fig4A <- plot.clone.fitness(DM0.results) + ggtitle("Clone fitness measured in DM0 in a three-day competition")
+Fig4B <- plot.clone.fitness(DM25.results) + ggtitle("Clone fitness measured in DM25 in a three-day competition")
 ## put these figures together to make Figure 4.
 Fig4 <- plot_grid(Fig4A,Fig4B,labels=c('A','B'),ncol=1)
 ggsave("../results/figures/Fig4.pdf", Fig4, height=8)

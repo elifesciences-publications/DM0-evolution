@@ -83,7 +83,7 @@ plot.pop.fitness <- function(results) {
     the.plot <- ggplot(results,aes(x=PopulationLabel,y=Fitness,color=Founder)) +
         theme_classic() +
         scale_color_manual(values = cbbPalette) +
-        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.1, size=1) +
+        geom_errorbar(aes(ymin=Left,ymax=Right),width=0.2, size=0.5) +
         geom_line() +
         geom_point(size=1.5) +
         theme(axis.text.x = element_text(size=10,angle=90,vjust=0.5)) +
@@ -142,12 +142,12 @@ easy.comparison.DM25.results <- DM25.results %>% select(Name,Fitness,Left,Right,
 Fig3A <- plot.pop.fitness(DM0.results) +
     ## remove problematic fitness estimates by setting bounds from 0 to 6.5.
     ylim(0,6.5) +
-    ggtitle("Population fitness measured in DM0 in a one day competition")
+    ggtitle("Population fitness measured in DM0 in a one-day competition")
 ## Make a figure of DM25 fitness for each population.
 Fig3B <- plot.pop.fitness(DM25.results) +
     ## set bounds from 0 to 2.
     ylim(0,2) +
-    ggtitle("Population fitness measured in DM25 in a one day competition")
+    ggtitle("Population fitness measured in DM25 in a one-day competition")
 ## put these figures together to make Figure 2.
 Fig3 <- plot_grid(Fig3A,Fig3B,labels=c('A','B'),ncol=1)
 ggsave("../results/figures/Fig3.pdf", Fig3, height=7)
