@@ -1,4 +1,8 @@
 # README by Rohan Maddamsetti (rmaddams _AT_ ODU _DOT_ edu)
+
+This code is associated with the paper from Blount, Maddamsetti et al., "Genomic and phenotypic evolution of
+_Escherichia coli_ in a novel citrate-only resource environment". eLife, 2020. http://doi.org/10.7554/eLife.55414
+
 ### Last edited on 10/12/2019.
 
 IMPORTANT CAVEAT: the code here was written and tested on a Mac running Mac OS 10.13, and genomes were resequenced using breseq 0.33.2 on a cluster running Linux. You may have to lightly edit source files to get them working on your machine.
